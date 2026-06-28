@@ -62,15 +62,15 @@ jobs:
 
 
 
-      - name: Update docker-compose.yml with new image version with yq
+      - name: Update docker-compose.yaml with new image version with yq
         run: |
-          yq -i '.services["${{ env.REPO_NAME }}"].image = "${{ secrets.DOCKERHUB_USER }}/${{ env.REPO_NAME }}:${{ env.VERSION }}"' docker-compose.yml
+          yq -i '.services["${{ env.REPO_NAME }}"].image = "${{ secrets.DOCKERHUB_USER }}/${{ env.REPO_NAME }}:${{ env.VERSION }}"' docker-compose.yaml
 
 
-      - name: Commit and push updated docker-compose.yml
+      - name: Commit and push updated docker-compose.yaml
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
-          commit_message: "Update docker-compose.yml with new image version ${{ env.VERSION }} [skip ci]"
+          commit_message: "Update docker-compose.yaml with new image version ${{ env.VERSION }} [skip ci]"
           branch: develop
           file_pattern: docker-compose.yaml
 
@@ -96,13 +96,13 @@ jobs:
           script: |
             mkdir -p /opt/${{ env.REPO_NAME }}
 
-      - name: Copy docker-compose.yml
+      - name: Copy docker-compose.yaml
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: docker-compose.yml
+          source: docker-compose.yaml
           target: /opt/${{ env.REPO_NAME }}
 
       - name: Deploy

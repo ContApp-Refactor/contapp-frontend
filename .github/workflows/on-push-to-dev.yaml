@@ -59,8 +59,7 @@ jobs:
         with:
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.REPO_NAME }}:${{ env.VERSION }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
 
 
       - name: Update docker-compose.yml with new image version with yq
@@ -73,7 +72,7 @@ jobs:
         with:
           commit_message: "Update docker-compose.yml with new image version ${{ env.VERSION }} [skip ci]"
           branch: develop
-          file_pattern: docker-compose.yml
+          file_pattern: docker-compose.yaml
 
 
       - name: Connect to Fortinet VPN

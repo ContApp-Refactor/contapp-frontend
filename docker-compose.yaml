@@ -1,6 +1,6 @@
 services:
   contapp-frontend:
-    image: jeserna/contapp-frontend:latest
+    image: jeserna/contapp-frontend:v0.0.1165
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.contapp-frontend.rule=PathPrefix(`/`)"

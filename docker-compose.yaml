@@ -10,6 +10,13 @@ services:
     restart: unless-stopped
     networks:
       - dokploy-network
+    healthcheck:
+        test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+        interval: 10s
+        timeout: 3s
+        retries: 3
+        start_period: 30s
+        start_interval: 10s
 
 networks:
   dokploy-network:

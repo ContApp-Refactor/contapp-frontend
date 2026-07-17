@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { ApiResponse } from '../../../../Core/Model/apiResponseModel';
-import { environment } from '../../../../../environments/environment.dev';
+import { environment } from '../../../../../environments/environment';
 import { Criteria } from '../Models/Criteria';
 import { ExportAuxiliaryBookRequest } from '../Models/Requests/ExportAuxiliaryBookRequest';
 import { GenerateAuxiliaryBookRequest } from '../Models/Requests/GenerateAuxiliaryBookRequest';

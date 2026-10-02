@@ -7,6 +7,7 @@ import {
   ReactiveFormsModule,
 } from '@angular/forms';
 import { Router } from '@angular/router';
+import { catchError, forkJoin, map, Observable, of } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DropdownModule } from 'primeng/dropdown';
@@ -15,7 +16,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { HeaderComponent } from '../../../Core/Components/Header/header.component';
-import { EnterpriseService } from '../services/enterprise.service';
+import { EnterpriseService, TaxLiability, TaxPayerType, EnterpriseType, DepartmentLookup, CountryLookup } from '../services/enterprise.service';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
 import {
   LocalStorageMethods,
@@ -49,43 +50,13 @@ export class EditEnterpriseComponent implements OnInit {
   enterpriseId: string = '';
   entData: EntData | null = null;
 
-  // Opciones simuladas (puedes reemplazarlas por endpoints reales)
-  enterpriseTypes = [
-    { id: 1, name: 'Privada' },
-    { id: 2, name: 'Oficial' },
-    { id: 3, name: 'Mixta' },
-  ];
-
-  taxLiabilities = [
-    { id: 1, name: 'Información exógena' },
-    { id: 3, name: 'Informante de beneficiarios finales' },
-  ];
-
-  taxPayerTypes = [
-    { id: 1, name: 'Responsable de IVA' },
-    { id: 2, name: 'No Responsable de IVA' },
-    { id: 3, name: 'Gran contribuyente' },
-  ];
-
-  countries = [
-    { id: 1, name: 'Colombia' },
-    { id: 2, name: 'Estados Unidos' },
-    { id: 3, name: 'España' },
-  ];
-
-  departments = [
-    { id: 1, name: 'Cauca' },
-    { id: 2, name: 'Valle del Cauca' },
-    { id: 3, name: 'Antioquia' },
-    { id: 4, name: 'Cundinamarca' },
-  ];
-
-  city = [
-    { id: 1, name: 'Popayán', departmentId: 1 },
-    { id: 2, name: 'Cali', departmentId: 2 },
-    { id: 3, name: 'Medellín', departmentId: 3 },
-    { id: 4, name: 'Bogotá', departmentId: 4 },
-  ];
+  // Catálogos cargados desde el backend
+  enterpriseTypes: EnterpriseType[] = [];
+  taxLiabilities: TaxLiability[] = [];
+  taxPayerTypes: TaxPayerType[] = [];
+  countries: CountryLookup[] = [];
+  departments: DepartmentLookup[] = [];
+  cities: Array<{ id: number; name: string }> = [];
 
   localStorageMethods: LocalStorageMethods = new LocalStorageMethods();
 
@@ -97,7 +68,44 @@ export class EditEnterpriseComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadEnterpriseData();
+    // Los catálogos se cargan ANTES que la empresa: patchLookupValues() busca
+    // por id dentro de estos arrays, así que si la respuesta de la empresa
+    // llegara primero quedarían vacíos y los dropdowns no se precargarían.
+    this.loadCatalogs().subscribe({
+      next: () => this.loadEnterpriseData(),
+      error: (err) => {
+        console.error('Error cargando catálogos:', err);
+        this.loadEnterpriseData();
+      },
+    });
+  }
+
+  /** Carga todos los catálogos necesarios para los dropdowns */
+  loadCatalogs(): Observable<void> {
+    /** Evita que un catálogo caído deje sin opciones a todos los demás */
+    const safe = <T>(source: Observable<T>): Observable<T> =>
+      source.pipe(
+        catchError((err) => {
+          console.error('Error cargando catálogos:', err);
+          return of([] as T);
+        })
+      );
+
+    return forkJoin({
+      enterpriseTypes: safe(this.enterpriseService.getEnterpriseTypes()),
+      taxLiabilities: safe(this.enterpriseService.getTaxLiabilities()),
+      taxPayerTypes: safe(this.enterpriseService.getTaxPayerTypes()),
+      countries: safe(this.enterpriseService.getCountries()),
+      departments: safe(this.enterpriseService.getDepartments()),
+    }).pipe(
+      map((catalogs) => {
+        this.enterpriseTypes = catalogs.enterpriseTypes;
+        this.taxLiabilities = catalogs.taxLiabilities;
+        this.taxPayerTypes = catalogs.taxPayerTypes;
+        this.countries = catalogs.countries;
+        this.departments = catalogs.departments;
+      })
+    );
   }
 
   /** ====================================
@@ -114,6 +122,7 @@ export class EditEnterpriseComponent implements OnInit {
           this.enterpriseData = data;
           this.personType = data.personType?.type?.toLowerCase() || 'juridica';
           this.initForm();
+          this.patchLookupValues();
           this.loading = false;
         },
         error: (error) => {
@@ -122,6 +131,65 @@ export class EditEnterpriseComponent implements OnInit {
         },
       });
     }
+  }
+
+  /** Rellena los controles de catálogo con los objetos completos desde las opciones cargadas */
+  private patchLookupValues(): void {
+    if (!this.enterpriseData) return;
+
+    const form = this.enterpriseForm;
+
+    // enterpriseType
+    if (this.enterpriseData.enterpriseType?.id) {
+      const match = this.enterpriseTypes.find((et) => et.id === this.enterpriseData!.enterpriseType!.id);
+      if (match) form.patchValue({ enterpriseType: match });
+    }
+
+    // taxPayerType
+    if (this.enterpriseData.taxPayerType?.id) {
+      const match = this.taxPayerTypes.find((tpt) => tpt.id === this.enterpriseData!.taxPayerType!.id);
+      if (match) form.patchValue({ taxPayerType: match });
+    }
+
+    // country
+    if (this.enterpriseData.location?.country?.id) {
+      const match = this.countries.find((c) => c.id === this.enterpriseData!.location!.country!.id);
+      if (match) form.patchValue({ country: match });
+    }
+
+    // department
+    if (this.enterpriseData.location?.department?.id) {
+      const match = this.departments.find((d) => d.id === this.enterpriseData!.location!.department!.id);
+      if (match) {
+        form.patchValue({ department: match });
+        // Si hay ciudad, cargar ciudades de ese departamento
+        if (this.enterpriseData.location?.city?.id) {
+          this.loadCitiesForDepartment(match.id.toString());
+        }
+      }
+    }
+
+    // taxLiabilities (multiselect - array of objects)
+    if (Array.isArray(this.enterpriseData.taxLiabilities) && this.enterpriseData.taxLiabilities.length > 0) {
+      const matched = this.enterpriseData.taxLiabilities
+        .map((tl: any) => this.taxLiabilities.find((opt) => opt.id === tl.id))
+        .filter((opt: any) => opt !== undefined);
+      if (matched.length > 0) form.patchValue({ taxLiabilities: matched });
+    }
+  }
+
+  /** Carga ciudades para un departamento y selecciona la que coincida */
+  private loadCitiesForDepartment(departmentId: string): void {
+    this.enterpriseService.getCities(departmentId).subscribe({
+      next: (resp) => {
+        this.cities = resp.cities || [];
+        if (this.enterpriseData?.location?.city?.id) {
+          const match = this.cities.find((c) => c.id === this.enterpriseData!.location!.city!.id);
+          if (match) this.enterpriseForm.patchValue({ city: match });
+        }
+      },
+      error: (err) => console.error('Error cargando ciudades:', err),
+    });
   }
 
   /** ====================================

@@ -98,7 +98,7 @@
                     Tipo de Empresa <span class="text-red-500">*</span>
                   </label>
                   <p-dropdown formControlName="enterpriseType" [options]="enterpriseTypes" optionLabel="name"
-                    placeholder="Seleccione una opción" class="w-full">
+                    dataKey="id" placeholder="Seleccione una opción" class="w-full">
                   </p-dropdown>
                 </div>
 
@@ -108,7 +108,7 @@
                     Responsabilidades tributarias <span class="text-red-500">*</span>
                   </label>
                   <p-multiselect formControlName="taxLiabilities" [options]="taxLiabilities" optionLabel="name"
-                    placeholder="Seleccione una opción(es)" class="w-full">
+                    dataKey="id" placeholder="Seleccione una opción(es)" class="w-full">
                   </p-multiselect>
                 </div>
 
@@ -151,7 +151,7 @@
                     Tipo de Contribuyente <span class="text-red-500">*</span>
                   </label>
                   <p-dropdown formControlName="taxPayerType" [options]="taxPayerTypes" optionLabel="name"
-                    placeholder="Seleccione una opción" class="w-full">
+                    dataKey="id" placeholder="Seleccione una opción" class="w-full">
                   </p-dropdown>
                 </div>
 
@@ -202,9 +202,9 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 País
               </label>
-              <p-dropdown formControlName="country" [options]="countries" optionLabel="name"
-                placeholder="Seleccione un país" class="w-full">
-              </p-dropdown>
+<p-dropdown formControlName="country" [options]="countries" optionLabel="name"
+                  dataKey="id" placeholder="Seleccione un país" class="w-full">
+                </p-dropdown>
             </div>
 
             <!-- Departamento -->
@@ -212,9 +212,9 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 Departamento <span class="text-red-500">*</span>
               </label>
-              <p-dropdown formControlName="department" [options]="departments" optionLabel="name"
-                placeholder="Seleccione una opción" class="w-full">
-              </p-dropdown>
+<p-dropdown formControlName="department" [options]="departments" optionLabel="name"
+                  dataKey="id" placeholder="Seleccione una opción" class="w-full">
+                </p-dropdown>
             </div>
 
             <!-- Email -->

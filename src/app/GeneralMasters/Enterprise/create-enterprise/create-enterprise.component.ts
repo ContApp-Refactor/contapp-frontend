@@ -15,7 +15,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { HeaderComponent } from '../../../Core/Components/Header/header.component';
-import { EnterpriseService } from '../services/enterprise.service';
+import { EnterpriseService, TaxLiability, TaxPayerType, EnterpriseType, DepartmentLookup, CountryLookup } from '../services/enterprise.service';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
 import { Enterprise } from '../models/enterprise';
 import { EnterpriseList } from '../models/EnterpriseList';
@@ -46,45 +46,13 @@ export class CreateEnterpriseComponent implements OnInit {
   selectedFile: File | null = null;
   loading: boolean = false;
 
-  // Opciones para los dropdowns
-  enterpriseTypes = [
-    { id: 1, name: 'Privada' },
-    { id: 2, name: 'Oficial' },
-    { id: 3, name: 'Mixta' },
-  ];
-
-  taxLiabilities = [
-    { id: 1, name: 'IVA' },
-    { id: 2, name: 'ICA' },
-    { id: 3, name: 'Retención en la fuente' },
-    { id: 4, name: 'Retención de IVA' },
-  ];
-
-  taxPayerTypes = [
-    { id: 1, name: 'Responsable de IVA' },
-    { id: 2, name: 'No responsable de IVA' },
-    { id: 3, name: 'Gran contribuyente' },
-  ];
-
-  countries = [
-    { id: 1, name: 'Colombia' },
-    { id: 2, name: 'Estados Unidos' },
-    { id: 3, name: 'España' },
-  ];
-
-  departments = [
-    { id: 1, name: 'Cauca' },
-    { id: 2, name: 'Valle del Cauca' },
-    { id: 3, name: 'Antioquia' },
-    { id: 4, name: 'Cundinamarca' },
-  ];
-
-  city = [
-    { id: 1, name: 'Popayán', departmentId: 1 },
-    { id: 2, name: 'Cali', departmentId: 2 },
-    { id: 3, name: 'Medellín', departmentId: 3 },
-    { id: 4, name: 'Bogotá', departmentId: 4 },
-  ];
+  // Catálogos cargados desde el backend
+  enterpriseTypes: EnterpriseType[] = [];
+  taxLiabilities: TaxLiability[] = [];
+  taxPayerTypes: TaxPayerType[] = [];
+  countries: CountryLookup[] = [];
+  departments: DepartmentLookup[] = [];
+  cities: Array<{ id: number; name: string }> = [];
 
   inventoryMethods = [
     { value: 'PEPS', label: 'PEPS (Primero en Entrar, Primero en Salir)' },
@@ -103,8 +71,49 @@ export class CreateEnterpriseComponent implements OnInit {
 
   // Inicialización del componente
   ngOnInit(): void {
+    this.loadCatalogs();
     this.initForm();
     this.loadSubjects();
+  }
+
+  /** Carga todos los catálogos necesarios para los dropdowns */
+  loadCatalogs(): void {
+    this.enterpriseService.getEnterpriseTypes().subscribe({
+      next: (data) => (this.enterpriseTypes = data),
+      error: (err) => console.error('Error cargando tipos de empresa:', err),
+    });
+
+    this.enterpriseService.getTaxLiabilities().subscribe({
+      next: (data) => (this.taxLiabilities = data),
+      error: (err) => console.error('Error cargando responsabilidades tributarias:', err),
+    });
+
+    this.enterpriseService.getTaxPayerTypes().subscribe({
+      next: (data) => (this.taxPayerTypes = data),
+      error: (err) => console.error('Error cargando tipos de contribuyente:', err),
+    });
+
+    this.enterpriseService.getCountries().subscribe({
+      next: (data) => (this.countries = data),
+      error: (err) => console.error('Error cargando países:', err),
+    });
+
+    this.enterpriseService.getDepartments().subscribe({
+      next: (data) => (this.departments = data),
+      error: (err) => console.error('Error cargando departamentos:', err),
+    });
+  }
+
+  /** Maneja cambio de departamento: carga ciudades y limpia la selección actual */
+  onDepartmentChange(department: DepartmentLookup | null): void {
+    this.cities = [];
+    this.enterpriseForm.patchValue({ city: null });
+    if (department?.id) {
+      this.enterpriseService.getCities(department.id.toString()).subscribe({
+        next: (resp) => (this.cities = resp.cities || []),
+        error: (err) => console.error('Error cargando ciudades:', err),
+      });
+    }
   }
 
   // Inicialización del formulario reactivo
@@ -124,7 +133,7 @@ export class CreateEnterpriseComponent implements OnInit {
       country: [null],
       department: [null, Validators.required],
       city: [null, Validators.required],
-      // subject: [null, Validators.required],
+      subject: [null, Validators.required],
       semester: [null, Validators.required],
       address: ['', [Validators.required, Validators.minLength(10)]],
       phone: ['', [Validators.required, Validators.pattern(/^\d{7,10}$/)]],

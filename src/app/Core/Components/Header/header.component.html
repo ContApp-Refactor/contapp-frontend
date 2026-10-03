@@ -3,6 +3,20 @@
   <div class="bg-white flex-1 flex items-center justify-between px-6 py-4">
     <!-- Información del aplicativo y empresa -->
     <div class="ml-4 sm:ml-8 md:ml-16 lg:ml-20 xl:ml-40 flex items-center gap-3">
+      <!-- Toggle del menú lateral: vive en el header (sticky), nunca flotando
+           sobre el breadcrumb. Sólo en móvil/tablet, donde no hay riel visible. -->
+      <button
+        *ngIf="showMenuToggle"
+        type="button"
+        class="menu-toggle shrink-0"
+        (click)="menuToggle.emit()"
+        [attr.aria-label]="menuOpen ? 'Cerrar menú' : 'Abrir menú'"
+        [attr.aria-expanded]="menuOpen"
+        title="Menú"
+      >
+        <span class="material-symbols-outlined">{{ menuOpen ? 'close' : 'dehaze' }}</span>
+      </button>
+
       <div class="flex flex-col justify-center">
         <h1 class="text-lg sm:text-xl md:text-2xl font-bold leading-tight" style="color: var(--color-primary)">
           {{ applicationName }}

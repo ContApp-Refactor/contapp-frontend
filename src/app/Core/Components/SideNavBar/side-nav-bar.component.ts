@@ -44,7 +44,16 @@ import { AuthService } from '../../auth/services/auth.service';
 export class SideNavBarComponent implements OnInit {
   @Output() onToggleSideNav: EventEmitter<SideNavToggle> = new EventEmitter();
   screenWidth = 0;
-  collapsed = true;
+  /**
+   * ATENCIÓN: el nombre es histórico y engaña. `collapsed = true` aplica la
+   * clase `.sidenav-collapsed`, que en CSS mide 16.5625rem (MENÚ ABIERTO);
+   * `collapsed = false` deja el riel de 5rem. O sea: true = abierto.
+   */
+  collapsed = false;
+  /** true mientras el puntero está sobre el menú (sólo se usa en desktop). */
+  hovered = false;
+  /** true cuando el click en el logo de la U dejó el menú fijo abierto. */
+  pinned = false;
   navData = navbarData;
   multiple: boolean = false;
   showOptions: boolean = false;
@@ -52,20 +61,55 @@ export class SideNavBarComponent implements OnInit {
   @HostListener('window:resize', ['$event'])
   onResize(event: any): void {
     this.screenWidth = window.innerWidth;
-    if (this.screenWidth <= 1024) {
-      this.collapsed = false;
-      this.onToggleSideNav.emit({
-        collapsed: this.collapsed,
-        screenWidth: this.screenWidth,
-      });
-    }
+    // Al cruzar breakpoints se pierden el hover y el "fijado" por click:
+    // el menú vuelve a su estado base (riel en desktop, cerrado en móvil).
+    this.hovered = false;
+    this.pinned = false;
+    this.collapsed = false;
+    this.emitState();
   }
 
   constructor(public router: Router, private auth: AuthService) {}
 
   ngOnInit(): void {
     this.screenWidth = window.innerWidth;
+    // Móvil/tablet: entra abierto cuando se toca la hamburguesa.
+    // Desktop: arranca como riel angosto; el hover es quien lo despliega.
+    // No se emite nada acá: MainTemplate arranca con `collapsed = false`,
+    // que es exactamente el mismo estado, así no se pisan en el primer CD.
+    this.collapsed = this.screenWidth <= 1024;
     this.navData = this.filterNavByRoles(navbarData);
+  }
+
+  private get isDesktop(): boolean {
+    return this.screenWidth > 1024;
+  }
+
+  /**
+   * El estado del menú sube a MainTemplate para que el shell (header +
+   * contenido) se corra el ancho del menú y no quede debajo.
+   */
+  private emitState(): void {
+    this.onToggleSideNav.emit({
+      collapsed: this.collapsed,
+      screenWidth: this.screenWidth,
+    });
+  }
+
+  /** Desktop: al entrar el puntero se despliega el menú. */
+  onSidenavEnter(): void {
+    this.hovered = true;
+    if (!this.isDesktop) return;
+    this.collapsed = this.hovered || this.pinned;
+    this.emitState();
+  }
+
+  /** Desktop: al salir se pliega al riel, salvo que esté fijado por click. */
+  onSidenavLeave(): void {
+    this.hovered = false;
+    if (!this.isDesktop) return;
+    this.collapsed = this.pinned;
+    this.emitState();
   }
 
   private filterNavByRoles(data: INavbarData[]): INavbarData[] {
@@ -93,19 +137,19 @@ export class SideNavBarComponent implements OnInit {
 
   toggleCollapse(): void {
     this.collapsed = !this.collapsed;
-    this.onToggleSideNav.emit({
-      collapsed: this.collapsed,
-      screenWidth: this.screenWidth,
-    });
+    if (this.isDesktop) {
+      // En desktop el hover manda: el click sólo fija el menú abierto (así
+      // sobrevive a que el puntero se vaya) o lo suelta para volver al riel.
+      this.pinned = this.collapsed;
+    }
     this.showOptions = false;
+    this.emitState();
   }
 
   closeSidenav(): void {
     this.collapsed = false;
-    this.onToggleSideNav.emit({
-      collapsed: this.collapsed,
-      screenWidth: this.screenWidth,
-    });
+    this.pinned = false;
+    this.emitState();
   }
 
   handleClick(item: INavbarData): void {

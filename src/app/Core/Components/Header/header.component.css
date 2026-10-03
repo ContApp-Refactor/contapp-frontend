@@ -1,10 +1,43 @@
 header {
   position: sticky;
   top: 0;
-  z-index: 1000; /* Menor que el sidebar */
+  z-index: 1000; /* Por encima del sidebar (999): el header nunca lo tapa */
   border-bottom: 1px solid #e5e7eb;
   height: 90px;
   width: 100%;
+}
+
+/* Botón hamburguesa del menú lateral, integrado en el header */
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+  line-height: 1;
+  transition: opacity 0.2s ease;
+}
+
+.menu-toggle:hover {
+  opacity: 0.75;
+}
+
+.menu-toggle .material-symbols-outlined {
+  font-size: 24px;
+}
+
+/* En desktop NO hay hamburguesa: el menú vive en el riel y lo despliega el
+   hover. No sirve `lg:hidden` de Tailwind acá — las utilidades caen en
+   @layer utilities y ésta es una regla de componente sin capa, que gana por
+   cascade layer (no por especificidad) y dejaría el botón pintado. */
+@media (min-width: 1024px) {
+  .menu-toggle {
+    display: none;
+  }
 }
 
 .logo-container {
@@ -66,33 +99,13 @@ header {
     display: flex !important;
   }
 
-  .sidenav {
-    position: fixed;
-    top: 90px; /* Debajo del header */
-    left: 0;
-    height: calc(100vh - 90px);
-    z-index: 999; /* Menor que el header */
-    transform: translateX(-100%); /* Oculto por defecto */
-    transition: transform 0.3s ease;
-  }
-
-  .sidenav.sidebar-visible {
-    transform: translateX(0); /* Mostrar cuando tenga la clase */
-  }
-
-  header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    height: 90px;
-  }
-
-  .main-content {
-    margin-top: 90px; /* Espacio para el header fijo */
-    margin-left: 0 !important; /* Sin margen izquierdo en tablet/mobile */
-  }
+  /* OJO: aquí antes había `header { position: fixed; left:0; right:0 }`.
+     Con fixed el containing block pasa a ser el viewport, así que el
+     margin-left del shell (que recorta el header por el ancho del menú) no
+     le llegaba y el header seguía tapando el riel a 1024-1439px. Se deja
+     `position: sticky` de la regla base: vive en el flujo, recibe el margen
+     del shell y sigue quedando pegado arriba al scrollear. El espacio que
+     antes compensaba `main.mt-60` ya lo ocupa el header en el flujo. */
 }
 
 @media (max-width: 768px) {

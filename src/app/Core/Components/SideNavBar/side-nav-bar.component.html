@@ -1,6 +1,8 @@
 <div
   class="sidenav bg-[var(--color-primary)] text-sm"
   [ngClass]="collapsed ? 'sidenav-collapsed' : ''"
+  (mouseenter)="onSidenavEnter()"
+  (mouseleave)="onSidenavLeave()"
 >
   <div
     class="logo-container px-6 py-4 items-center"

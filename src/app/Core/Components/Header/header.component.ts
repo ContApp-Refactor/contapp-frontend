@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core'; // agrega OnInit
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core'; // agrega OnInit
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { MenuModule } from 'primeng/menu';
@@ -23,6 +23,19 @@ import {
   styleUrls: ['./header.component.css'],
 })
 export class HeaderComponent implements OnInit {
+  /**
+   * Muestra el botón que abre/cierra el menú lateral.
+   * Sólo lo enciende el layout principal (MainTemplate): las páginas que
+   * renderizan <app-header> por su cuenta no tienen menú lateral.
+   */
+  @Input() showMenuToggle = false;
+
+  /** Estado actual del menú lateral, para alternar el ícono del botón. */
+  @Input() menuOpen = false;
+
+  /** Emite cuando se hace click en el botón del menú lateral. */
+  @Output() menuToggle = new EventEmitter<void>();
+
   applicationName = 'ContApp';
   companyName = 'Nombre de la empresa';
   userName = 'Nombre completo del usuario';

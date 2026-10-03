@@ -21,7 +21,10 @@
 
   <!-- Formulario principal -->
   <div class="bg-white rounded-xl shadow-lg p-8">
-    <form [formGroup]="enterpriseForm" (ngSubmit)="onSubmit()">
+    <!-- enterpriseForm sólo existe después de la respuesta de la empresa: sin este
+         guard, cada formControlName se registra contra un FormGroup undefined y
+         Angular revienta con "_rawValidators"/"reading 'get'" en el primer render. -->
+    <form *ngIf="enterpriseForm; else formLoading" [formGroup]="enterpriseForm" (ngSubmit)="onSubmit()">
 
       <!-- Sección: Información básica -->
       <div class="mb-8">
@@ -268,6 +271,11 @@
         </p-button>
       </div>
     </form>
+    <ng-template #formLoading>
+      <div class="py-12 text-center text-sm text-neutral-50">
+        Cargando información de la empresa…
+      </div>
+    </ng-template>
   </div>
 </div>
 

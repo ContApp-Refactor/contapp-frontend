@@ -204,7 +204,7 @@ export class EditEnterpriseComponent implements OnInit {
       ownerName: [this.enterpriseData?.personType?.name || ''],
       lastNames: [this.enterpriseData?.personType?.surname || ''],
       nit: [this.enterpriseData?.nit || '', Validators.required],
-      dv: [this.enterpriseData?.dv || ''],
+      dv: [this.enterpriseData?.dv || this.enterpriseData?.DV || ''],
       taxPayerType: [this.enterpriseData?.taxPayerType || null],
       mainActivity: [this.enterpriseData?.mainActivity || ''],
       secondaryActivity: [this.enterpriseData?.secondaryActivity || ''],

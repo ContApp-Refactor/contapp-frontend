@@ -4,11 +4,12 @@ import { Toast } from 'primeng/toast';
 import { Subscription } from 'rxjs';
 import { AuthService } from './Core/auth/services/auth.service';
 import { NotificationStore } from './Core/notifications/state/notification.store';
+import { LoadingOverlayComponent } from './Core/Components/LoadingOverlay/loading-overlay.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, Toast],
+  imports: [RouterOutlet, Toast, LoadingOverlayComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })

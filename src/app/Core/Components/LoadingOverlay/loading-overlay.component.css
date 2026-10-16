@@ -1,0 +1,103 @@
+/* Overlay global de carga — cubre toda la UI mientras hay peticiones en vuelo.
+   z-index 10000: por encima de diálogos y overlays de PrimeNG (zanja ~1000). */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.loading-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 2rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.loading-overlay__logo-wrap {
+  position: relative;
+  width: 6rem;
+  height: 6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-overlay__logo {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: contain;
+  animation: loading-logo-pulse 1.4s ease-in-out infinite;
+}
+
+/* Anillo giratorio alrededor del logo */
+.loading-overlay__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 3px solid rgba(12, 63, 129, 0.15);
+  border-top-color: #0c3f81;
+  animation: loading-ring-spin 1s linear infinite;
+}
+
+.loading-overlay__text {
+  margin: 0;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.loading-overlay__dots span {
+  animation: loading-dot-blink 1.2s infinite;
+}
+.loading-overlay__dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.loading-overlay__dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes loading-logo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes loading-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-dot-blink {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-overlay__logo,
+  .loading-overlay__ring,
+  .loading-overlay__dots span {
+    animation: none;
+  }
+}

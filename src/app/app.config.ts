@@ -9,6 +9,7 @@ import { AuthService } from './Core/auth/services/auth.service';
 import { initializeAuthFactory } from './Core/auth/factory/auth.factory';
 import { provideHttpClient } from '@angular/common/http';
 import { authInterceptor } from './Core/Interceptors/auth.interceptor';
+import { loadingInterceptor } from './Core/Interceptors/loading.interceptor';
 import { withInterceptors } from '@angular/common/http';
 import { MessageService } from 'primeng/api';
 
@@ -32,7 +33,7 @@ export const appConfig: ApplicationConfig = {
       deps: [AuthService],
       multi: true,
     },
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, loadingInterceptor])),
     MessageService,
   ],
 };

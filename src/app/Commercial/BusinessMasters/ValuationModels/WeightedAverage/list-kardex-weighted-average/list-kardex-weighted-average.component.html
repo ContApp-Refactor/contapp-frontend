@@ -9,7 +9,7 @@
       <i class="pi pi-question-circle text-xl"></i>
     </span>
     <p-popover #op>
-      <div class="p-4" style="max-width: 400px;">
+      <div class="p-4 w-full sm:max-w-[400px]">
         <h3 class="font-bold text-lg mb-3 text-primary">Inventario con Promedio Ponderado</h3>
         <p class="text-sm mb-3 text-primary">
           El método de promedio ponderado calcula el costo promedio de las unidades disponibles
@@ -33,7 +33,7 @@
   <!-- Fila 1: Producto + Fechas -->
   <div class="flex flex-wrap gap-4 mt-16">
     <!-- Producto -->
-    <div class="flex-1 min-w-200">
+    <div class="flex-1 min-w-[200px]">
       <label for="producto" class="block text-primary  text-sm mb-1">Producto</label>
       <p-autocomplete
         [(ngModel)]="selectedProduct"
@@ -51,7 +51,7 @@
     </div>
 
     <!-- Fecha de inicio -->
-    <div class="flex-1 min-w-200">
+    <div class="flex-1 min-w-[200px]">
       <label for="fechaInicio" class="block text-primary text-sm mb-1">Fecha de inicio</label>
       <p-datePicker
         [(ngModel)]="startDate"
@@ -67,7 +67,7 @@
     </div>
 
     <!-- Fecha de finalización -->
-    <div class="flex-1 min-w-200">
+    <div class="flex-1 min-w-[200px]">
       <label for="fechaFin" class="block text-primary text-sm mb-1 ">Fecha de finalización</label>
       <p-datePicker
         [(ngModel)]="endDate"
@@ -99,7 +99,7 @@
     </div>
 
     <!-- Botones -->
-    <div class="min-w-220 flex justify-end gap-4 mt-16">
+    <div class="min-w-[220px] flex justify-end gap-4 mt-16">
       <!-- Botón Exportar -->
       <p-button
         label="Exportar Excel"

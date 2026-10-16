@@ -19,6 +19,12 @@ export interface EnterpriseDetails{
     personType: any;
     location: any;
     dv: string;
+    /**
+     * El DTO del backend (`EnterpriseByIdResponse.DV`) se serializa como `DV`
+     * en mayúsculas (Jackson no descapitaliza iniciales dobles). Se acepta aquí
+     * para poder leerlo como `dv`, que es como lo usan todos los componentes.
+     */
+    DV?: string;
     mainActivity?:number;
     secondaryActivity?: number;
 

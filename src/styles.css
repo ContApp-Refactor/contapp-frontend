@@ -607,6 +607,14 @@ body {
   color: var(--color-primary-100) !important;
 }
 
+/* Los toasts deben verse POR ENCIMA del overlay global de carga (z-index
+   10000): si una operación concurrente falla mientras otra sigue en vuelo,
+   el error tiene que ser visible en lugar de quedar tapado por "Cargando".
+   PrimeNG pone el z-index del toast en línea (≈1100), por eso !important. */
+.p-toast {
+  z-index: 10001 !important;
+}
+
 /* ================================
    TOAST DE ÉXITO
    ================================ */

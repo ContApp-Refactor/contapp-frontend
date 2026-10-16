@@ -2,7 +2,7 @@
 <p-dialog [header]="'Recibos aplicados a la Factura #' + invoiceId" 
           [(visible)]="isDialogVisible" 
           [modal]="true" 
-          [style]="{width: '50vw'}" 
+          [style]="{ width: '90vw', maxWidth: '720px' }" 
           (onHide)="close()">
 
     <div class="p-4">
@@ -13,7 +13,7 @@
 
         <!-- Tabla de Recibos -->
         <div *ngIf="!isLoading">
-            <p-table [value]="receipts" styleClass="p-datatable-sm">
+            <p-table [value]="receipts" styleClass="p-datatable-sm" responsiveLayout="scroll">
                 <ng-template pTemplate="header">
                     <tr>
                         <th>Código del Recibo</th>

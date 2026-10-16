@@ -125,7 +125,7 @@ export class AuditSystemComponent {
       filters.operationType = this.filtro.operationType;
     }
 
-    this.operationService.getOperations(filters).subscribe({
+    this.operationService.getOperations(filters, 'system').subscribe({
       next: (response: PageResponse<OperationAudit>) => {
         this.operations = response.data;
         this.totalRecords = response.totalElements;

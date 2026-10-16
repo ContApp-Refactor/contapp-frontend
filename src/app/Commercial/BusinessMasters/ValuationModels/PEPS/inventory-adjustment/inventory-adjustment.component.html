@@ -78,7 +78,7 @@
                     <span class="font-medium text-gray-700">Factura #{{ lot.factCode || lot.idKardex }}</span>
                     <span class="text-xs text-gray-500 ml-2">({{ lot.date | date:'dd/MM/yyyy' }})</span>
                   </div>
-                  <div class="flex gap-4 items-center">
+                  <div class="flex flex-wrap gap-4 items-center">
                     <span class="text-gray-700">
                       <span class="font-medium">{{ lot.availableQuantity}}</span> unid.
                     </span>
@@ -274,7 +274,7 @@
                         }
                         <span class="text-xs text-gray-500 ml-2">{{ lot.date | date:'dd/MM/yyyy' }}</span>
                       </div>
-                      <div class="flex gap-3 items-center text-xs">
+                      <div class="flex flex-wrap gap-3 items-center text-xs">
                         <span class="text-gray-700">
                           <span class="font-medium">{{ lot.quantity }}</span> unid.
                         </span>
@@ -332,7 +332,7 @@
                           <span class="font-medium text-gray-700">Lote #{{ $index + 1 }}</span>
                           <span class="text-xs text-gray-500 ml-2">{{ lot.date | date:'dd/MM/yyyy' }}</span>
                         </div>
-                        <div class="flex gap-3 items-center text-xs">
+                        <div class="flex flex-wrap gap-3 items-center text-xs">
                           <span class="text-gray-700">
                             <span class="font-medium">{{ lot.quantity }}</span> unid.
                           </span>

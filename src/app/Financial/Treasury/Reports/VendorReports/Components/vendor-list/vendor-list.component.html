@@ -104,6 +104,7 @@
     <!-- Vendors Table -->
     <p-card header="Lista de Proveedores" class="mb-4">
         <p-table
+            responsiveLayout="scroll"
             [value]="filteredVendors"
             [loading]="loading"
             [paginator]="true"

@@ -51,7 +51,7 @@
     </form>
 
     <!-- Tabla de resultados -->
-    <p-table [value]="filteredWriteOffs" [paginator]="true" [rows]="10" [rowsPerPageOptions]="[10, 25, 50]" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
+    <p-table [value]="filteredWriteOffs" [paginator]="true" [rows]="10" [rowsPerPageOptions]="[10, 25, 50]" [tableStyle]="{'min-width': '50rem'}" responsiveLayout="scroll" styleClass="p-datatable-striped">
         <ng-template pTemplate="header">
             <tr>
                 <th>Código Castigo</th>

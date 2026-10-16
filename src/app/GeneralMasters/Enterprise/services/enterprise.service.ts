@@ -7,6 +7,39 @@ import { EnterpriseList } from '../models/EnterpriseList';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
 
+export interface TaxLiability {
+  id: number;
+  name: string;
+  taxLiabilitys?: Array<{ id: number; name: string }>;
+}
+
+export interface TaxPayerType {
+  id: number;
+  name: string;
+  taxPayerTypes?: Array<{ id: number; name: string }>;
+}
+
+export interface EnterpriseType {
+  id: number;
+  name: string;
+}
+
+export interface DepartmentLookup {
+  id: number;
+  name: string;
+}
+
+export interface CountryLookup {
+  id: number;
+  name: string;
+}
+
+export interface CityResponse {
+  id: number;
+  name: string;
+  cities: Array<{ id: number; name: string }>;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -92,6 +125,38 @@ export class EnterpriseService {
 
   deleteEnterpriseHard(id: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}enterprise/hard/${id}`);
+  }
+
+  /** ==================== LOOKUP CATALOGS ==================== */
+
+  /** Obtiene las responsabilidades tributarias */
+  getTaxLiabilities(): Observable<TaxLiability[]> {
+    return this.http.get<TaxLiability[]>(`${this.apiUrl}taxliabilities`);
+  }
+
+  /** Obtiene los tipos de contribuyente */
+  getTaxPayerTypes(): Observable<TaxPayerType[]> {
+    return this.http.get<TaxPayerType[]>(`${this.apiUrl}taxpayertype`);
+  }
+
+  /** Obtiene los departamentos */
+  getDepartments(): Observable<DepartmentLookup[]> {
+    return this.http.get<DepartmentLookup[]>(`${this.apiUrl}address/departments`);
+  }
+
+  /** Obtiene las ciudades de un departamento */
+  getCities(departmentId: string): Observable<CityResponse> {
+    return this.http.get<CityResponse>(`${this.apiUrl}address/cities/${departmentId}`);
+  }
+
+  /** Obtiene los países */
+  getCountries(): Observable<CountryLookup[]> {
+    return this.http.get<CountryLookup[]>(`${this.apiUrl}address/countries`);
+  }
+
+  /** Obtiene los tipos de empresa */
+  getEnterpriseTypes(): Observable<EnterpriseType[]> {
+    return this.http.get<EnterpriseType[]>(`${this.apiUrl}enterprisetypes`);
   }
 
   /** ==================== UTILIDADES ==================== */

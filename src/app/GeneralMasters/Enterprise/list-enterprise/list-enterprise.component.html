@@ -3,7 +3,7 @@
   <app-header></app-header>
 </div>
 
-<div class="m-120 max-w-7xl mx-auto">
+<div class="m-120 max-w-7xl mx-auto px-16 sm:px-0">
   <!-- Título -->
   <h1 class="font-family-titillium font-bold text-3xl/41 text-primary border-b-4 border-secondary inline-block pb-1">
     Listado de empresas
@@ -32,7 +32,7 @@
     </div>
 
     <!-- Botones de acción -->
-    <div class="flex gap-3">
+    <div class="flex flex-wrap gap-3">
       <p-button label="Ver Materias" icon="pi pi-book" (click)="onListSubjects()"
         class="bg-green-600 text-white rounded-full">
       </p-button>
@@ -120,7 +120,7 @@
 
 <!-- Modal PDF RUT -->
 <p-dialog header="Crear una Empresa apartir del PDF del RUT" [(visible)]="showPdfModal" [modal]="true" [closable]="true"
-  [draggable]="false" [resizable]="false" styleClass="w-96" [style]="{width: '500px'}">
+  [draggable]="false" [resizable]="false" styleClass="w-96" [style]="{ width: '90vw', maxWidth: '500px' }">
 
   <div class="p-6">
     <p class="text-gray-600 mb-6 text-sm leading-relaxed">
@@ -208,7 +208,7 @@
 
 <!-- Modal Compartir Empresa -->
 <p-dialog header="Compartir Empresa" [(visible)]="showShareModal" [modal]="true" [closable]="false" [draggable]="false"
-  [resizable]="false" styleClass="w-96" [style]="{ width: '500px' }">
+  [resizable]="false" styleClass="w-96" [style]="{ width: '90vw', maxWidth: '500px' }">
   <div class="p-6">
     <p class="text-gray-600 mb-4 text-sm">
       Ingresa los correos electrónicos de los estudiantes con los que deseas

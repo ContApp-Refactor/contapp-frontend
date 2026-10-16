@@ -131,6 +131,7 @@
     <!-- =============================================================== -->
     <!-- 3. Tabla de Datos Dinámica (Sin cambios en su lógica)           -->
     <!-- =============================================================== -->
+    <div class="overflow-x-auto">
     <table class="w-full border-collapse">
       <thead [ngStyle]="{ 'background-color': styles.color }">
         <tr *ngFor="let headerRow of headerConfig; let i = index">
@@ -186,5 +187,6 @@
         </tr>
       </tfoot>
     </table>
+    </div>
   </div>
 </div>

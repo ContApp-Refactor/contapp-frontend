@@ -162,6 +162,7 @@
     <!-- Bills Table -->
     <p-card header="Programación de Pagos" class="mb-4">
         <p-table
+            responsiveLayout="scroll"
             [value]="filteredBills"
             [loading]="loading"
             [paginator]="true"

@@ -85,7 +85,7 @@
         <div class="p-card p-component shadow-md rounded-lg p-6 mb-8">
             <h2 class="text-xl font-semibold text-[var(--color-primary)] mb-6">Facturas Pendientes del Cliente</h2>
 
-            <p-table [value]="clientInvoices" dataKey="id" [(selection)]="selectedInvoices"
+            <p-table [value]="clientInvoices" dataKey="id" [(selection)]="selectedInvoices" responsiveLayout="scroll"
                 (selectionChange)="calculateSummary()" [paginator]="true" [rows]="5" [rowsPerPageOptions]="[5, 10, 20]"
                 [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
                 <ng-template pTemplate="header">

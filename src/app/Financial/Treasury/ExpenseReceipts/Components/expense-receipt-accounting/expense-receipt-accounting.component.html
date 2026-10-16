@@ -33,7 +33,7 @@
         <h2 class="text-xl font-semibold text-[var(--color-primary)] mb-4">Asientos Contables</h2>
 
         @if (accountingEntries && accountingEntries.length > 0) {
-            <p-table [value]="accountingEntries" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
+            <p-table responsiveLayout="scroll" [value]="accountingEntries" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
                 <ng-template pTemplate="header">
                     <tr>
                         <th>Código de Cuenta</th>

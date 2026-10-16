@@ -7,6 +7,7 @@ body.register-page {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 /* Encabezado */
@@ -18,6 +19,14 @@ body.register-page {
     gap: 14px;
     align-items: center;
     z-index: 10;
+}
+
+/* Pantallas angostas: el encabezado absoluto no debe pisar el formulario */
+@media (max-width: 767px) {
+    .register-header {
+        top: 16px;
+        left: 16px;
+    }
 }
 
 .logo {
@@ -61,6 +70,13 @@ body.register-page {
     width: 100%;
     max-width: 448px;
     padding: 32px;
+}
+
+/* Móvil: menos padding horizontal para que el formulario quepa a 360px */
+@media (max-width: 480px) {
+    .register-form {
+        padding: 20px;
+    }
 }
 
 .register-title {
@@ -229,6 +245,26 @@ body.register-page {
   align-items: flex-start;
   width: 100%;
   padding: 0 0 0 40px;
+}
+
+/* Móvil: el pie con min-width fijo se desborda a 360px; se apila */
+@media (max-width: 767px) {
+    .footer-grid {
+        flex-direction: column;
+        gap: 24px;
+        padding: 0 16px;
+    }
+
+    .footer-section-data {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .footer-divider {
+        width: 100%;
+        height: 2px;
+        margin: 0;
+    }
 }
 
 @media (min-width: 768px) {

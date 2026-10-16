@@ -21,11 +21,13 @@ body.login-page {
     z-index: 10;
 }
 
-/* Pantallas angostas: el encabezado absoluto no debe pisar el formulario */
+/* Pantallas angostas: el formulario ocupa el 100% del ancho, así que el
+   encabezado absoluto cae encima del título. Sale al flujo normal (el body ya
+   es flex-column) y así no se pisa a ninguna altura de viewport. */
 @media (max-width: 767px) {
     .login-header {
-        top: 16px;
-        left: 16px;
+        position: static;
+        padding: 16px 16px 0;
     }
 }
 

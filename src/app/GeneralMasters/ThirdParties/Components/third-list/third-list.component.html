@@ -17,7 +17,7 @@
             <i class="pi pi-question-circle text-3xl" style="font-size: 1.25rem !important;"></i>
           </span>
           <p-popover #op>
-            <div class="p-4" style="max-width: 400px;">
+            <div class="p-4 w-full sm:max-w-[400px]">
               <h3 class="font-bold text-lg mb-3 text-primary">Gestión de Terceros</h3>
               <p class="text-sm mb-3 text-primary">
                 Administra la información completa de clientes, proveedores y otros terceros con los que tu empresa 
@@ -248,7 +248,7 @@
   [draggable]="false"
   [resizable]="false"
   (onHide)="onProgressDialogClose()"
-  [style]="{ width: '35rem', 'font-family': 'var(--font-family-sans)' }">
+  [style]="{ width: '90vw', maxWidth: '35rem', 'font-family': 'var(--font-family-sans)' }">
   
   <div class="flex flex-col font-family-sans">
     <!-- Icono y mensaje principal -->
@@ -286,7 +286,7 @@
 
 <!-- Modal de Errores de Importación -->
 <p-dialog header="Errores de Importación" [modal]="true" [(visible)]="showErrorModal"
-  [style]="{ width: '90rem' }" [breakpoints]="{ '1199px': '90vw', '575px': '95vw' }" [maximizable]="true"
+  [style]="{ width: '90vw', maxWidth: '90rem' }" [breakpoints]="{ '1199px': '90vw', '575px': '95vw' }" [maximizable]="true"
   (onHide)="closeErrorModal()">
 
   <div class="bg-notification-error-container border-l-4 border-notification-error-border px-15 py-15 mb-15 font-family-sans">
@@ -312,7 +312,7 @@
 
   <p-table [value]="importErrors" [paginator]="true" [rows]="10" [totalRecords]="totalErrors"
     [showCurrentPageReport]="true" currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} errores"
-    styleClass="p-datatable-sm" [tableStyle]="{'min-width': '70rem'}">
+    styleClass="p-datatable-sm" [tableStyle]="{'min-width': '70rem'}" responsiveLayout="scroll">
     
     <ng-template pTemplate="header">
       <tr>

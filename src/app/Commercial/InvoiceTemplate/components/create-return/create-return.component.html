@@ -87,7 +87,7 @@
                         @if (factureProducts.length > 0) {
                             <div class="mt-4">
                                 <h4 class="font-semibold mb-3" style="color: var(--color-neutral-25);">Productos de la Factura</h4>
-                                <p-table [value]="factureProducts" styleClass="p-datatable-sm">
+                                <p-table [value]="factureProducts" styleClass="p-datatable-sm" responsiveLayout="scroll">
                                     <ng-template pTemplate="header">
                                         <tr>
                                             <th>Producto</th>

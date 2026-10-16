@@ -1,8 +1,8 @@
 <p-dialog header="Seleccionar Facturas" [(visible)]="visible" [modal]="true"
-    [style]="{ width: '70vw' }" [draggable]="false" [resizable]="false"
+    [style]="{ width: '90vw', maxWidth: '1000px' }" [draggable]="false" [resizable]="false"
     (onHide)="cancelSelection()"> <!-- Asegura que al cerrar con 'ESC' o 'X' se notifique al padre -->
 
-    <p-table [value]="availableInvoices" dataKey="id" [(selection)]="selectedInvoicesInDialog"
+    <p-table [value]="availableInvoices" dataKey="id" [(selection)]="selectedInvoicesInDialog" responsiveLayout="scroll"
         [paginator]="true" [rows]="5" [rowsPerPageOptions]="[5, 10, 20]">
         <ng-template pTemplate="header">
             <tr>

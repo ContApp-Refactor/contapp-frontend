@@ -63,7 +63,7 @@
         @if (receipt.details && receipt.details.length > 0) {
             <div class="bg-white rounded-lg shadow-md p-6 mb-6">
                 <h2 class="text-xl font-semibold text-[var(--color-primary)] mb-4">Facturas Pagadas</h2>
-                <p-table [value]="receipt.details" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
+                <p-table responsiveLayout="scroll" [value]="receipt.details" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
                     <ng-template pTemplate="header">
                         <tr>
                             <th>Código de Factura</th>
@@ -113,7 +113,7 @@
         header="Anular Comprobante de Egreso"
         [(visible)]="displayAnnulDialog"
         [modal]="true"
-        [style]="{width: '500px'}"
+        [style]="{ width: '90vw', maxWidth: '500px' }"
         [closable]="true">
 
         <div class="mb-4">

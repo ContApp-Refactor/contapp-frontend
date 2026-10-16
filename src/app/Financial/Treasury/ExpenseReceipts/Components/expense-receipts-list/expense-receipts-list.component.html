@@ -140,6 +140,7 @@
     <!-- Expense Receipts Table -->
     <p-card header="Lista de Comprobantes de Egreso" class="mb-4">
         <p-table
+            responsiveLayout="scroll"
             [value]="filteredReceipts"
             [loading]="loading"
             [paginator]="true"

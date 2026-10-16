@@ -2,7 +2,7 @@
     <h3 class="text-lg font-semibold text-[var(--color-primary)] mb-4">Seleccionar Facturas para Pago</h3>
 
     @if (availableInvoices && availableInvoices.length > 0) {
-        <p-table [value]="availableInvoices" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
+        <p-table responsiveLayout="scroll" [value]="availableInvoices" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
             <ng-template pTemplate="header">
                 <tr>
                     <th>Seleccionar</th>

@@ -183,7 +183,7 @@
             <!-- Tabla: facturas seleccionadas para abono -->
             @if (selectedInvoicesForPayment.length > 0) {
             <div class="p-card p-component mb-6 shadow-sm rounded-lg">
-                <p-table [value]="selectedInvoicesForPayment" dataKey="id" [tableStyle]="{'min-width': '50rem'}">
+                <p-table [value]="selectedInvoicesForPayment" dataKey="id" [tableStyle]="{'min-width': '50rem'}" responsiveLayout="scroll">
                     <ng-template pTemplate="header">
                         <tr>
                             <th style="width: 5rem;">Pagar</th>

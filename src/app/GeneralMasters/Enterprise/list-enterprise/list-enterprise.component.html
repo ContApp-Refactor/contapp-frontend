@@ -120,7 +120,7 @@
 
 <!-- Modal PDF RUT -->
 <p-dialog header="Crear una Empresa apartir del PDF del RUT" [(visible)]="showPdfModal" [modal]="true" [closable]="true"
-  [draggable]="false" [resizable]="false" styleClass="w-96" [style]="{width: '500px'}">
+  [draggable]="false" [resizable]="false" styleClass="w-96" [style]="{ width: '90vw', maxWidth: '500px' }">
 
   <div class="p-6">
     <p class="text-gray-600 mb-6 text-sm leading-relaxed">
@@ -208,7 +208,7 @@
 
 <!-- Modal Compartir Empresa -->
 <p-dialog header="Compartir Empresa" [(visible)]="showShareModal" [modal]="true" [closable]="false" [draggable]="false"
-  [resizable]="false" styleClass="w-96" [style]="{ width: '500px' }">
+  [resizable]="false" styleClass="w-96" [style]="{ width: '90vw', maxWidth: '500px' }">
   <div class="p-6">
     <p class="text-gray-600 mb-4 text-sm">
       Ingresa los correos electrónicos de los estudiantes con los que deseas

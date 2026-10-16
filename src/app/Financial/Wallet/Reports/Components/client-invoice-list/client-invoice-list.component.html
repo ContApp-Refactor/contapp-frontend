@@ -40,7 +40,7 @@
     </div>
 
     <!-- Tabla de Facturas -->
-    <p-table [value]="invoices" [paginator]="true" [rows]="5" [tableStyle]="{'min-width': '50rem'}"
+    <p-table [value]="invoices" [paginator]="true" [rows]="5" [tableStyle]="{'min-width': '50rem'}" responsiveLayout="scroll"
         styleClass="p-datatable-striped" [loading]="isLoading">
         <ng-template pTemplate="header">
             <tr>

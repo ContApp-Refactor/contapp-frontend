@@ -17,10 +17,11 @@ import {
  * parpadear en peticiones rápidas, y se oculta de inmediato al terminar todas.
  *
  * Tope de duración: una petición nunca settleada (conexión trabada) no puede
- * dejar el overlay cubriendo la UI para siempre. El overlay se oculta cuando
- * ninguna petición pendiente tiene menos de MAX_VISIBLE_AGE_MS de antigüedad
- * (la UI "falla abierta"); el contador interno sigue vivo hasta que la
- * petición termine de verdad.
+ * dejar el overlay cubriendo la UI para siempre ni retener su registro. El
+ * overlay se oculta cuando ninguna petición pendiente tiene menos de
+ * MAX_VISIBLE_AGE_MS de antigüedad (la UI "falla abierta") y su entrada se
+ * poda del mapa, por lo que la memoria queda acotada aunque una petición
+ * jamás termine.
  */
 @Injectable({ providedIn: 'root' })
 export class LoadingService {
@@ -69,11 +70,17 @@ export class LoadingService {
 
   private hasYoungRequest(): boolean {
     const now = Date.now();
-    for (const startedAt of this.starts.values()) {
-      if (now - startedAt < LoadingService.MAX_VISIBLE_AGE_MS) {
-        return true;
+    let pruned = false;
+    for (const [id, startedAt] of this.starts) {
+      if (now - startedAt >= LoadingService.MAX_VISIBLE_AGE_MS) {
+        // Poda: una petición colgada no retiene su entrada para siempre.
+        this.starts.delete(id);
+        pruned = true;
       }
     }
-    return false;
+    if (pruned && this.starts.size === 0) {
+      this.pending$.next(0);
+    }
+    return this.starts.size > 0;
   }
 }

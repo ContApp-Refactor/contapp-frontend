@@ -117,7 +117,19 @@
             scope="col"
             class="font-semibold text-primary border-b-2 border-primary"
           >
-            Devolución
+            Dev. en Venta
+          </th>
+          <th
+            scope="col"
+            class="font-semibold text-primary border-b-2 border-primary"
+          >
+            Tipo de Producto
+          </th>
+          <th
+            scope="col"
+            class="font-semibold text-primary border-b-2 border-primary"
+          >
+            Dev. en Compra
           </th>
           <th
             scope="col"
@@ -157,6 +169,12 @@
           <td class="py-3">
             <span [class]="accounts.length === 0 ? 'text-gray-400 italic' : ''">
               {{ getCategoryName(category.returnId) }}
+            </span>
+          </td>
+          <td class="py-3">{{ getProductTypeName(category.productTypeId) }}</td>
+          <td class="py-3">
+            <span [class]="accounts.length === 0 ? 'text-gray-400 italic' : ''">
+              {{ getCategoryName(category.returnPurchaseId) }}
             </span>
           </td>
           <td class="py-3 text-center">

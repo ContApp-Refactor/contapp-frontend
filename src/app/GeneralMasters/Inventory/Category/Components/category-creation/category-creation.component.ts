@@ -17,6 +17,8 @@ import { ChartAccountService } from '../../../../../GeneralMasters/AccountCatalo
 import { Account } from '../../../../../GeneralMasters/AccountCatalogue/models/ChartAccount';
 import { TaxList } from '../../../../Taxes/models/Tax';
 import { TaxService } from '../../../../Taxes/services/tax.service';
+import { ProductTypeService } from '../../../ProductTypes/Services/product-type.service';
+import { ProductType } from '../../../ProductTypes/Models/ProductType';
 
 @Component({
   selector: 'app-category-creation',
@@ -48,6 +50,7 @@ export class CategoryCreationComponent implements OnInit {
   sale: any[] = [];
   return: any[] = [];
   taxes: TaxList[] = [];
+  productTypes: ProductType[] = [];
 
   constructor(
     private readonly formBuilder: FormBuilder,
@@ -55,6 +58,7 @@ export class CategoryCreationComponent implements OnInit {
     private readonly router: Router,
     private readonly chartAccountService: ChartAccountService,
     private readonly taxService: TaxService,
+    private readonly productTypeService: ProductTypeService,
     private readonly messageService: MessageService,
     public readonly categoryValidationMessagesService: CategoryValidationMessagesService
   ) {
@@ -63,10 +67,12 @@ export class CategoryCreationComponent implements OnInit {
       name: ['', [Validators.required, Validators.maxLength(100)]],
       description: ['', [Validators.required, Validators.maxLength(255)]],
       taxes: [[], Validators.required],
+      productType: [null, Validators.required],
       inventory: [null, Validators.required],
       cost: [null, Validators.required],
       sale: [null, Validators.required],
       return: [null, Validators.required],
+      returnPurchase: [null, Validators.required],
     });
   }
 
@@ -88,6 +94,20 @@ export class CategoryCreationComponent implements OnInit {
   loadInitialData(): void {
     this.getCuentas();
     this.getTaxes();
+    this.getProductTypes();
+  }
+
+  getProductTypes(): void {
+    if (this.entData) {
+      this.productTypeService.findActivate(this.entData).subscribe({
+        next: (types) => {
+          this.productTypes = types;
+        },
+        error: () => {
+          this.productTypes = [];
+        }
+      });
+    }
   }
 
   onSubmit(): void {
@@ -110,10 +130,12 @@ export class CategoryCreationComponent implements OnInit {
       name: formData.name,
       description: formData.description,
       taxes: formData.taxes && formData.taxes.length > 0 ? formData.taxes : [],
+      productTypeId: formData.productType || null,
       inventoryId: formData.inventory,
       costId: formData.cost,
       saleId: formData.sale,
       returnId: formData.return,
+      returnPurchaseId: formData.returnPurchase || null,
       enterpriseId: this.entData?.id || this.localStorageMethods.getIdEnterprise(),
       state: true 
     };

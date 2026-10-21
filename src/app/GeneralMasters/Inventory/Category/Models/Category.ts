@@ -9,7 +9,9 @@ export interface Category {
     inventoryId: number; 
     costId: number;
     saleId: number;
-    returnId: number;
+    returnId: number;            // Devolución en venta (PP7 HU2: antes "devolución" genérica)
+    productTypeId?: number | null;  // Tipo de producto amarrado (PP7 HU2)
+    returnPurchaseId?: number | null; // Cuenta de devolución en compra (PP7 HU2)
 }
 export interface CategoryList {
     id: number; 

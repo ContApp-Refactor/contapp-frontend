@@ -23,6 +23,8 @@ import { LocalStorageMethods } from '../../../../../Shared/Methods/local-storage
 import { ChartAccountService } from '../../../../../GeneralMasters/AccountCatalogue/services/chart-account.service';
 import { Account } from '../../../../../GeneralMasters/AccountCatalogue/models/ChartAccount';
 import { TaxService } from '../../../../Taxes/services/tax.service';
+import { ProductTypeService } from '../../../ProductTypes/Services/product-type.service';
+import { ProductType } from '../../../ProductTypes/Models/ProductType';
 import { TableEmptyMessageComponent } from '../../../../../Shared/Components/table-empty-message/table-empty-message.component';
 import { AuthService } from '../../../../../Core/auth/services/auth.service';
 
@@ -56,6 +58,7 @@ export class CategoryListComponent implements OnInit {
   categories: Category[] = [];
   accounts: any[] = [];
   taxes: any[] = [];
+  productTypes: ProductType[] = [];
   loading: boolean = false;
 
   totalRecords: number = 0;
@@ -74,6 +77,7 @@ export class CategoryListComponent implements OnInit {
     private readonly messageService: MessageService,
     private readonly chartAccountService: ChartAccountService,
     private readonly taxService: TaxService,
+    private readonly productTypeService: ProductTypeService,
     public readonly categoryValidationMessagesService: CategoryValidationMessagesService,
     private readonly authService: AuthService,
   ) {}
@@ -91,11 +95,36 @@ export class CategoryListComponent implements OnInit {
       });
       this.getCuentas();
       this.getTaxes();
+      this.getProductTypes();
     }
   }
 
   private getEnterpriseId(): string {
     return this.entData || '';
+  }
+
+  getProductTypes(): void {
+    const enterpriseId = this.getEnterpriseId();
+    if (!enterpriseId) return;
+    this.productTypeService.findActivate(enterpriseId).subscribe({
+      next: (types) => {
+        this.productTypes = types;
+      },
+      error: (error: any) => {
+        console.error('Error al obtener los tipos de producto:', error);
+        this.productTypes = [];
+      },
+    });
+  }
+
+  getProductTypeName(id: number | string | null | undefined): string {
+    if (id === null || id === undefined || id === 0 || id === '0' || id === '') {
+      return 'No asignado';
+    }
+    const type = this.productTypes.find(
+      (t) => t.id === Number(id) || t.id === id
+    );
+    return type ? type.name : 'No asignado';
   }
 
   loadCategoriesLazy(event: any): void {

@@ -92,6 +92,12 @@
             scope="col"
             class="font-semibold text-primary border-b-2 border-primary text-center"
           >
+            Clasificación
+          </th>
+          <th
+            scope="col"
+            class="font-semibold text-primary border-b-2 border-primary text-center"
+          >
             Estado
           </th>
           <th
@@ -107,6 +113,22 @@
         <tr class="text-neutral-20">
           <td class="py-3">{{ productType.name }}</td>
           <td class="py-3">{{ productType.description }}</td>
+          <td class="py-3 text-center">
+            <div class="flex flex-wrap gap-1 justify-center">
+              @if (productType.sellable) {
+                <p-tag value="Vendible" severity="info"></p-tag>
+              }
+              @if (productType.purchasable) {
+                <p-tag value="Comprable" severity="warning"></p-tag>
+              }
+              @if (productType.inventoryable) {
+                <p-tag value="Inventariable" severity="success"></p-tag>
+              }
+              @if (!productType.sellable && !productType.purchasable && !productType.inventoryable) {
+                <span class="text-neutral-400">—</span>
+              }
+            </div>
+          </td>
           <td class="py-3 text-center">
             <p-tag
               [value]="productType.state ? 'Activo' : 'Inactivo'"

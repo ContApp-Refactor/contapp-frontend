@@ -1,19 +1,22 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfirmationService, MessageService, SharedModule } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
 import { DropdownModule } from 'primeng/dropdown';
 import { TableModule } from 'primeng/table';
 import { firstValueFrom } from 'rxjs';
-import { SaleInvoice, SaleInvoiceLineInput } from '../../models/billing-sale-invoice.model';
+import { BillingClient, SaleInvoice, SaleInvoiceLineInput } from '../../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind, KIND_FILTER_OPTIONS } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
+import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { calcTotals } from '../../utils/money';
 import { BillingKindTagComponent } from '../billing-kind-tag/billing-kind-tag.component';
+import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
 const todayIso = (): string => {
   const d = new Date();
@@ -28,12 +31,14 @@ const todayIso = (): string => {
     DatePipe,
     FormsModule,
     ButtonModule,
+    DialogModule,
     DropdownModule,
     TableModule,
     ConfirmDialogModule,
     SharedModule,
     CopCentsPipe,
     BillingKindTagComponent,
+    SaleInvoicePreviewComponent,
   ],
   providers: [ConfirmationService],
   templateUrl: './sale-invoice-pending.component.html',
@@ -43,6 +48,14 @@ export class SaleInvoicePendingComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly confirmation = inject(ConfirmationService);
   private readonly messages = inject(MessageService);
+  private readonly counterpartyCatalog = inject(BillingCounterpartyCatalog);
+
+  // Borrador que se muestra en el modal "Vista factura" y su contraparte (cliente o proveedor) completa
+  previewInvoice = signal<SaleInvoice | null>(null);
+  previewClient = signal<BillingClient | null>(null);
+
+  // true cuando la tabla se muestra dentro del menú de Facturación (sin título de página ni botón volver)
+  embedded = input(false);
 
   drafts = signal<SaleInvoice[]>([]);
   loading = signal(true);
@@ -72,6 +85,23 @@ export class SaleInvoicePendingComponent implements OnInit {
 
   counterpartyOf(invoice: SaleInvoice): string {
     return invoice.clientName ?? `Sin ${DOCUMENT_KIND_CONFIG[invoice.kind].counterpartyLower}`;
+  }
+
+  // Abre la vista de impresión del borrador; el documento del cliente/proveedor se busca en el catálogo
+  async openPreview(invoice: SaleInvoice): Promise<void> {
+    this.previewClient.set(null);
+    this.previewInvoice.set(invoice);
+    if (!invoice.clientId) return;
+    try {
+      const counterparties = await firstValueFrom(this.counterpartyCatalog.getCounterparties(invoice.kind));
+      this.previewClient.set(counterparties.find((c) => c.id === invoice.clientId) ?? null);
+    } catch {
+      // Sin catálogo la vista se muestra igual, sin los datos de la contraparte
+    }
+  }
+
+  closePreview(): void {
+    this.previewInvoice.set(null);
   }
 
   continue(invoice: SaleInvoice): void {

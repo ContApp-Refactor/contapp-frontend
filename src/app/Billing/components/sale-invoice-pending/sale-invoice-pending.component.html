@@ -1,4 +1,4 @@
-<div class="flex w-full h-full font-titillium">
+<div [class]="embedded() ? 'w-full font-titillium' : 'flex w-full h-full font-titillium'">
   <p-confirmDialog [style]="{ width: '440px', maxWidth: '92vw' }">
     <!-- Ícono rojo arriba y el texto debajo -->
     <ng-template pTemplate="message" let-message>
@@ -11,15 +11,44 @@
     </ng-template>
   </p-confirmDialog>
 
-  <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
-    <div class="flex items-start justify-between gap-16">
+  <!-- Vista de impresión del borrador (solo lectura) -->
+  <p-dialog
+    header="Vista factura"
+    [visible]="!!previewInvoice()"
+    (visibleChange)="!$event && closePreview()"
+    [modal]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [style]="{ width: '56rem', 'max-width': '95vw' }"
+    [contentStyle]="{ 'max-height': '75vh', 'overflow-y': 'auto', background: '#f3f4f6' }"
+  >
+    @if (previewInvoice(); as inv) {
+      <app-sale-invoice-preview
+        [kind]="inv.kind"
+        [number]="inv.number"
+        [status]="inv.status"
+        [date]="inv.date"
+        [client]="previewClient()"
+        [supplierInvoiceNumber]="inv.supplierInvoiceNumber ?? null"
+        [lines]="inv.lines"
+      />
+    }
+  </p-dialog>
+
+  <div [class]="embedded() ? 'w-full font-medium' : 'm-10 w-full font-medium bg-white rounded-3xl p-10'">
+    <div class="flex items-start justify-between gap-16" [class.mb-12]="embedded()">
       <div>
-        <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
-          <span class="border-b-4 border-secondary-light inline-block pb-1">Continuar factura pendiente</span>
-        </h1>
-        <p class="font-family-sans font-normal text-sm mt-12 mb-20">
-          Estos son tus borradores de venta y compra. Selecciona uno para continuar editándolo.
-        </p>
+        @if (embedded()) {
+          <h2 class="font-family-titillium font-bold text-xl text-primary m-0">Facturas pendientes</h2>
+          <p class="font-family-sans font-normal text-sm mt-4">Tus borradores de venta y compra. Continúa, duplica o elimina.</p>
+        } @else {
+          <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+            <span class="border-b-4 border-secondary-light inline-block pb-1">Continuar factura pendiente</span>
+          </h1>
+          <p class="font-family-sans font-normal text-sm mt-12 mb-20">
+            Estos son tus borradores de venta y compra. Selecciona uno para continuar editándolo.
+          </p>
+        }
       </div>
       <div class="flex items-center gap-8">
         <p-dropdown
@@ -31,15 +60,17 @@
           styleClass="w-150"
           size="small"
         ></p-dropdown>
-        <!-- Volver al menú de Facturación -->
-        <p-button
-          icon="pi pi-arrow-left"
-          [rounded]="true"
-          [outlined]="true"
-          ariaLabel="Volver"
-          title="Volver"
-          (click)="goBack()"
-        ></p-button>
+        <!-- Volver al menú de Facturación (no aplica cuando la tabla va dentro del propio menú) -->
+        @if (!embedded()) {
+          <p-button
+            icon="pi pi-arrow-left"
+            [rounded]="true"
+            [outlined]="true"
+            ariaLabel="Volver"
+            title="Volver"
+            (click)="goBack()"
+          ></p-button>
+        }
       </div>
     </div>
 
@@ -53,7 +84,7 @@
             <th style="width: 7rem" class="text-right">Líneas</th>
             <th style="width: 11rem" class="text-right">Total</th>
             <th style="width: 12rem">Última edición</th>
-            <th style="width: 17rem"></th>
+            <th style="width: 20rem"></th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-draft>
@@ -72,6 +103,14 @@
             <td>
               <div class="flex items-center justify-center gap-8">
                 <p-button label="Continuar" icon="pi pi-pencil" (click)="continue(draft)"></p-button>
+                <p-button
+                  icon="pi pi-eye"
+                  [rounded]="true"
+                  [outlined]="true"
+                  ariaLabel="Vista factura"
+                  title="Vista factura"
+                  (click)="openPreview(draft)"
+                ></p-button>
                 <p-button
                   icon="pi pi-copy"
                   [rounded]="true"

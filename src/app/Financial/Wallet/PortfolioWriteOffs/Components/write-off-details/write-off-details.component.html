@@ -1,5 +1,5 @@
 <p-toast></p-toast>
-<p-confirmDialog [style]="{width: '450px'}"></p-confirmDialog>
+<p-confirmDialog [style]="{ width: '90vw', maxWidth: '450px' }"></p-confirmDialog>
 
 <div class="w-full h-full p-4 md:p-10 font-sans">
     <!-- Spinner de carga inicial -->
@@ -92,7 +92,7 @@
                 </div>
             </ng-template>
 
-            <p-table [value]="writeOff.details ?? []" [tableStyle]="{'min-width': '50rem'}">
+            <p-table [value]="writeOff.details ?? []" [tableStyle]="{'min-width': '50rem'}" responsiveLayout="scroll">
                 <ng-template pTemplate="header">
                     <tr class="text-sm">
                         <th class="p-4 text-left">Código Factura</th>

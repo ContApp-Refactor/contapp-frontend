@@ -73,7 +73,8 @@
                             [(selection)]="selectedInvoices"
                             (selectionChange)="onInvoiceSelectionChange()"
                             dataKey="id"
-                            styleClass="p-datatable-sm">
+                            styleClass="p-datatable-sm"
+                            responsiveLayout="scroll">
                             <ng-template pTemplate="header">
                                 <tr>
                                     <th style="width: 3rem">

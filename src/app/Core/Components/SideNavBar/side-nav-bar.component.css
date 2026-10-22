@@ -1,7 +1,11 @@
 .sidenav {
   transition: all 0.5s ease;
   position: fixed;
-  z-index: 1001; /* Mayor que el header para que esté encima */
+  /* El panel arranca en x=0 y ocupa TODA la altura, también en móvil: el
+     header no lo tapa porque el shell arranca a la derecha del menú
+     (offset dinámico en MainTemplate), igual que en desktop. Por eso acá
+     NO hay padding-top compensatorio — nada se monta encima del panel. */
+  z-index: 999;
   top: 0;
   left: 0;
   width: 5rem;

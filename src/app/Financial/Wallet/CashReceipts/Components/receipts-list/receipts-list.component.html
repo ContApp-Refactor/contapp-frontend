@@ -63,7 +63,7 @@
 
     <!-- tabla de resultados -->
     <div>
-        <p-table [value]="filteredReceipts" [paginator]="true" [rows]="6" [rowsPerPageOptions]="[6, 10, 20]"
+        <p-table [value]="filteredReceipts" [paginator]="true" [rows]="6" [rowsPerPageOptions]="[6, 10, 20]" responsiveLayout="scroll"
             [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
             <ng-template pTemplate="header">
                 <tr>

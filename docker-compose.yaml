@@ -1,6 +1,6 @@
 services:
   contapp-frontend:
-    image: jeserna/contapp-frontend:v0.0.1180
+    image: jeserna/contapp-frontend:v0.0.1195
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.contapp-frontend.entrypoints=web"

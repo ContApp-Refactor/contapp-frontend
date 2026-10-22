@@ -105,6 +105,7 @@
       </div>
     </section>
 
+    <div class="overflow-x-auto">
     <table class="w-full border-collapse">
       <thead [ngStyle]="{ 'background-color': styles.color }">
         <tr *ngFor="let headerRow of headerConfig">
@@ -164,6 +165,7 @@
         </tr>
       </tfoot>
     </table>
+    </div>
 
     <section
       *ngIf="signatures.length > 0"

@@ -58,7 +58,7 @@
         }
 
         @if (accountingMovements.length > 0) {
-            <p-table [value]="accountingMovements" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
+            <p-table responsiveLayout="scroll" [value]="accountingMovements" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
                 <ng-template pTemplate="header">
                     <tr>
                         <th>Código cuenta</th>

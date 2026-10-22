@@ -72,28 +72,30 @@
         <!-- ── ENCABEZADO DEL DOCUMENTO (diff) ── -->
         <div *ngIf="isDiff(item) && item.headerDiffRows.length" class="section">
           <div class="section-title">Cambios en encabezado</div>
-          <table class="diff-table">
-            <thead>
-              <tr>
-                <th>Campo</th>
-                <th>Antes</th>
-                <th>Después</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of item.headerDiffRows">
-                <td class="field-label">{{ getFieldLabel(row.field) }}</td>
-                <td class="diff-before">{{ getValueLabel(row.before) }}</td>
-                <td class="diff-after">{{ getValueLabel(row.after) }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="overflow-x-auto">
+            <table class="diff-table">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Antes</th>
+                  <th>Después</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of item.headerDiffRows">
+                  <td class="field-label">{{ getFieldLabel(row.field) }}</td>
+                  <td class="diff-before">{{ getValueLabel(row.before) }}</td>
+                  <td class="diff-after">{{ getValueLabel(row.after) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- ── LÍNEAS EN SNAPSHOT (CREATE / VOID / DELETE) ── -->
         <div *ngIf="!isDiff(item) && item.snapshotRows.length" class="section">
           <div class="section-title">Líneas del documento</div>
-          <div class="table-scroll">
+          <div class="table-scroll overflow-x-auto">
             <table class="snapshot-table">
               <thead>
                 <tr>
@@ -120,22 +122,24 @@
         >
           <div class="section-title">Cambios en líneas</div>
           <div *ngFor="let group of item.diffDetailGroups" class="diff-group">
-            <table class="diff-table">
-              <thead>
-                <tr>
-                  <th>Campo</th>
-                  <th>Antes</th>
-                  <th>Después</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let row of group.rows">
-                  <td class="field-label">{{ getFieldLabel(row.field) }}</td>
-                  <td class="diff-before">{{ getValueLabel(row.before) }}</td>
-                  <td class="diff-after">{{ getValueLabel(row.after) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="overflow-x-auto">
+              <table class="diff-table">
+                <thead>
+                  <tr>
+                    <th>Campo</th>
+                    <th>Antes</th>
+                    <th>Después</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of group.rows">
+                    <td class="field-label">{{ getFieldLabel(row.field) }}</td>
+                    <td class="diff-before">{{ getValueLabel(row.before) }}</td>
+                    <td class="diff-after">{{ getValueLabel(row.after) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -159,22 +163,24 @@
         <!-- ── TOTALES (diff) ── -->
         <div *ngIf="isDiff(item) && item.totalsDiffRows.length" class="section">
           <div class="section-title">Cambios en totales</div>
-          <table class="diff-table">
-            <thead>
-              <tr>
-                <th>Campo</th>
-                <th>Antes</th>
-                <th>Después</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let row of item.totalsDiffRows">
-                <td class="field-label">{{ getFieldLabel(row.field) }}</td>
-                <td class="diff-before">{{ getValueLabel(row.before) }}</td>
-                <td class="diff-after">{{ getValueLabel(row.after) }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="overflow-x-auto">
+            <table class="diff-table">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Antes</th>
+                  <th>Después</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of item.totalsDiffRows">
+                  <td class="field-label">{{ getFieldLabel(row.field) }}</td>
+                  <td class="diff-before">{{ getValueLabel(row.before) }}</td>
+                  <td class="diff-after">{{ getValueLabel(row.after) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- ── METADATA ── -->

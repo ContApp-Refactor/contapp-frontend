@@ -7,6 +7,7 @@ body.login-page {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 /* Encabezado */
@@ -18,6 +19,16 @@ body.login-page {
     gap: 14px;
     align-items: center;
     z-index: 10;
+}
+
+/* Pantallas angostas: el formulario ocupa el 100% del ancho, así que el
+   encabezado absoluto cae encima del título. Sale al flujo normal (el body ya
+   es flex-column) y así no se pisa a ninguna altura de viewport. */
+@media (max-width: 767px) {
+    .login-header {
+        position: static;
+        padding: 16px 16px 0;
+    }
 }
 
 .logo {
@@ -61,6 +72,13 @@ body.login-page {
     width: 100%;
     max-width: 448px;
     padding: 32px;
+}
+
+/* Móvil: menos padding horizontal para que el formulario quepa a 360px */
+@media (max-width: 480px) {
+    .login-form {
+        padding: 20px;
+    }
 }
 
 .login-title {

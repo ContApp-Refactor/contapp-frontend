@@ -765,7 +765,7 @@
      Modal advertencia: confirmar inplace desde importación
      ================================================================ -->
 <p-dialog
-  header="⚠️ Confirmar restauración irreversible"
+  header="Confirmar restauración irreversible"
   [(visible)]="showImportInplaceWarning"
   [modal]="true"
   [closable]="false"
@@ -789,7 +789,7 @@
     <div class="flex justify-end gap-3">
       <p-button label="Cancelar" class="p-button-text"
         (click)="cancelImportInplaceWarning()"></p-button>
-      <p-button label="Sí, restaurar" icon="pi pi-check" class="p-button-danger"
+      <p-button label="Sí, restaurar" icon="pi pi-check"
         (click)="confirmImportInplace()"></p-button>
     </div>
   </ng-template>

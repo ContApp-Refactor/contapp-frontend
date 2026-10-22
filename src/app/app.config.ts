@@ -11,6 +11,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { authInterceptor } from './Core/Interceptors/auth.interceptor';
 import { withInterceptors } from '@angular/common/http';
 import { MessageService } from 'primeng/api';
+import { PRIMENG_SPANISH_TRANSLATION } from './Shared/config/primeng-spanish.translation';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -24,6 +25,7 @@ export const appConfig: ApplicationConfig = {
           darkModeSelector: '.my-app-dark',
         },
       },
+      translation: PRIMENG_SPANISH_TRANSLATION,
     }),
     AuthService,
     {

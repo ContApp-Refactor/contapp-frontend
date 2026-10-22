@@ -52,20 +52,29 @@
             </div>
 
             <div class="flex flex-col gap-2">
-              <app-form-field-label label="Tipos de Tercero" [required]="true"></app-form-field-label>
-              <p-multiSelect 
+              <app-form-field-label label="Tipo de Tercero" [required]="true"></app-form-field-label>
+              <p-select 
                 [options]="thirdTypes" 
-                formControlName="thirdTypes"
+                formControlName="thirdType"
                 optionLabel="thirdTypeName"
                 [dataKey]="'thirdTypeId'"
-                placeholder="Seleccione tipos de tercero"
+                placeholder="Seleccione tipo de tercero"
                 [filter]="true"
                 filterBy="thirdTypeName"
+                [showClear]="true"
                 [loading]="loadingThirdTypes"
                 class="max-w-sm">
-              </p-multiSelect>
-              <app-form-field-error [form]="createdThirdForm" fieldName="thirdTypes" [submitted]="submitted">
-                Seleccione al menos un tipo de tercero
+                <ng-template pTemplate="selectedItem" let-selectedOption>
+                  <div *ngIf="selectedOption">
+                    {{ selectedOption.thirdTypeName }}
+                  </div>
+                </ng-template>
+                <ng-template pTemplate="item" let-option>
+                  <div>{{ option.thirdTypeName }}</div>
+                </ng-template>
+              </p-select>
+              <app-form-field-error [form]="createdThirdForm" fieldName="thirdType" [submitted]="submitted">
+                Seleccione un tipo de tercero
               </app-form-field-error>
             </div>
           </div>

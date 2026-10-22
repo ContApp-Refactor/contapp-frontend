@@ -1,156 +1,120 @@
-<!-- Aging Report -->
 <div class="container-fluid p-4">
-  <!-- Page Header -->
   <div class="flex justify-between items-center mb-6">
     <div>
-      <h1 class="text-3xl font-bold text-[var(--color-primary)] mb-2">
+      <h1 class="text-3xl font-bold text-[var(--color-primary)] mb-2 inline-block">
         Vencimiento por edades
       </h1>
+      <app-contextual-help
+        class="ml-2 inline-flex align-middle"
+        [title]="help.title"
+        [summary]="help.summary"
+        [helpCenterSlug]="help.slug">
+      </app-contextual-help>
       <p class="text-gray-600">
-        Reporte de antigüedad de saldos por vencimiento
+        Obligaciones de proveedores con saldo pendiente, agrupadas por días de mora a la fecha de corte
       </p>
     </div>
     <div class="flex gap-2">
       <p-button
-        label="Exportar"
-        icon="pi pi-download"
-        severity="secondary"
-        (onClick)="onExportData()"
-      >
+        label="Exportar PDF"
+        icon="pi pi-file-pdf"
+        severity="danger"
+        [outlined]="true"
+        [loading]="exportingPdf"
+        [disabled]="!reportData?.lines?.length"
+        (onClick)="exportToPdf()">
+      </p-button>
+      <p-button
+        label="Exportar CSV"
+        icon="pi pi-file-excel"
+        severity="success"
+        [outlined]="true"
+        [loading]="exportingCsv"
+        [disabled]="!reportData?.lines?.length"
+        (onClick)="exportToCsv()">
       </p-button>
     </div>
   </div>
 
-  <!-- Filters Card -->
-  <p-card header="Filtros de Búsqueda" class="mb-4">
-    <form
-      [formGroup]="filterForm"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"
-    >
-      <!-- Supplier Filter -->
+  <p-card header="Filtros" class="mb-4">
+    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="flex flex-col gap-2">
-        <label for="supplierName" class="font-semibold text-[var(--color-primary)]">
-          Proveedor
-        </label>
-        <input
-          pInputText
-          id="supplierName"
-          formControlName="supplierName"
-          placeholder="Buscar proveedor..."
-        />
-      </div>
-
-      <!-- Account Type Start -->
-      <div class="flex flex-col gap-2">
-        <label
-          for="accountTypeStart"
-          class="font-semibold text-[var(--color-primary)]"
-        >
-          Tipo de cuenta inicial
-        </label>
+        <label for="supplierId" class="font-semibold text-[var(--color-primary)]">Proveedor</label>
         <p-dropdown
-          id="accountTypeStart"
-          formControlName="accountTypeStart"
-          [options]="accountTypeOptions"
+          id="supplierId"
+          formControlName="supplierId"
+          [options]="supplierOptions"
           optionLabel="label"
           optionValue="value"
-          placeholder="Seleccione un tipo"
+          placeholder="Todos los proveedores"
           [showClear]="true"
-        >
+          [filter]="true"
+          filterBy="label"
+          (onChange)="onGenerateReport()"
+          styleClass="w-full">
         </p-dropdown>
       </div>
 
-      <!-- Account Type End -->
       <div class="flex flex-col gap-2">
-        <label
-          for="accountTypeEnd"
-          class="font-semibold text-[var(--color-primary)]"
-        >
-          Tipo de cuenta final
-        </label>
-        <p-dropdown
-          id="accountTypeEnd"
-          formControlName="accountTypeEnd"
-          [options]="accountTypeOptions"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="Seleccione un tipo"
-          [showClear]="true"
-        >
-        </p-dropdown>
-      </div>
-
-      <!-- Cutoff Date -->
-      <div class="flex flex-col gap-2">
-        <label
-          for="cutoffDate"
-          class="font-semibold text-[var(--color-primary)]"
-        >
-          Fecha de corte
+        <label for="cutoffDate" class="font-semibold text-[var(--color-primary)]">
+          Fecha de corte <span class="text-red-500">*</span>
         </label>
         <p-calendar
           id="cutoffDate"
           formControlName="cutoffDate"
           dateFormat="dd/mm/yy"
           [showIcon]="true"
-          placeholder="dd/mm/yyyy"
-        >
+          placeholder="dd/mm/aaaa"
+          styleClass="w-full">
         </p-calendar>
-        <small class="text-gray-500">¿Cuándo de corte es eso?</small>
+        <small class="text-gray-500">Fecha contra la que se calculan los días de mora</small>
       </div>
 
-      <!-- Include Documents Toggle -->
       <div class="flex flex-col gap-2">
-        <label class="font-semibold text-[var(--color-primary)]">
-          Incluir documentos
-        </label>
+        <label class="font-semibold text-[var(--color-primary)]">Detalle por factura</label>
         <div class="flex items-center gap-3 mt-2">
           <p-inputSwitch formControlName="includeDocuments"></p-inputSwitch>
           <span class="text-sm text-gray-600">
-            {{ filterForm.get('includeDocuments')?.value ? 'Sí' : 'No' }}
+            {{ filterForm.get('includeDocuments')?.value ? 'Mostrar columnas de documento' : 'Solo montos por edad' }}
           </span>
         </div>
       </div>
 
-      <!-- Filter Actions -->
-      <div class="flex flex-col gap-2 md:col-span-2 lg:col-span-3 xl:col-span-5">
-        <div class="filter-actions flex gap-2 justify-end">
-          <!-- Generate Report Button -->
+      <div class="flex flex-col gap-2 md:col-span-2">
+        <div class="flex gap-2 justify-end">
           <p-button
             label="Generar reporte"
             icon="pi pi-chart-bar"
             severity="success"
             (onClick)="onGenerateReport()"
-            [loading]="loading"
-          >
+            [loading]="loading">
           </p-button>
-
-          <!-- Clear Filters Button -->
           <p-button
             label="Limpiar filtros"
             icon="pi pi-filter-slash"
             severity="secondary"
             [outlined]="true"
-            (onClick)="clearFilters()"
-          >
+            (onClick)="clearFilters()">
           </p-button>
         </div>
       </div>
     </form>
   </p-card>
 
-  <!-- Report Table -->
-  <p-card header="Reporte de Vencimientos" class="mb-4" *ngIf="reportData">
-    <!-- Report Info -->
+  <p-card header="Reporte de vencimientos" class="mb-4" *ngIf="reportData">
     <div class="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-      <div class="flex justify-between items-center">
+      <div class="flex flex-wrap justify-between gap-3 items-center">
         <div>
           <span class="font-semibold text-gray-700">Proveedor:</span>
           <span class="ml-2 text-gray-900">{{ reportData.supplierName }}</span>
         </div>
         <div>
-          <span class="font-semibold text-gray-700">Fecha de reporte:</span>
+          <span class="font-semibold text-gray-700">Fecha de corte:</span>
           <span class="ml-2 text-gray-900">{{ formatDate(reportData.reportDate) }}</span>
+        </div>
+        <div>
+          <span class="font-semibold text-gray-700">Obligaciones:</span>
+          <span class="ml-2 text-gray-900">{{ reportData.lines.length }}</span>
         </div>
       </div>
     </div>
@@ -159,265 +123,114 @@
       [value]="reportData.lines"
       [loading]="loading"
       styleClass="p-datatable-striped"
-      [tableStyle]="{ 'min-width': '1500px' }"
-    >
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[5, 10, 20, 50]"
+      [tableStyle]="{ 'min-width': '1100px' }">
       <ng-template pTemplate="header">
         <tr>
-          <th style="width: 80px" class="text-center">ID</th>
-          <th style="width: 250px">Descripción de cuenta</th>
-          <th style="width: 180px" class="text-right">Total a Pagar</th>
-          <th style="width: 150px" class="text-right">Corriente</th>
-          <th style="width: 150px" class="text-right">1 a 30 días</th>
-          <th style="width: 150px" class="text-right">31 a 60 días</th>
-          <th style="width: 150px" class="text-right">61 a 90 días</th>
-          <th style="width: 150px" class="text-right">91 a 180 días</th>
-          <th style="width: 150px" class="text-right">181 a 260 días</th>
-          <th style="width: 150px" class="text-right">Más de 260 días</th>
+          <th *ngIf="filterForm.get('includeDocuments')?.value">Factura</th>
+          <th *ngIf="filterForm.get('includeDocuments')?.value">Proveedor</th>
+          <th>Cuenta CxP</th>
+          <th *ngIf="filterForm.get('includeDocuments')?.value">Vence</th>
+          <th *ngIf="filterForm.get('includeDocuments')?.value" class="text-right">Días mora</th>
+          <th class="text-right">Total</th>
+          <th class="text-right">Corriente</th>
+          <th class="text-right">1 a 30</th>
+          <th class="text-right">31 a 60</th>
+          <th class="text-right">61 a 90</th>
+          <th class="text-right">Más de 90</th>
         </tr>
       </ng-template>
 
       <ng-template pTemplate="body" let-line>
         <tr>
-          <td class="text-center">
-            <span class="font-mono font-semibold">{{ line.id }}</span>
+          <td *ngIf="filterForm.get('includeDocuments')?.value">
+            <span class="font-mono font-semibold text-blue-600">{{ line.reference }}</span>
+          </td>
+          <td *ngIf="filterForm.get('includeDocuments')?.value">
+            {{ supplierName(line.supplierId) }}
           </td>
           <td>
-            <span class="font-semibold text-gray-800">{{
-              line.accountDescription
-            }}</span>
+            <span class="font-semibold text-gray-800">{{ line.accountDescription }}</span>
           </td>
-          <td class="text-right">
-            <span class="font-semibold text-blue-600">{{
-              formatCurrency(line.totalDue)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span [ngClass]="line.current > 0 ? 'text-green-600' : 'text-gray-500'">{{
-              formatCurrency(line.current)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span
-              [ngClass]="line.days1to30 > 0 ? 'text-orange-600' : 'text-gray-500'"
-              >{{ formatCurrency(line.days1to30) }}</span
-            >
-          </td>
-          <td class="text-right">
-            <span
-              [ngClass]="line.days31to60 > 0 ? 'text-red-600' : 'text-gray-500'"
-              >{{ formatCurrency(line.days31to60) }}</span
-            >
-          </td>
-          <td class="text-right">
-            <span
-              [ngClass]="line.days61to90 > 0 ? 'text-red-800 font-bold' : 'text-gray-500'"
-              >{{ formatCurrency(line.days61to90) }}</span
-            >
-          </td>
-          <td class="text-right">
-            <span
-              [ngClass]="line.days91to180 > 0 ? 'text-purple-600 font-semibold' : 'text-gray-500'"
-              >{{ formatCurrency(line.days91to180) }}</span
-            >
-          </td>
-          <td class="text-right">
-            <span
-              [ngClass]="line.days181to260 > 0 ? 'text-pink-600 font-semibold' : 'text-gray-500'"
-              >{{ formatCurrency(line.days181to260) }}</span
-            >
-          </td>
-          <td class="text-right">
-            <span
-              [ngClass]="line.daysOver260 > 0 ? 'text-red-900 font-bold' : 'text-gray-500'"
-              >{{ formatCurrency(line.daysOver260) }}</span
-            >
-          </td>
+          <td *ngIf="filterForm.get('includeDocuments')?.value">{{ formatDate(line.dueDate) }}</td>
+          <td *ngIf="filterForm.get('includeDocuments')?.value" class="text-right">{{ line.daysOverdue }}</td>
+          <td class="text-right font-semibold text-blue-600">{{ formatCurrency(line.totalDue) }}</td>
+          <td class="text-right" [class.text-green-600]="line.current > 0">{{ formatCurrency(line.current) }}</td>
+          <td class="text-right" [class.text-orange-600]="line.days1to30 > 0">{{ formatCurrency(line.days1to30) }}</td>
+          <td class="text-right" [class.text-red-600]="line.days31to60 > 0">{{ formatCurrency(line.days31to60) }}</td>
+          <td class="text-right" [class.text-red-800]="line.days61to90 > 0">{{ formatCurrency(line.days61to90) }}</td>
+          <td class="text-right" [class.text-purple-700]="line.days91Plus > 0">{{ formatCurrency(line.days91Plus) }}</td>
         </tr>
       </ng-template>
 
       <ng-template pTemplate="footer">
-        <tr class="bg-blue-50 font-bold">
-          <td colspan="2" class="text-right">
-            <span class="text-lg text-gray-800">TOTALES:</span>
+        <tr class="bg-blue-50 font-bold" *ngIf="reportData.lines.length">
+          <td
+            [attr.colspan]="filterForm.get('includeDocuments')?.value ? 5 : 1"
+            class="text-right">
+            TOTALES:
           </td>
-          <td class="text-right">
-            <span class="text-lg text-blue-700">{{
-              formatCurrency(reportData.totals.totalDue)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-green-700">{{
-              formatCurrency(reportData.totals.current)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-orange-700">{{
-              formatCurrency(reportData.totals.days1to30)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-red-700">{{
-              formatCurrency(reportData.totals.days31to60)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-red-900">{{
-              formatCurrency(reportData.totals.days61to90)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-purple-700">{{
-              formatCurrency(reportData.totals.days91to180)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-pink-700">{{
-              formatCurrency(reportData.totals.days181to260)
-            }}</span>
-          </td>
-          <td class="text-right">
-            <span class="text-lg text-red-950">{{
-              formatCurrency(reportData.totals.daysOver260)
-            }}</span>
-          </td>
+          <td class="text-right text-blue-700">{{ formatCurrency(reportData.totals.totalDue) }}</td>
+          <td class="text-right text-green-700">{{ formatCurrency(reportData.totals.current) }}</td>
+          <td class="text-right text-orange-700">{{ formatCurrency(reportData.totals.days1to30) }}</td>
+          <td class="text-right text-red-700">{{ formatCurrency(reportData.totals.days31to60) }}</td>
+          <td class="text-right text-red-900">{{ formatCurrency(reportData.totals.days61to90) }}</td>
+          <td class="text-right text-purple-700">{{ formatCurrency(reportData.totals.days91Plus) }}</td>
         </tr>
       </ng-template>
 
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="10" class="text-center py-8">
-            <div class="flex flex-col items-center gap-4">
-              <i class="pi pi-inbox text-4xl text-gray-400"></i>
-              <div>
-                <p class="text-lg font-semibold text-gray-600 mb-2">
-                  No hay datos disponibles
-                </p>
-                <p class="text-gray-500">
-                  Ajuste los filtros y genere el reporte
-                </p>
-              </div>
-            </div>
-          </td>
-        </tr>
-      </ng-template>
-
-      <ng-template pTemplate="loadingbody">
-        <tr>
-          <td colspan="10" class="text-center py-8">
-            <div class="flex flex-col items-center gap-4">
-              <i class="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
-              <p class="text-lg text-gray-600">Generando reporte...</p>
-            </div>
+          <td [attr.colspan]="filterForm.get('includeDocuments')?.value ? 11 : 6" class="text-center py-8">
+            <i class="pi pi-inbox text-4xl text-gray-400 mb-3 block"></i>
+            <p class="text-lg font-semibold text-gray-600 mb-1">{{ emptyFiltersMessage }}</p>
+            <p class="text-gray-500">Ajuste los filtros o genere el reporte con otros criterios</p>
           </td>
         </tr>
       </ng-template>
     </p-table>
   </p-card>
 
-  <!-- Empty State (when no report generated yet) -->
-  <p-card *ngIf="!reportData && !loading" class="mb-4">
-    <div class="text-center py-8">
-      <div class="flex flex-col items-center gap-4">
-        <i class="pi pi-chart-bar text-6xl text-blue-300"></i>
-        <div>
-          <p class="text-xl font-semibold text-gray-600 mb-2">
-            Configure los filtros y genere el reporte
-          </p>
-          <p class="text-gray-500">
-            Seleccione los criterios de búsqueda y haga clic en "Generar
-            reporte"
-          </p>
-        </div>
-      </div>
-    </div>
-  </p-card>
-
-  <!-- Summary Statistics -->
-  <div
-    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-4"
-    *ngIf="reportData"
-  >
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4" *ngIf="reportData">
     <p-card>
       <div class="text-center">
-        <i class="pi pi-dollar text-3xl text-blue-500 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.totalDue) }}
-        </h3>
-        <p class="text-gray-600">Total a Pagar</p>
+        <h3 class="text-xl font-bold text-gray-800">{{ formatCurrency(reportData.totals.totalDue) }}</h3>
+        <p class="text-gray-600">Total a pagar</p>
       </div>
     </p-card>
-
     <p-card>
       <div class="text-center">
-        <i class="pi pi-check-circle text-3xl text-green-500 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.current) }}
-        </h3>
+        <h3 class="text-xl font-bold text-green-700">{{ formatCurrency(reportData.totals.current) }}</h3>
         <p class="text-gray-600">Corriente</p>
       </div>
     </p-card>
-
     <p-card>
       <div class="text-center">
-        <i class="pi pi-clock text-3xl text-orange-500 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.days1to30) }}
-        </h3>
+        <h3 class="text-xl font-bold text-orange-600">{{ formatCurrency(reportData.totals.days1to30) }}</h3>
         <p class="text-gray-600">1 a 30 días</p>
       </div>
     </p-card>
-
     <p-card>
       <div class="text-center">
-        <i class="pi pi-exclamation-triangle text-3xl text-red-500 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.days31to60) }}
-        </h3>
+        <h3 class="text-xl font-bold text-red-600">{{ formatCurrency(reportData.totals.days31to60) }}</h3>
         <p class="text-gray-600">31 a 60 días</p>
       </div>
     </p-card>
-
     <p-card>
       <div class="text-center">
-        <i class="pi pi-times-circle text-3xl text-red-800 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.days61to90) }}
-        </h3>
+        <h3 class="text-xl font-bold text-red-800">{{ formatCurrency(reportData.totals.days61to90) }}</h3>
         <p class="text-gray-600">61 a 90 días</p>
       </div>
     </p-card>
-
     <p-card>
       <div class="text-center">
-        <i class="pi pi-calendar-times text-3xl text-purple-600 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.days91to180) }}
-        </h3>
-        <p class="text-gray-600">91 a 180 días</p>
-      </div>
-    </p-card>
-
-    <p-card>
-      <div class="text-center">
-        <i class="pi pi-hourglass text-3xl text-pink-500 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.days181to260) }}
-        </h3>
-        <p class="text-gray-600">181 a 260 días</p>
-      </div>
-    </p-card>
-
-    <p-card>
-      <div class="text-center">
-        <i class="pi pi-ban text-3xl text-red-900 mb-2"></i>
-        <h3 class="text-2xl font-bold text-gray-800">
-          {{ formatCurrency(reportData.totals.daysOver260) }}
-        </h3>
-        <p class="text-gray-600">Más de 260 días</p>
+        <h3 class="text-xl font-bold text-purple-700">{{ formatCurrency(reportData.totals.days91Plus) }}</h3>
+        <p class="text-gray-600">Más de 90 días</p>
       </div>
     </p-card>
   </div>
 
-  <!-- Toast Messages -->
   <p-toast></p-toast>
 </div>

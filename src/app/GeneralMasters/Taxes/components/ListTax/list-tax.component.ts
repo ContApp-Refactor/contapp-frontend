@@ -141,16 +141,24 @@ export class ListTaxComponent implements OnInit {
    */
   loadTaxesLazy(event: any): void {
     const enterpriseId = this.getEnterpriseId();
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      this.taxes = [];
+      this.totalRecords = 0;
+      return;
+    }
 
     this.loading = true;
 
-    // Calcular página y tamaño desde los controles de PrimeNG
-    this.currentPage = Math.floor(event.first / event.rows);
-    this.currentSize = event.rows;
+    const first = typeof event?.first === 'number' ? event.first : 0;
+    const rows =
+      typeof event?.rows === 'number' && event.rows > 0
+        ? event.rows
+        : this.currentSize || 10;
 
-    // Manejar ordenamiento si está presente
-    if (event.sortField) {
+    this.currentPage = Math.floor(first / rows);
+    this.currentSize = rows;
+
+    if (event?.sortField) {
       this.currentSortField = event.sortField;
       this.currentSortOrder = event.sortOrder === 1 ? 'asc' : 'desc';
     }
@@ -165,16 +173,31 @@ export class ListTaxComponent implements OnInit {
         this.searchTerm,
       )
       .subscribe({
-        next: (page) => {
-          const content: any[] = page.content || [];
+        next: (response: any) => {
+          const content: any[] = Array.isArray(response)
+            ? response
+            : Array.isArray(response?.content)
+              ? response.content
+              : [];
+
           this.taxes = content.map((tax: any) => ({
             ...tax,
             id: Number(tax.id),
-            salesTaxName: this.getAccountName(tax.salesTax),
-            purchaseTaxName: this.getAccountName(tax.purchaseTax),
+            purchaseTaxName: this.getAccountName(
+              tax.purchaseTax ?? tax.depositAccount,
+            ),
+            salesTaxName: this.getAccountName(
+              tax.salesTax ?? tax.refundAccount,
+            ),
+            status: typeof tax.status === 'boolean' ? tax.status : false,
           }));
-          this.totalRecords =
-            page.page?.totalElements || page.totalElements || 0;
+
+          this.totalRecords = Array.isArray(response)
+            ? content.length
+            : (response?.page?.totalElements ??
+              response?.totalElements ??
+              content.length);
+
           this.loading = false;
         },
         error: (error) => {
@@ -193,7 +216,11 @@ export class ListTaxComponent implements OnInit {
    */
   reloadCurrentPage(): void {
     const enterpriseId = this.getEnterpriseId();
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      this.taxes = [];
+      this.totalRecords = 0;
+      return;
+    }
 
     this.loading = true;
     this.taxService
@@ -206,20 +233,40 @@ export class ListTaxComponent implements OnInit {
         this.searchTerm,
       )
       .subscribe({
-        next: (page) => {
-          const content: any[] = page.content || [];
+        next: (response: any) => {
+          const content: any[] = Array.isArray(response)
+            ? response
+            : Array.isArray(response?.content)
+              ? response.content
+              : [];
+
           this.taxes = content.map((tax: any) => ({
             ...tax,
             id: Number(tax.id),
-            salesTaxName: this.getAccountName(tax.salesTax),
-            purchaseTaxName: this.getAccountName(tax.purchaseTax),
+            purchaseTaxName: this.getAccountName(
+              tax.purchaseTax ?? tax.depositAccount,
+            ),
+            salesTaxName: this.getAccountName(
+              tax.salesTax ?? tax.refundAccount,
+            ),
+            status: typeof tax.status === 'boolean' ? tax.status : false,
           }));
-          this.totalRecords =
-            page.page?.totalElements || page.totalElements || 0;
+
+          this.totalRecords = Array.isArray(response)
+            ? content.length
+            : (response?.page?.totalElements ??
+              response?.totalElements ??
+              content.length);
+
           this.loading = false;
         },
         error: (error) => {
           this.loading = false;
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudieron recargar los impuestos',
+          });
         },
       });
   }
@@ -244,7 +291,9 @@ export class ListTaxComponent implements OnInit {
    */
   private getAccountName(code: string): string {
     if (!code) return 'N/A';
-    const account = this.accounts.find((acc) => acc.code === code);
+    const account = this.accounts.find(
+      (acc) => String(acc.code) === String(code),
+    );
     return account ? `${account.code} - ${account.description}` : code;
   }
 
@@ -362,7 +411,6 @@ export class ListTaxComponent implements OnInit {
       },
     });
   }
-
   /**
    * Formatea el porcentaje para mostrar
    */

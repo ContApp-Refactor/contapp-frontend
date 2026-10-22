@@ -40,6 +40,11 @@
           <small class="error-message" *ngIf="form.get('accountingAccount')?.touched && form.get('accountingAccount')?.invalid">Seleccione una cuenta</small>
         </div>
 
+        <label class="flex items-center gap-3 font-semibold text-primary">
+          <input type="checkbox" formControlName="requiresBankAccount" />
+          Requiere cuenta bancaria al pagar
+        </label>
+
       </div>
 
       <!-- Botones de acción -->

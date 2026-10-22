@@ -260,10 +260,10 @@ export class ThirdService {
    * @param entId ID de la empresa
    * @returns Observable con la lista de terceros activos
    */
-  getActiveThirds(entId: string): Observable<any> {
+  getActiveThirds(entId: string): Observable<PageResponse<Third>> {
     const params = new HttpParams().set('entId', entId);
 
-    return this.http.get<any>(`${this.thirdApiUrl}findAllActive`, { params }).pipe(
+    return this.http.get<PageResponse<Third>>(`${this.thirdApiUrl}findAllActive`, { params }).pipe(
       catchError((error) => {
         return throwError(() => error);
       })

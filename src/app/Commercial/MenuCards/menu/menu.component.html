@@ -1,0 +1,71 @@
+<!-- Componente Principal Comercial -->
+
+<div class="flex w-full h-full font-titillium">
+
+    <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
+
+        <!-- Header Section -->
+
+        <div class="items-center mb-40">
+
+            <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+
+                <span class="border-b-4 border-secondary-light inline-block pb-1">Comercial</span>
+
+            </h1>
+
+            <p class="font-family-sans font-normal text-sm mt-12">
+
+                Administra las operaciones comerciales del sistema. Desde aquí puedes acceder a los diferentes módulos
+                disponibles.
+
+            </p>
+
+        </div>
+
+        <!-- Configuracion seccion tarjetas -->
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+
+            <!-- Configuracion tarjetas -->
+
+            <ng-container *ngFor="let option of menuOptions">
+
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                    (click)="navigateTo(option.route)">
+
+                    <div class="flex items-start mb-4">
+
+                        <div class="flex-1">
+
+                            <h3 class="font-family-sans text-lg font-semibold text-primary mb-1 flex items-center">
+
+                                <span class="material-symbols-outlined m-0 p-0 mr-2">
+
+                                    {{ option.icon }}
+
+                                </span>
+
+                                {{ option.title }}
+
+                            </h3>
+
+                            <p class="font-family-sans text-sm text-gray-500">
+
+                                {{ option.description }}
+
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </ng-container>
+
+        </div>
+
+    </div>
+
+</div>

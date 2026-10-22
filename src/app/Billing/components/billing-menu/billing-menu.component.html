@@ -1,0 +1,30 @@
+<!-- Menú principal de Facturación -->
+<div class="flex w-full h-full font-titillium">
+  <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
+    <div class="items-center mb-12">
+      <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+        <span class="border-b-4 border-secondary-light inline-block pb-1">Facturación</span>
+      </h1>
+      <p class="font-family-sans font-normal text-sm mt-12">
+        Selecciona la operación de facturación que deseas realizar.
+      </p>
+    </div>
+
+    <!-- Cruz de opciones: grilla de 4 columnas; arriba y abajo se centran sobre la unión de la fila del medio -->
+    <!-- Ojo: este proyecto define --spacing: 1px (styles.css), así que p-16 = 16px, min-h-180 = 180px -->
+    <div class="grid grid-cols-4 grid-rows-3 gap-8 w-full max-w-3xl mx-auto">
+      @for (option of options; track option.route) {
+        <button
+          type="button"
+          class="{{ option.position }} group flex flex-col items-center justify-center gap-16 p-24 min-h-150 sm:min-h-180 text-center text-white bg-primary rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-4 hover:brightness-125 focus-visible:brightness-125 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/40 transition-all duration-200 cursor-pointer"
+          (click)="navigateTo(option.route)"
+        >
+          <span class="flex items-center justify-center w-64 h-64 rounded-full bg-white/15 group-hover:bg-white/25 transition-colors duration-200">
+            <span class="material-symbols-outlined m-0 p-0 text-4xl">{{ option.icon }}</span>
+          </span>
+          <span class="font-family-sans text-sm sm:text-lg font-semibold leading-tight">{{ option.title }}</span>
+        </button>
+      }
+    </div>
+  </div>
+</div>

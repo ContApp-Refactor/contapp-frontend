@@ -1,98 +1,318 @@
-<div class="w-full px-4 sm:px-6 lg:px-8 pt-20 font-sans">
+<div class="w-full px-4 sm:px-6 lg:px-8 pt-20 font-sans max-w-6xl mx-auto">
     <p-toast></p-toast>
     <p-confirmDialog></p-confirmDialog>
 
     @if (errorMessage) {
-        <p-message severity="error" [text]="errorMessage"></p-message>
+        <p-message severity="error" [text]="errorMessage" styleClass="w-full mb-4"></p-message>
+    }
+
+    @if (loading) {
+        <p-card>
+            <p class="text-gray-600 m-0">Cargando comprobante...</p>
+        </p-card>
     }
 
     @if (receipt) {
-        <!-- CABECERA -->
-        <div class="mb-8">
-            <h1 class="font-['Titillium_Web'] font-bold text-3xl text-[var(--color-primary)] border-b-4 border-[var(--color-secondary)] inline-block pb-1">
-                Detalles del Comprobante de Egreso
-            </h1>
-            <p class="mt-2 text-base text-gray-600">
-                Información detallada del comprobante {{ receipt.receiptCode }}
-            </p>
+        <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <h1 class="font-['Titillium_Web'] font-bold text-3xl text-[var(--color-primary)] border-b-4 border-[var(--color-secondary)] inline-block pb-1">
+                    Detalles del Comprobante de Egreso
+                </h1>
+                <p class="mt-2 text-base text-gray-600">
+                    Información detallada del comprobante
+                    <span class="font-mono font-semibold text-[var(--color-primary)]">{{ receipt.receiptCode }}</span>
+                </p>
+            </div>
+            <p-tag [value]="receipt.status" [severity]="statusSeverity()"></p-tag>
         </div>
 
-        <!-- INFORMACIÓN PRINCIPAL -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold text-[var(--color-primary)] mb-4">Información General</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <span class="font-medium">Código del Comprobante:</span>
-                    <span class="ml-2">{{ receipt.receiptCode }}</span>
+        <div class="amount-summary p-5 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div>
+                <p class="text-sm text-gray-500 m-0">Monto neto pagado</p>
+                <p class="net-value font-bold m-0 mt-1">{{ formatMoney(receipt.netAmount) }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 m-0">Monto bruto / total facturas</p>
+                <p class="text-xl font-semibold m-0 mt-1">{{ formatMoney(receipt.grossAmount) }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 m-0">Retenciones</p>
+                <p class="text-xl font-semibold m-0 mt-1">{{ formatMoney(receipt.retentionsAmount) }}</p>
+            </div>
+        </div>
+
+        <p-card styleClass="mb-6 shadow-sm">
+            <ng-template pTemplate="title">
+                <span class="text-lg font-semibold text-[var(--color-primary)]">Información general</span>
+            </ng-template>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                <dl class="detail-field">
+                    <dt>Código del comprobante</dt>
+                    <dd class="font-mono text-blue-600">{{ receipt.receiptCode }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Estado</dt>
+                    <dd>{{ receipt.status }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Fecha de elaboración</dt>
+                    <dd>{{ receipt.issueDate | date:'dd/MM/yyyy' }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Fecha/hora de ejecución</dt>
+                    <dd>
+                        {{ receipt.executionDateTime ? (receipt.executionDateTime | date:'dd/MM/yyyy HH:mm') : '—' }}
+                    </dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Proveedor</dt>
+                    <dd>{{ displayText(receipt.supplierName) }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Identificación / NIT</dt>
+                    <dd>{{ displayText(receipt.supplierIdentification) }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Método de pago</dt>
+                    <dd>{{ displayText(receipt.paymentMethodName) }}</dd>
+                </dl>
+                @if (receipt.scheduleId) {
+                    <dl class="detail-field">
+                        <dt>Programación de origen</dt>
+                        <dd>
+                            <button
+                                type="button"
+                                class="text-blue-600 hover:underline font-mono bg-transparent border-0 p-0 cursor-pointer"
+                                (click)="openScheduleDetail()">
+                                #{{ receipt.scheduleId }}
+                                @if (receipt.scheduleExecutionDate) {
+                                    ({{ receipt.scheduleExecutionDate | date:'dd/MM/yyyy' }})
+                                }
+                            </button>
+                        </dd>
+                    </dl>
+                }
+            </div>
+            @if (receipt.observations) {
+                <p-divider></p-divider>
+                <dl class="detail-field">
+                    <dt>Observaciones</dt>
+                    <dd class="font-normal text-gray-700">{{ receipt.observations }}</dd>
+                </dl>
+            }
+        </p-card>
+
+        @if (receipt.details && receipt.details.length > 0) {
+            <p-card styleClass="mb-6 shadow-sm">
+                <ng-template pTemplate="title">
+                    <span class="text-lg font-semibold text-[var(--color-primary)]">Facturas pagadas</span>
+                </ng-template>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-200 text-left text-gray-600">
+                                <th class="py-2 pr-3">N.º / referencia</th>
+                                <th class="py-2 pr-3">Cuenta CxP</th>
+                                <th class="py-2 pr-3 text-right">Valor factura</th>
+                                <th class="py-2 pr-3 text-right">Valor pagado</th>
+                                <th class="py-2 pr-3 text-right">Retenciones</th>
+                                <th class="py-2 pr-3 text-right">Saldo restante</th>
+                                <th class="py-2 text-right" style="min-width: 11rem">Productos/servicios</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (detail of receipt.details; track detail.invoiceId) {
+                                <tr class="border-b border-gray-100 align-top">
+                                    <td class="py-3 pr-3 font-mono">{{ detail.invoiceCode || detail.invoiceId }}</td>
+                                    <td class="py-3 pr-3 font-mono text-gray-700">{{ detail.payableAccountCode }}</td>
+                                    <td class="py-3 pr-3 text-right">{{ formatMoney(detail.invoiceValue) }}</td>
+                                    <td class="py-3 pr-3 text-right font-semibold">{{ formatMoney(detail.amountPaid) }}</td>
+                                    <td class="py-3 pr-3 text-right">{{ formatMoney(detail.retentionsApplied) }}</td>
+                                    <td class="py-3 pr-3 text-right">{{ formatMoney(detail.remainingBalance) }}</td>
+                                    <td class="py-3 text-right">
+                                        <p-button
+                                            [label]="isProductsExpanded(detail) ? 'Ocultar' : 'Ver productos/servicios'"
+                                            icon="pi pi-box"
+                                            size="small"
+                                            [outlined]="true"
+                                            [loading]="isProductsLoading(detail)"
+                                            (onClick)="toggleProducts(detail)">
+                                        </p-button>
+                                    </td>
+                                </tr>
+                                @if (isProductsExpanded(detail)) {
+                                    <tr>
+                                        <td colspan="7" class="pb-4 pt-0">
+                                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                                @if (isProductsLoading(detail)) {
+                                                    <p class="text-gray-600 m-0">Consultando productos en Facturación...</p>
+                                                } @else if (productsError(detail)) {
+                                                    <p class="text-gray-600 m-0">{{ productsError(detail) }}</p>
+                                                } @else if (detail.productLines?.length) {
+                                                    <p-table [value]="detail.productLines!" styleClass="p-datatable-sm p-datatable-striped">
+                                                        <ng-template pTemplate="header">
+                                                            <tr>
+                                                                <th scope="col">Producto/servicio</th>
+                                                                <th scope="col">Descripción</th>
+                                                                <th scope="col" class="text-right">Cantidad</th>
+                                                                <th scope="col" class="text-right">Valor unitario</th>
+                                                                <th scope="col" class="text-right">Subtotal</th>
+                                                                <th scope="col" class="text-right">Impuestos</th>
+                                                                <th scope="col" class="text-right">Descuento</th>
+                                                                <th scope="col" class="text-right">Total línea</th>
+                                                            </tr>
+                                                        </ng-template>
+                                                        <ng-template pTemplate="body" let-line>
+                                                            <tr>
+                                                                <td>{{ line.productLabel }}</td>
+                                                                <td>{{ line.description || '—' }}</td>
+                                                                <td class="text-right">{{ line.quantity }}</td>
+                                                                <td class="text-right">{{ formatMoney(line.unitPrice) }}</td>
+                                                                <td class="text-right">{{ formatMoney(line.subtotal) }}</td>
+                                                                <td class="text-right">
+                                                                    @if (line.taxLabel !== '—') {
+                                                                        <span>{{ line.taxLabel }}</span>
+                                                                        <span class="block text-xs text-gray-500">{{ formatMoney(line.taxAmount) }}</span>
+                                                                    } @else {
+                                                                        —
+                                                                    }
+                                                                </td>
+                                                                <td class="text-right">
+                                                                    @if (line.discountPercent > 0) {
+                                                                        <span>{{ line.discountPercent }}%</span>
+                                                                        <span class="block text-xs text-gray-500">{{ formatMoney(line.discountAmount) }}</span>
+                                                                    } @else {
+                                                                        —
+                                                                    }
+                                                                </td>
+                                                                <td class="text-right font-semibold">{{ formatMoney(line.lineTotal) }}</td>
+                                                            </tr>
+                                                        </ng-template>
+                                                    </p-table>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <div>
-                    <span class="font-medium">Fecha de Elaboración:</span>
-                    <span class="ml-2">{{ receipt.issueDate | date:'dd/MM/yyyy' }}</span>
+            </p-card>
+        }
+
+        <p-card styleClass="mb-6 shadow-sm">
+            <ng-template pTemplate="title">
+                <span class="text-lg font-semibold text-[var(--color-primary)]">Información del pago</span>
+            </ng-template>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                <dl class="detail-field">
+                    <dt>Método</dt>
+                    <dd>{{ displayText(receipt.paymentMethodName) }}</dd>
+                </dl>
+                @if (receipt.paymentMethodRequiresBankAccount) {
+                    <dl class="detail-field">
+                        <dt>Cuenta origen</dt>
+                        <dd>{{ displayText(receipt.bankAccountLabel) }}</dd>
+                    </dl>
+                }
+                <dl class="detail-field">
+                    <dt>Referencia / comprobante</dt>
+                    <dd class="font-mono">{{ receipt.receiptCode }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Fecha de ejecución</dt>
+                    <dd>
+                        {{ receipt.executionDateTime ? (receipt.executionDateTime | date:'dd/MM/yyyy HH:mm') : '—' }}
+                    </dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Monto neto pagado</dt>
+                    <dd class="text-green-700">{{ formatMoney(receipt.netAmount) }}</dd>
+                </dl>
+            </div>
+        </p-card>
+
+        <p-card styleClass="mb-6 shadow-sm">
+            <ng-template pTemplate="title">
+                <div class="flex flex-wrap items-center justify-between gap-3 w-full">
+                    <span class="text-lg font-semibold text-[var(--color-primary)]">Información contable</span>
+                    @if (receipt.accountingEntryId) {
+                        <p-button
+                            label="Actualizar asiento"
+                            icon="pi pi-refresh"
+                            size="small"
+                            [outlined]="true"
+                            [loading]="loadingAccounting"
+                            (onClick)="showAccounting()">
+                        </p-button>
+                    }
                 </div>
-                <div>
-                    <span class="font-medium">Proveedor:</span>
-                    <span class="ml-2">{{ receipt.supplierName }}</span>
-                </div>
-                <div>
-                    <span class="font-medium">Método de Pago:</span>
-                    <span class="ml-2">{{ receipt.paymentMethodName }}</span>
-                </div>
-                <div>
-                    <span class="font-medium">Estado:</span>
-                    <span class="ml-2" [ngClass]="{'text-red-600': receipt.status === 'Anulado', 'text-green-600': receipt.status === 'Activo'}">
-                        {{ receipt.status }}
-                    </span>
-                </div>
-                <div>
-                    <span class="font-medium">Monto Total:</span>
-                    <span class="ml-2 font-semibold text-green-600">
-                        {{ receipt.totalAmount | currency:'COP':'symbol':'1.0-0':'es-CO' }}
-                    </span>
-                </div>
+            </ng-template>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                <dl class="detail-field">
+                    <dt>Estado contable</dt>
+                    <dd>{{ displayText(receipt.accountingStatusLabel) }}</dd>
+                </dl>
+                <dl class="detail-field">
+                    <dt>Asiento</dt>
+                    <dd class="font-mono">{{ displayText(receipt.accountingEntryCode) }}</dd>
+                </dl>
+                @if (receipt.accountingEntryId) {
+                    <dl class="detail-field">
+                        <dt>ID asiento contable</dt>
+                        <dd class="font-mono">{{ receipt.accountingEntryId }}</dd>
+                    </dl>
+                }
             </div>
 
-            @if (receipt.observations) {
-                <div class="mt-4">
-                    <span class="font-medium">Observaciones:</span>
-                    <p class="mt-1 text-gray-700">{{ receipt.observations }}</p>
-                </div>
+            @if (loadingAccounting && !accountingMovements.length) {
+                <p class="text-gray-600 mt-4 m-0">Consultando movimientos del asiento...</p>
             }
-        </div>
 
-        <!-- DETALLES DE FACTURAS (si aplica) -->
-        @if (receipt.details && receipt.details.length > 0) {
-            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-                <h2 class="text-xl font-semibold text-[var(--color-primary)] mb-4">Facturas Pagadas</h2>
-                <p-table [value]="receipt.details" [tableStyle]="{'min-width': '50rem'}" styleClass="p-datatable-striped">
+            @if (accountingMovements.length) {
+                <p-message
+                    *ngIf="!accountingIsBalanced"
+                    severity="warn"
+                    text="El asiento no está balanceado: el total débito difiere del total crédito."
+                    styleClass="mt-4 w-full">
+                </p-message>
+                <p-table
+                    [value]="accountingMovements"
+                    styleClass="p-datatable-sm p-datatable-striped mt-4">
                     <ng-template pTemplate="header">
                         <tr>
-                            <th>Código de Factura</th>
-                            <th>Cuenta Contable</th>
-                            <th class="text-right">Monto Pagado</th>
+                            <th scope="col">Código cuenta</th>
+                            <th scope="col">Cuenta</th>
+                            <th scope="col">Detalle</th>
+                            <th scope="col" class="text-right">Débito</th>
+                            <th scope="col" class="text-right">Crédito</th>
                         </tr>
                     </ng-template>
-                    <ng-template pTemplate="body" let-detail>
+                    <ng-template pTemplate="body" let-row>
                         <tr>
-                            <td>{{ detail.invoiceCode }}</td>
-                            <td>{{ detail.accountingAccount }}</td>
-                            <td class="text-right">{{ detail.amountPaid | currency:'COP':'symbol':'1.0-0':'es-CO' }}</td>
+                            <td class="font-mono">{{ row.accountCode }}</td>
+                            <td>{{ row.accountName }}</td>
+                            <td>{{ row.detail }}</td>
+                            <td class="text-right">{{ formatMoney(row.debit) }}</td>
+                            <td class="text-right">{{ formatMoney(row.credit) }}</td>
                         </tr>
                     </ng-template>
                 </p-table>
-            </div>
-        }
+            }
+        </p-card>
 
-        <!-- BOTONES DE ACCIÓN -->
-        <div class="flex justify-center gap-4 mb-8">
+        <div class="flex justify-center gap-3 mb-8 flex-wrap">
             <p-button
-                label="Ver Contabilización"
+                label="Ver página de contabilización"
                 icon="pi pi-calculator"
-                (onClick)="viewAccounting()">
+                [outlined]="true"
+                (onClick)="viewAccountingPage()">
             </p-button>
 
-            @if (receipt.status === 'Activo') {
+            @if (receipt.statusKey === 'POSTED') {
                 <p-button
-                    label="Anular Comprobante"
+                    label="Anular comprobante"
                     icon="pi pi-times"
                     styleClass="p-button-danger"
                     (onClick)="openAnnulDialog()">
@@ -100,7 +320,7 @@
             }
 
             <p-button
-                label="Volver al Listado"
+                label="Volver al listado"
                 icon="pi pi-arrow-left"
                 styleClass="p-button-secondary"
                 (onClick)="goBackToList()">
@@ -108,14 +328,12 @@
         </div>
     }
 
-    <!-- DIÁLOGO DE ANULACIÓN -->
     <p-dialog
         header="Anular Comprobante de Egreso"
         [(visible)]="displayAnnulDialog"
         [modal]="true"
         [style]="{width: '500px'}"
         [closable]="true">
-
         <div class="mb-4">
             <label for="annulReason" class="block font-medium text-gray-700 mb-2">
                 Motivo de la anulación <span class="text-red-500">*</span>
@@ -128,7 +346,6 @@
                 class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
             </textarea>
         </div>
-
         <div class="flex justify-end gap-2">
             <p-button
                 label="Cancelar"
@@ -138,7 +355,7 @@
                 [disabled]="isSubmittingAnnulment">
             </p-button>
             <p-button
-                label="Confirmar Anulación"
+                label="Confirmar anulación"
                 icon="pi pi-check"
                 styleClass="p-button-danger"
                 (onClick)="confirmAnnulment()"

@@ -22,7 +22,9 @@ export interface PurchaseInvoice {
     expirationDate: Date;
     pendingValue: number;
     selectedForPayment?: boolean; 
-    amountToPay?: number; 
+    amountToPay?: number;
+    payableAccountId?: number;
+    payableAccountCode?: string;
 }
 
 // Interfaz para la vista de lista de recibos de gastos
@@ -32,6 +34,16 @@ export interface ExpenseReceiptView {
     issueDate: Date;
     thirdPartyId: number;
     supplierName: string;
-    status: 'Activo' | 'Anulado';
+    /** Etiqueta mostrada en UI */
+    status: string;
+    /** Estado crudo del voucher (DRAFT, POSTED, VOIDED, …) */
+    statusKey?: string;
     totalAmount: number;
+    accountingEntryId?: number;
+}
+
+export interface ReceiptFilterOption {
+    label: string;
+    value: string | number;
+    supplierId?: number;
 }

@@ -2,6 +2,21 @@ import { Routes } from '@angular/router';
 
 export const FINANCIAL_ROUTES: Routes = [
   {
+    path: '',
+    redirectTo: 'menu',
+    pathMatch: 'full',
+  },
+  {
+    path: 'menu',
+    data: {
+      breadcrumb: null,
+    },
+    loadComponent: () =>
+      import('../../app/Financial/MenuCards/menu/menu.component').then(
+        (m) => m.MenuComponent,
+      ),
+  },
+  {
     path: 'reports',
     data: {
       breadcrumb: 'Reportes',

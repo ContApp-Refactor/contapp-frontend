@@ -1,0 +1,129 @@
+<p-toast />
+
+<div class="p-6 max-w-3xl mx-auto">
+
+  <!-- Cabecera -->
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-2xl font-semibold">Detalle del proceso</h2>
+    <button pButton label="Regresar" icon="pi pi-arrow-left" class="p-button-outlined"
+      (click)="goBack()"></button>
+  </div>
+
+  @if (loading) {
+    <div class="flex justify-center py-12">
+      <i class="pi pi-spin pi-spinner text-4xl text-blue-500"></i>
+    </div>
+  } @else if (process) {
+
+    <!-- Tarjeta estado general -->
+    <div class="bg-white border rounded-xl shadow-sm p-6 mb-6">
+
+      <div class="flex items-center gap-3 mb-4">
+        <i [class]="estadoIcono + ' text-3xl ' + estadoColor"></i>
+        <div>
+          <p class="text-sm text-gray-500">Estado</p>
+          <p class="text-lg font-semibold" [class]="estadoColor">{{ process.estado }}</p>
+        </div>
+        <span class="ml-auto px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+          {{ process.tipo }}
+        </span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 text-sm text-gray-600">
+        <div>
+          <span class="font-medium">ID proceso:</span>
+          <code class="ml-1 text-xs break-all">{{ process.idProceso }}</code>
+        </div>
+        <div>
+          <span class="font-medium">Empresa origen:</span> {{ process.empresaOrigen }}
+        </div>
+        <div>
+          <span class="font-medium">Empresa destino:</span> {{ process.empresaDestino || '—' }}
+        </div>
+        <div>
+          <span class="font-medium">Iniciado por:</span> {{ process.iniciadoPor }}
+        </div>
+        @if (process.iniciadoEn) {
+          <div>
+            <span class="font-medium">Iniciado en:</span>
+            {{ process.iniciadoEn | date:'medium':'':'es' }}
+          </div>
+        }
+        @if (process.finalizadoEn) {
+          <div>
+            <span class="font-medium">Finalizado en:</span>
+            {{ process.finalizadoEn | date:'medium':'':'es' }}
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Progreso de fases -->
+    <div class="bg-white border rounded-xl shadow-sm p-6 mb-6">
+      <h3 class="font-semibold mb-4">Progreso por fases</h3>
+
+      <p-progressBar [value]="progreso" [showValue]="true" class="mb-5"></p-progressBar>
+
+      <div class="flex flex-col gap-3">
+        @for (fase of FASES; track fase.numero) {
+          <div class="flex items-start gap-3 p-3 rounded-lg transition"
+            [class.bg-green-50]="process.estado === 'COMPLETADO' || (process.faseActual ?? 0) > fase.numero"
+            [class.bg-blue-50]="process.estado === 'EN_PROCESO' && process.faseActual === fase.numero"
+            [class.bg-red-50]="(process.estado === 'ERROR' || process.estado === 'FALLIDO') && process.faseActual === fase.numero"
+            [class.bg-gray-50]="(process.faseActual ?? 0) < fase.numero && process.estado !== 'COMPLETADO'">
+
+            <div class="mt-0.5">
+              @if (process.estado === 'COMPLETADO' || (process.faseActual ?? 0) > fase.numero) {
+                <i class="pi pi-check-circle text-green-500 text-xl"></i>
+              } @else if (process.estado === 'EN_PROCESO' && process.faseActual === fase.numero) {
+                <i class="pi pi-spin pi-spinner text-blue-500 text-xl"></i>
+              } @else if ((process.estado === 'ERROR' || process.estado === 'FALLIDO') && process.faseActual === fase.numero) {
+                <i class="pi pi-times-circle text-red-500 text-xl"></i>
+              } @else {
+                <i class="pi pi-circle text-gray-300 text-xl"></i>
+              }
+            </div>
+
+            <div>
+              <p class="font-medium text-sm">Fase {{ fase.numero }}: {{ fase.nombre }}</p>
+              <p class="text-xs text-gray-500">{{ fase.descripcion }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Detalle / errores -->
+    @if (process.errorResumen) {
+      <div class="rounded-xl p-5 mb-6 border"
+        [class.bg-red-50]="process.estado === 'ERROR' || process.estado === 'FALLIDO'"
+        [class.border-red-200]="process.estado === 'ERROR' || process.estado === 'FALLIDO'"
+        [class.bg-blue-50]="process.estado === 'COMPLETADO'"
+        [class.border-blue-200]="process.estado === 'COMPLETADO'">
+        <p class="font-semibold mb-2 text-sm"
+          [class.text-red-700]="process.estado === 'ERROR' || process.estado === 'FALLIDO'"
+          [class.text-blue-700]="process.estado === 'COMPLETADO'">
+          @if (process.estado === 'COMPLETADO') {
+            Resumen de validación
+          } @else {
+            Detalle del error
+          }
+        </p>
+        <pre class="text-xs whitespace-pre-wrap break-all text-gray-700">{{ process.errorResumen }}</pre>
+      </div>
+    }
+
+    <!-- Acciones -->
+    @if (process.backupRef && process.tipo === 'BACKUP' && process.estado === 'COMPLETADO') {
+      <div class="flex gap-3">
+        <button pButton label="Descargar backup" icon="pi pi-download"
+          class="p-button-outlined"
+          (click)="downloadBackup()"></button>
+      </div>
+    }
+
+  } @else {
+    <p class="text-center text-gray-500 py-12">Proceso no encontrado.</p>
+  }
+
+</div>

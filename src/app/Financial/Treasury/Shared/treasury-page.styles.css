@@ -1,0 +1,238 @@
+/* Shared Treasury look-and-feel (aligned with vendor-list / reports/vendors) */
+
+.container-fluid {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+::ng-deep .p-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+::ng-deep .p-card-header {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+  font-weight: 600;
+  border-radius: 10px 10px 0 0;
+  padding: 1.25rem;
+}
+
+::ng-deep .p-card-body {
+  padding: 1.5rem;
+}
+
+::ng-deep .p-inputtext,
+::ng-deep .p-dropdown,
+::ng-deep .p-calendar .p-inputtext,
+::ng-deep .p-inputnumber input,
+::ng-deep .p-autocomplete input,
+::ng-deep .p-inputtextarea {
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+}
+
+::ng-deep .p-inputtext:focus,
+::ng-deep .p-dropdown:focus,
+::ng-deep .p-calendar .p-inputtext:focus,
+::ng-deep .p-inputnumber input:focus,
+::ng-deep .p-autocomplete input:focus,
+::ng-deep .p-inputtextarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+::ng-deep .p-datatable {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+::ng-deep .p-datatable .p-datatable-header {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-bottom: 2px solid var(--color-primary);
+  padding: 1.25rem;
+}
+
+::ng-deep .p-datatable .p-datatable-thead > tr > th {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+  border: none;
+  padding: 1rem;
+  font-size: 0.95rem;
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr {
+  transition: all 0.2s ease;
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr:hover {
+  background-color: #e0e7ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr > td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+}
+
+::ng-deep .p-datatable .p-datatable-tfoot > tr {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-top: 3px solid var(--color-primary);
+}
+
+::ng-deep .p-datatable .p-datatable-tfoot > tr > td {
+  padding: 1.25rem 1rem;
+  font-weight: 700;
+  font-size: 1rem;
+  border: none;
+}
+
+::ng-deep .p-tag {
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+::ng-deep .p-button {
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+::ng-deep .p-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+::ng-deep .p-button.p-button-text {
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+::ng-deep .p-button.p-button-text:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+::ng-deep .p-paginator {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-top: 2px solid var(--color-primary);
+  padding: 1rem;
+}
+
+::ng-deep .p-paginator .p-paginator-pages .p-paginator-page {
+  border-radius: 8px;
+  margin: 0 2px;
+  transition: all 0.2s ease;
+}
+
+::ng-deep .filter-actions .p-button {
+  transition: all 0.3s ease;
+  font-weight: 600;
+  border-width: 2px;
+}
+
+::ng-deep .filter-actions .p-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+::ng-deep .filter-actions .p-button.p-button-secondary {
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+::ng-deep .filter-actions .p-button.p-button-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  border-color: #94a3b8;
+  color: #334155;
+}
+
+.filter-buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+::ng-deep .p-toast .p-toast-message {
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+::ng-deep .p-datatable .p-datatable-scrollable-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::ng-deep .p-datatable .p-datatable-scrollable-body::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+::ng-deep .p-datatable .p-datatable-scrollable-body::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+::ng-deep .p-datatable .p-datatable-scrollable-body::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}
+
+.text-green-600 { color: #059669 !important; }
+.text-orange-600 { color: #ea580c !important; }
+.text-gray-600 { color: #4b5563 !important; }
+.text-red-600 { color: #dc2626 !important; }
+.text-blue-600 { color: #2563eb !important; }
+
+.treasury-message {
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.treasury-message.error {
+  color: #b42318;
+  background: #fee4e2;
+  border: 1px solid #fecdca;
+}
+
+.treasury-message.info {
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+@media (max-width: 768px) {
+  .container-fluid {
+    padding: 1rem;
+  }
+
+  ::ng-deep .p-datatable {
+    font-size: 0.85rem;
+  }
+
+  ::ng-deep .p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .filter-buttons-container {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+}

@@ -1,281 +1,219 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
-import { environment } from '../../../../../../environments/environment';
+import { Observable, forkJoin, map, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { TreasuryApiService } from '../../../Shared/treasury-api.service';
+import { ChartAccountService } from '../../../../../GeneralMasters/AccountCatalogue/services/chart-account.service';
+import { ThirdService } from '../../../../../GeneralMasters/ThirdParties/Services/third.service';
+import { resolveSupplierFilterId } from '../../../Shared/treasury-third-party.integration';
 import {
   AgingReportFilter,
   AgingReportResponse,
-  AgingReportLine,
+  AccountTypeOption,
+  SupplierOption,
+  DocumentOption,
+  AgingFilterOptions,
 } from '../Models/AgingReport';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class AgingReportService {
-  private apiUrl = `${environment.API_URL}/aging-reports`;
+  constructor(
+    private readonly api: TreasuryApiService,
+    private readonly accounts: ChartAccountService,
+    private readonly thirds: ThirdService,
+  ) {}
 
-  constructor(private http: HttpClient) {}
+  getAgingReport(enterpriseId: string, filters: AgingReportFilter): Observable<AgingReportResponse> {
+    const cutoff = this.toLocalDateString(filters.cutoffDate ?? new Date());
+    const supplierId = resolveSupplierFilterId(filters.supplierId);
+    const accountCode = filters.accountCode || undefined;
+    const document = filters.document?.trim() || undefined;
 
-  /**
-   * Get aging report based on filters
-   */
-  getAgingReport(
-    enterpriseId: string,
-    filters: AgingReportFilter
-  ): Observable<AgingReportResponse> {
-    // For now, return mock data
-    // TODO: Replace with actual API call
-    return this.getMockAgingReport(filters);
-  }
+    return forkJoin({
+      items: this.api.aging(enterpriseId, cutoff, supplierId, accountCode, document),
+      accounts: this.accounts.getListAuxiliaryAccounts(enterpriseId).pipe(catchError(() => of([]))),
+      thirds: this.thirds.getThirdParties(enterpriseId, 0, 1000).pipe(catchError(() => of({ content: [] } as any))),
+    }).pipe(
+      map(({ items, accounts, thirds }) => {
+        const accountMap = new Map<string, string>(
+          (accounts || []).map((a: any) => [String(a.code), `${a.code} - ${a.description}`] as [string, string]),
+        );
+        const thirdMap = new Map<number, string>(
+          (thirds?.content || []).map((t: any) => {
+            const name =
+              (t.socialReason as string) ||
+              [t.names, t.lastNames].filter(Boolean).join(' ') ||
+              `Proveedor ${t.thId}`;
+            return [Number(t.thId), String(name)] as [number, string];
+          }),
+        );
 
-  /**
-   * Get available account types for filtering
-   */
-  getAccountTypes(enterpriseId: string): Observable<any[]> {
-    // Mock data for account types
-    return of([
-      { label: 'Pasivo', value: '2' },
-      { label: 'Cuentas por Pagar', value: '22' },
-      { label: 'Proveedores', value: '2205' },
-      { label: 'Obligaciones Financieras', value: '21' },
-    ]).pipe(delay(300));
-  }
+        const lines = (items || [])
+          .map((item) => {
+          const totalDue =
+            Number(item.current || 0) +
+            Number(item.days1to30 || 0) +
+            Number(item.days31to60 || 0) +
+            Number(item.days61to90 || 0) +
+            Number(item.days91Plus || 0);
 
-  /**
-   * Export aging report to Excel/PDF
-   */
-  exportAgingReport(
-    enterpriseId: string,
-    filters: AgingReportFilter,
-    format: 'excel' | 'pdf'
-  ): Observable<Blob> {
-    let params = new HttpParams();
-    params = params.append('enterpriseId', enterpriseId);
-    params = params.append('format', format);
+          const accountLabel =
+            accountMap.get(String(item.accountCode)) ||
+            `Cuenta ${item.accountCode}`;
 
-    if (filters.supplierId) {
-      params = params.append('supplierId', filters.supplierId);
-    }
-    if (filters.accountTypeStart) {
-      params = params.append('accountTypeStart', filters.accountTypeStart);
-    }
-    if (filters.accountTypeEnd) {
-      params = params.append('accountTypeEnd', filters.accountTypeEnd);
-    }
-    if (filters.cutoffDate) {
-      params = params.append(
-        'cutoffDate',
-        filters.cutoffDate.toISOString().split('T')[0]
-      );
-    }
-    if (filters.includeDocuments !== undefined) {
-      params = params.append(
-        'includeDocuments',
-        filters.includeDocuments.toString()
-      );
-    }
+          return {
+            id: item.invoiceId,
+            supplierId: Number(item.supplierId),
+            reference: item.reference,
+            accountCode: String(item.accountCode),
+            accountDescription: accountLabel,
+            dueDate: item.dueDate,
+            daysOverdue: Number(item.daysOverdue || 0),
+            totalDue,
+            current: Number(item.current || 0),
+            days1to30: Number(item.days1to30 || 0),
+            days31to60: Number(item.days31to60 || 0),
+            days61to90: Number(item.days61to90 || 0),
+            days91Plus: Number(item.days91Plus || 0),
+          };
+        })
+          .filter((line) => supplierId == null || line.supplierId === supplierId);
 
-    return this.http.get(`${this.apiUrl}/export`, {
-      params,
-      responseType: 'blob',
-    });
-  }
+        const totals = lines.reduce(
+          (sum, line) => ({
+            totalDue: sum.totalDue + line.totalDue,
+            current: sum.current + line.current,
+            days1to30: sum.days1to30 + line.days1to30,
+            days31to60: sum.days31to60 + line.days31to60,
+            days61to90: sum.days61to90 + line.days61to90,
+            days91Plus: sum.days91Plus + line.days91Plus,
+          }),
+          { totalDue: 0, current: 0, days1to30: 0, days31to60: 0, days61to90: 0, days91Plus: 0 },
+        );
 
-  /**
-   * Mock data generator for development
-   */
-  private getMockAgingReport(
-    filters: AgingReportFilter
-  ): Observable<AgingReportResponse> {
-    const mockLines: AgingReportLine[] = [
-      {
-        id: 1,
-        accountDescription: 'Pasivo',
-        totalDue: 178500000,
-        current: 52000000,
-        days1to30: 38000000,
-        days31to60: 50000000,
-        days61to90: 18500000,
-        days91to180: 20000000,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 2,
-        accountDescription: 'Disponible',
-        totalDue: 0,
-        current: 0,
-        days1to30: 0,
-        days31to60: 0,
-        days61to90: 0,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'AVAILABLE',
-      },
-      {
-        id: 3,
-        accountDescription: 'Cuentas por Pagar Proveedores',
-        totalDue: 145000000,
-        current: 42000000,
-        days1to30: 38000000,
-        days31to60: 35000000,
-        days61to90: 18000000,
-        days91to180: 12000000,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 4,
-        accountDescription: 'Obligaciones Financieras',
-        totalDue: 95000000,
-        current: 65000000,
-        days1to30: 20000000,
-        days31to60: 10000000,
-        days61to90: 0,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 5,
-        accountDescription: 'Proveedores Nacionales',
-        totalDue: 28500000,
-        current: 10000000,
-        days1to30: 8000000,
-        days31to60: 7000000,
-        days61to90: 3500000,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 6,
-        accountDescription: 'Proveedor ABC S.A.S',
-        totalDue: 12500000,
-        current: 5500000,
-        days1to30: 4000000,
-        days31to60: 2000000,
-        days61to90: 1000000,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 7,
-        accountDescription: 'Suministros XYZ Ltda',
-        totalDue: 8200000,
-        current: 3500000,
-        days1to30: 2500000,
-        days31to60: 2200000,
-        days61to90: 0,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 8,
-        accountDescription: 'Distribuciones DEF',
-        totalDue: 15800000,
-        current: 8000000,
-        days1to30: 5000000,
-        days31to60: 2000000,
-        days61to90: 800000,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 9,
-        accountDescription: 'Servicios GHI',
-        totalDue: 6500000,
-        current: 2000000,
-        days1to30: 1500000,
-        days31to60: 2000000,
-        days61to90: 1000000,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 10,
-        accountDescription: 'Materiales JKL',
-        totalDue: 9800000,
-        current: 4000000,
-        days1to30: 3000000,
-        days31to60: 1800000,
-        days61to90: 1000000,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-      {
-        id: 11,
-        accountDescription: 'Equipos MNO',
-        totalDue: 18700000,
-        current: 9000000,
-        days1to30: 6000000,
-        days31to60: 3000000,
-        days61to90: 700000,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-        status: 'ACTIVE',
-      },
-    ];
-
-    const totals = mockLines.reduce(
-      (
-        acc,
-        {
-          totalDue,
-          current,
-          days1to30,
-          days31to60,
-          days61to90,
-          days91to180,
-          days181to260,
-          daysOver260,
+        let supplierName = 'Todos los proveedores';
+        if (supplierId != null) {
+          supplierName =
+            thirdMap.get(supplierId) ??
+            filters.supplierName ??
+            `Proveedor ${supplierId}`;
         }
-      ) => ({
-        totalDue: acc.totalDue + totalDue,
-        current: acc.current + current,
-        days1to30: acc.days1to30 + days1to30,
-        days31to60: acc.days31to60 + days31to60,
-        days61to90: acc.days61to90 + days61to90,
-        days91to180: acc.days91to180 + days91to180,
-        days181to260: acc.days181to260 + days181to260,
-        daysOver260: acc.daysOver260 + daysOver260,
+
+        return {
+          reportDate: new Date(cutoff + 'T12:00:00'),
+          supplierName,
+          lines,
+          totals,
+        };
       }),
-      {
-        totalDue: 0,
-        current: 0,
-        days1to30: 0,
-        days31to60: 0,
-        days61to90: 0,
-        days91to180: 0,
-        days181to260: 0,
-        daysOver260: 0,
-      }
     );
+  }
 
-    const mockResponse: AgingReportResponse = {
-      reportDate: filters.cutoffDate || new Date(),
-      supplierName: filters.supplierName || 'Proveedor XYZ',
-      lines: mockLines,
-      totals: totals,
-    };
+  /** Opciones de filtro solo desde obligaciones pendientes reales. */
+  getFilterOptions(enterpriseId: string): Observable<AgingFilterOptions> {
+    return forkJoin({
+      payables: this.api.pending(enterpriseId),
+      accounts: this.accounts.getListAuxiliaryAccounts(enterpriseId).pipe(catchError(() => of([]))),
+      thirds: this.thirds.getThirdParties(enterpriseId, 0, 1000).pipe(catchError(() => of({ content: [] } as any))),
+    }).pipe(
+      map(({ payables, accounts, thirds }) => {
+        const thirdNames = new Map<number, string>(
+          (thirds?.content || []).map((t: any) => {
+            const name =
+              (t.socialReason as string) ||
+              [t.names, t.lastNames].filter(Boolean).join(' ') ||
+              `Proveedor ${t.thId}`;
+            return [Number(t.thId), String(name)] as [number, string];
+          }),
+        );
+        const accountLabels = new Map<string, string>(
+          (accounts || []).map((a: any) => [String(a.code), `${a.code} - ${a.description}`] as [string, string]),
+        );
 
-    return of(mockResponse).pipe(delay(800));
+        const pending = payables || [];
+
+        const suppliers: SupplierOption[] = [...new Set(pending.map((p) => Number(p.supplierId)))]
+          .map((id) => {
+            const name = thirdNames.get(id) || `Proveedor ${id}`;
+            return { id, value: id, name, label: `${id} — ${name}` };
+          })
+          .sort((a, b) => a.label.localeCompare(b.label));
+
+        const documents: DocumentOption[] = pending
+          .map((p) => {
+            const supplierName = thirdNames.get(Number(p.supplierId)) || `Proveedor ${p.supplierId}`;
+            return {
+              label: `${p.reference} · ${supplierName}`,
+              value: String(p.reference),
+              supplierId: Number(p.supplierId),
+              accountCode: String(p.payableAccountCode),
+            };
+          })
+          .sort((a, b) => a.label.localeCompare(b.label));
+
+        const accountCodes = [...new Set(pending.map((p) => String(p.payableAccountCode)))];
+        const accountsOptions: AccountTypeOption[] = accountCodes
+          .map((code) => ({
+            value: code,
+            label: accountLabels.get(code) || `Cuenta ${code}`,
+          }))
+          .sort((a, b) => a.label.localeCompare(b.label));
+
+        return { suppliers, documents, accounts: accountsOptions };
+      }),
+    );
+  }
+
+  getAccountTypes(enterpriseId: string): Observable<AccountTypeOption[]> {
+    return this.getFilterOptions(enterpriseId).pipe(map((o) => o.accounts));
+  }
+
+  getSuppliers(enterpriseId: string): Observable<SupplierOption[]> {
+    return this.getFilterOptions(enterpriseId).pipe(map((o) => o.suppliers));
+  }
+
+  exportAgingReport(enterpriseId: string, filters: AgingReportFilter): Observable<Blob> {
+    return this.getAgingReport(enterpriseId, filters).pipe(
+      map((report) => {
+        const header = [
+          'Factura',
+          'Proveedor',
+          'Cuenta',
+          'Vence',
+          'Días vencidos',
+          'Total',
+          'Corriente',
+          '1-30',
+          '31-60',
+          '61-90',
+          '91+',
+        ].join(',');
+        const rows = report.lines.map((line) =>
+          [
+            line.reference,
+            line.supplierId,
+            `"${line.accountDescription}"`,
+            line.dueDate,
+            line.daysOverdue,
+            line.totalDue,
+            line.current,
+            line.days1to30,
+            line.days31to60,
+            line.days61to90,
+            line.days91Plus,
+          ].join(','),
+        );
+        return new Blob([[header, ...rows].join('\n')], {
+          type: 'text/csv;charset=utf-8;',
+        });
+      }),
+    );
+  }
+
+  private toLocalDateString(date: Date): string {
+    const d = date instanceof Date ? date : new Date(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 }

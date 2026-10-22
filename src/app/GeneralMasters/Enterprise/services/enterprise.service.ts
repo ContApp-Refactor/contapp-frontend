@@ -1,44 +1,11 @@
-import { Department } from './../../ThirdParties/models/Department';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { EnterpriseList } from '../models/EnterpriseList';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
-
-export interface TaxLiability {
-  id: number;
-  name: string;
-  taxLiabilitys?: Array<{ id: number; name: string }>;
-}
-
-export interface TaxPayerType {
-  id: number;
-  name: string;
-  taxPayerTypes?: Array<{ id: number; name: string }>;
-}
-
-export interface EnterpriseType {
-  id: number;
-  name: string;
-}
-
-export interface DepartmentLookup {
-  id: number;
-  name: string;
-}
-
-export interface CountryLookup {
-  id: number;
-  name: string;
-}
-
-export interface CityResponse {
-  id: number;
-  name: string;
-  cities: Array<{ id: number; name: string }>;
-}
+import { CopyProcess } from '../models/CopyProcess';
 
 @Injectable({
   providedIn: 'root',
@@ -56,10 +23,14 @@ export class EnterpriseService {
   // }
 
   getEnterprisesActive(
-    role: string = 'Profesor'
+    role: string = 'Profesor',
   ): Observable<EnterpriseList[]> {
     const headers = { 'X-User-Role': role };
     return this.http.get<EnterpriseList[]>(this.apiUrl, { headers });
+  }
+
+  searchEnterprises(q: string): Observable<EnterpriseList[]> {
+    return this.http.get<EnterpriseList[]>(`${this.apiUrl}search?q=${encodeURIComponent(q)}`);
   }
 
   getEnterprisesInactive(): Observable<EnterpriseList[]> {
@@ -72,13 +43,27 @@ export class EnterpriseService {
     return this.http.get<EnterpriseDetails>(`${this.apiUrl}enterprise/${id}`);
   }
 
+  getTaxLiabilities(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}taxliabilities`);
+  }
+
+  getEnterpriseExportData(id: string): Observable<any> {
+    // Retornamos un ejemplo de json de exportación usando RxJS 'of'.
+    // const exampleExportData = {
+    //   enterpriseId: id,
+    //   name: "Empresa Ejemplo",
+    // };
+    // return of(exampleExportData);
+    return this.http.get<any>(`${this.apiUrl}export/${id}`);
+  }
+
   getSelectedEnterprise() {
     return this.localStorageMethods.loadEnterpriseData();
   }
 
-  /** ==================== CRUD ==================== */
+  /** ==================== PUT EMPRESAS  ==================== */
   createEnterprise(
-    enterprise: EnterpriseDetails
+    enterprise: EnterpriseDetails,
   ): Observable<EnterpriseDetails> {
     return this.http.post<EnterpriseDetails>(this.apiUrl, enterprise);
   }
@@ -86,11 +71,11 @@ export class EnterpriseService {
   // Actualiza todos los datos de la empresa
   updateEnterprise(
     id: string,
-    enterprise: EnterpriseDetails
+    enterprise: EnterpriseDetails,
   ): Observable<EnterpriseDetails> {
     return this.http.put<EnterpriseDetails>(
       `${this.apiUrl}update/${id}`,
-      enterprise
+      enterprise,
     );
   }
 
@@ -127,61 +112,105 @@ export class EnterpriseService {
     return this.http.delete<void>(`${this.apiUrl}enterprise/hard/${id}`);
   }
 
-  /** ==================== LOOKUP CATALOGS ==================== */
-
-  /** Obtiene las responsabilidades tributarias */
-  getTaxLiabilities(): Observable<TaxLiability[]> {
-    return this.http.get<TaxLiability[]>(`${this.apiUrl}taxliabilities`);
-  }
-
-  /** Obtiene los tipos de contribuyente */
-  getTaxPayerTypes(): Observable<TaxPayerType[]> {
-    return this.http.get<TaxPayerType[]>(`${this.apiUrl}taxpayertype`);
-  }
-
-  /** Obtiene los departamentos */
-  getDepartments(): Observable<DepartmentLookup[]> {
-    return this.http.get<DepartmentLookup[]>(`${this.apiUrl}address/departments`);
-  }
-
-  /** Obtiene las ciudades de un departamento */
-  getCities(departmentId: string): Observable<CityResponse> {
-    return this.http.get<CityResponse>(`${this.apiUrl}address/cities/${departmentId}`);
-  }
-
-  /** Obtiene los países */
-  getCountries(): Observable<CountryLookup[]> {
-    return this.http.get<CountryLookup[]>(`${this.apiUrl}address/countries`);
-  }
-
-  /** Obtiene los tipos de empresa */
-  getEnterpriseTypes(): Observable<EnterpriseType[]> {
-    return this.http.get<EnterpriseType[]>(`${this.apiUrl}enterprisetypes`);
-  }
-
   /** ==================== UTILIDADES ==================== */
+  // LEGACY — copia local de los datos de empresa en JSON. No relacionado con Hito 6.
   duplicateEnterprise(id: string): Observable<any> {
     return this.http.post(`${this.apiUrl}duplicate/${id}`, {});
   }
 
+  // LEGACY — backup local en JSON. No relacionado con los procesos de copia de Hito 6.
   backupEnterprise(id: string): Observable<any> {
     return this.http.post(`${this.apiUrl}backup/${id}`, {});
   }
 
-  /** ==================== COMPARTIR EMPRESA ==================== */
-  shareEnterprise(payload: {
-    enterpriseId: number;
-    emails: string[];
-  }): Observable<void> {
-    return this.http.post<void>(`${this.apiUrl}share`, payload);
+  /** ==================== PROCESOS DE COPIA (Hito 6) ==================== */
+  getCopyProcesses(): Observable<CopyProcess[]> {
+    return this.http.get<CopyProcess[]>(`${this.apiUrl}copy/processes`);
   }
 
-  /** ==================== Departamentos ==================== */
-  // getDepartaments(): Observable<DepartmentList[]> {
-  //   return this.http.get<DepartmentList[]>(this.apiUrl);
-  // }
+  startBackupProcess(empresaId: string): Observable<CopyProcess> {
+    return this.http.post<CopyProcess>(`${this.apiUrl}copy/processes`, {
+      tipo: 'BACKUP',
+      empresaOrigen: empresaId,
+      generateBackup: true,
+    });
+  }
+
+  startDuplicateProcess(empresaId: string, destinationName: string): Observable<CopyProcess> {
+    return this.http.post<CopyProcess>(`${this.apiUrl}copy/processes`, {
+      tipo: 'DUPLICATE',
+      empresaOrigen: empresaId,
+      empresaDestino: { nombre: destinationName },
+      generateBackup: false,
+    });
+  }
+
+  getCopyProcessStatus(processId: string): Observable<CopyProcess> {
+    return this.http.get<CopyProcess>(`${this.apiUrl}copy/processes/${processId}`);
+  }
+
+  downloadCopyProcessBackup(id: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.apiUrl}copy/processes/${id}/backup`, {
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
+  deleteCopyProcess(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}copy/processes/${id}`);
+  }
+
+  restoreFromBackup(backupRef: string, empresaDestino: string, inplace = false): Observable<CopyProcess> {
+    return this.http.post<CopyProcess>(`${this.apiUrl}copy/restore`, { backupRef, empresaDestino, inplace });
+  }
+
+  restoreFromZipUpload(file: File, empresaDestino: string, inplace = false, nombreDestino?: string): Observable<CopyProcess> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('empresaDestino', empresaDestino);
+    formData.append('inplace', String(inplace));
+    if (nombreDestino) formData.append('nombreDestino', nombreDestino);
+    return this.http.post<CopyProcess>(`${this.apiUrl}copy/restore/upload`, formData);
+  }
+
+  /** ==================== COMPARTIR EMPRESA ==================== */
+  shareEnterprise(payload: {
+    enterpriseId: string;
+    emails: string[];
+    role: string;
+  }): Observable<{ notified: string[]; rejected: string[]; notRegistered: string[] }> {
+    return this.http.post<{ notified: string[]; rejected: string[]; notRegistered: string[] }>(`${this.apiUrl}share`, payload);
+  }
 
   uploadEnterprisePdf(formData: FormData): Observable<any> {
     return this.http.post(`${this.apiUrl}create-from-pdf`, formData);
+  }
+
+  //** ==================== LOGO =========================== */
+  uploadLogo(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ url: string }>(`${this.apiUrl}upload/logo`, formData);
+  }
+
+  extractEnterprisePdf(file: File): Observable<{ content: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ content: string }>(`${this.apiUrl}content-PDF-RUT`, formData);
+  }
+
+  /** ==================== RUT DATA (PDF pre-fill) ==================== */
+  private rutData: string | null = null;
+
+  setRutData(data: string): void {
+    this.rutData = data;
+  }
+
+  getRutData(): string | null {
+    return this.rutData;
+  }
+
+  clearRutData(): void {
+    this.rutData = null;
   }
 }

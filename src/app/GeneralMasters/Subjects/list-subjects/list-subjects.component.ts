@@ -35,6 +35,7 @@ export class ListSubjectsComponent implements OnInit {
   subjectToDelete: Subject | null = null;
 
   subjectData: Subject = {
+    id: '',
     code: '',
     name: '',
   };
@@ -77,7 +78,7 @@ export class ListSubjectsComponent implements OnInit {
   /* ==================== CREAR / EDITAR ==================== */
   onCreateSubject() {
     this.editingSubject = false;
-    this.subjectData = { code: '', name: '' };
+    this.subjectData = { id: '', code: '', name: '' };
     this.showSubjectModal = true;
   }
 
@@ -89,7 +90,7 @@ export class ListSubjectsComponent implements OnInit {
 
   cancelSubjectModal() {
     this.showSubjectModal = false;
-    this.subjectData = { code: '', name: '' };
+    this.subjectData = { id: '',  code: '', name: '' };
   }
 
   confirmSubjectModal() {

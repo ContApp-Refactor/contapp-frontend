@@ -29,22 +29,16 @@
                 <span class="input-icon pi pi-envelope"></span>
               </div>
             </div>
-            <!-- Contraseña -->
-            <div class="form-group">
-              <label for="password" class="loginfields">
-                Contraseña <span class="required">*</span>
-              </label>
-              <div class="input-container">
-                <input
-                  type="password"
-                  id="password"
-                  placeholder="**********"
-                  required
-                  formControlName="password"
-                />
-                <span class="input-icon pi pi-eye"></span>
-              </div>
+          <!-- Contraseña -->
+          <div class="form-group">
+            <label for="password" class="loginfields">
+              Contraseña <span class="required">*</span>
+            </label>
+            <div class="input-container">
+              <input [type]="showPassword ? 'text' : 'password'" id="password" placeholder="**********" required formControlName="password" />
+              <span class="input-icon" [class]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" (click)="togglePassword()" style="cursor:pointer"></span>
             </div>
+          </div>
             <!-- Botón ingresar -->
             <div class="form-submit">
               <button type="submit" [disabled]="loginForm.invalid">

@@ -21,10 +21,7 @@
 
   <!-- Formulario principal -->
   <div class="bg-white rounded-xl shadow-lg p-8">
-    <!-- enterpriseForm sólo existe después de la respuesta de la empresa: sin este
-         guard, cada formControlName se registra contra un FormGroup undefined y
-         Angular revienta con "_rawValidators"/"reading 'get'" en el primer render. -->
-    <form *ngIf="enterpriseForm; else formLoading" [formGroup]="enterpriseForm" (ngSubmit)="onSubmit()">
+    <form *ngIf="enterpriseForm" [formGroup]="enterpriseForm" (ngSubmit)="onSubmit()">
 
       <!-- Sección: Información básica -->
       <div class="mb-8">
@@ -101,17 +98,24 @@
                     Tipo de Empresa <span class="text-red-500">*</span>
                   </label>
                   <p-dropdown formControlName="enterpriseType" [options]="enterpriseTypes" optionLabel="name"
-                    dataKey="id" placeholder="Seleccione una opción" class="w-full">
+                    optionValue="id" placeholder="Seleccione una opción" class="w-full">
                   </p-dropdown>
                 </div>
 
-                <!-- Responsabilidades tributarias -->
+                                <!-- Responsabilidades tributarias -->
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-2">
                     Responsabilidades tributarias <span class="text-red-500">*</span>
                   </label>
-                  <p-multiselect formControlName="taxLiabilities" [options]="taxLiabilities" optionLabel="name"
-                    dataKey="id" placeholder="Seleccione una opción(es)" class="w-full">
+                  <p-multiselect
+                    formControlName="taxLiabilities"
+                    [options]="taxLiabilities"
+                    optionLabel="name"
+                    optionValue="id"
+                    placeholder="Seleccione una o más opciones"
+                    class="w-full"
+                    [filter]="true"
+                    display="chip">
                   </p-multiselect>
                 </div>
 
@@ -154,7 +158,17 @@
                     Tipo de Contribuyente <span class="text-red-500">*</span>
                   </label>
                   <p-dropdown formControlName="taxPayerType" [options]="taxPayerTypes" optionLabel="name"
-                    dataKey="id" placeholder="Seleccione una opción" class="w-full">
+                    optionValue="id" placeholder="Seleccione una opción" class="w-full">
+                  </p-dropdown>
+                </div>
+
+                <!-- Estado -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Estado <span class="text-red-500">*</span>
+                  </label>
+                  <p-dropdown formControlName="state" [options]="states" optionLabel="name"
+                    optionValue="id" placeholder="Seleccione un estado" class="w-full">
                   </p-dropdown>
                 </div>
 
@@ -175,6 +189,24 @@
                         maxlength="6" inputmode="numeric" pattern="[0-9]*" (keypress)="validateNumberInput($event, 6)">
                     </div>
                   </div>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Método de Inventario
+                  </label>
+                  <p-dropdown formControlName="inventoryMethods" [options]="inventoryMethodsOptions" optionLabel="name"
+                    optionValue="value" placeholder="Seleccione una opción" class="w-full">
+                  </p-dropdown>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Materias asociadas
+                  </label>
+                  <p-multiselect formControlName="subjects" [options]="subjects" optionLabel="name" optionValue="id"
+                    placeholder="Seleccione materias" class="w-full">
+                  </p-multiselect>
                 </div>
 
                 <!-- Apellidos (Persona natural) -->
@@ -205,9 +237,9 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 País
               </label>
-<p-dropdown formControlName="country" [options]="countries" optionLabel="name"
-                  dataKey="id" placeholder="Seleccione un país" class="w-full">
-                </p-dropdown>
+              <p-dropdown formControlName="country" [options]="countries" optionLabel="name" optionValue="id"
+                placeholder="Seleccione un país" class="w-full" (onChange)="onCountryChange($event)">
+              </p-dropdown>
             </div>
 
             <!-- Departamento -->
@@ -215,9 +247,19 @@
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 Departamento <span class="text-red-500">*</span>
               </label>
-<p-dropdown formControlName="department" [options]="departments" optionLabel="name"
-                  dataKey="id" placeholder="Seleccione una opción" class="w-full">
-                </p-dropdown>
+              <p-dropdown formControlName="department" [options]="departments" optionLabel="name" optionValue="id"
+                placeholder="Seleccione una opción" class="w-full" (onChange)="onDepartmentChange($event)">
+              </p-dropdown>
+            </div>
+
+            <!-- Ciudad -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Ciudad
+              </label>
+              <p-dropdown formControlName="city" [options]="cities" optionLabel="name" optionValue="id"
+                placeholder="Seleccione una opción" class="w-full">
+              </p-dropdown>
             </div>
 
             <!-- Email -->
@@ -250,17 +292,6 @@
 
           </div>
         </div>
-
-        <!-- Checkbox sucursales -->
-        <div class="mt-6 text-center">
-          <div class="flex items-center justify-center gap-2">
-            <p-checkbox formControlName="hasBranches" [binary]="true">
-            </p-checkbox>
-            <label class="text-sm font-medium text-gray-700">
-              ¿Tiene sucursales?
-            </label>
-          </div>
-        </div>
       </div>
 
       <!-- Botones de acción -->
@@ -271,11 +302,6 @@
         </p-button>
       </div>
     </form>
-    <ng-template #formLoading>
-      <div class="py-12 text-center text-sm text-neutral-50">
-        Cargando información de la empresa…
-      </div>
-    </ng-template>
   </div>
 </div>
 

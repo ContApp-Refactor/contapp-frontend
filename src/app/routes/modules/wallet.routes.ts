@@ -3,6 +3,23 @@ import { hasPermissionGuard } from '../../Core/Guards/has-permission.guard';
 
 export const WALLET_ROUTES: Routes = [
   {
+    path: '',
+    redirectTo: 'menu',
+    pathMatch: 'full',
+  },
+
+  {
+    path: 'menu',
+    data: {
+      breadcrumb: null,
+    },
+    loadComponent: () =>
+      import('../../Financial/Wallet/components/MenuCars/menu/menu.component').then(
+        (m) => m.MenuComponent,
+      ),
+  },
+
+  {
     path: 'receipts',
     data: {
       breadcrumb: 'Recibos de Caja',
@@ -120,6 +137,13 @@ export const WALLET_ROUTES: Routes = [
       breadcrumb: 'Reportes',
     },
     children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('../../Financial/Wallet/Reports/Components/MenuCards/menu/menu.component').then(
+            (m) => m.MenuComponent,
+          ),
+      },
       {
         path: 'client-portfolio',
         data: {

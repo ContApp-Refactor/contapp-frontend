@@ -6,6 +6,12 @@
         <h1 class="font-['Titillium_Web'] font-bold text-3xl text-[var(--color-primary)] border-b-4 border-[var(--color-secondary)] inline-block pb-1">
             Efectuar Pago
         </h1>
+        <app-contextual-help
+            class="ml-3 inline-flex align-middle"
+            [title]="help.title"
+            [summary]="help.summary"
+            [helpCenterSlug]="help.slug">
+        </app-contextual-help>
         <p class="mt-2 text-base text-gray-600">
             Seleccione el proveedor y las facturas a pagar. Esto generará un Comprobante de Egreso (documento contable de pago).
         </p>
@@ -29,6 +35,7 @@
                         field="name"
                         placeholder="Buscar proveedor..."
                         [dropdown]="true"
+                        [emptyMessage]="supplierAutocompleteEmptyMessage"
                         (onSelect)="onSupplierSelect($event)"
                         [ngClass]="{'ng-invalid ng-dirty': expenseReceiptForm.get('supplier')?.invalid && expenseReceiptForm.get('supplier')?.touched}">
                     </p-autoComplete>
@@ -73,7 +80,7 @@
                                     <th style="width: 3rem">
                                         <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
                                     </th>
-                                    <th>Bill ID</th>
+                                    <th>N° factura</th>
                                     <th>Fecha</th>
                                     <th class="text-right">Total Factura</th>
                                     <th class="text-right">Pagado</th>
@@ -136,29 +143,6 @@
                 </div>
             </div>
 
-            <!-- Post To (Cuenta de Débito - Cuentas por Pagar) -->
-            <div class="flex flex-col gap-2">
-                <label for="postToAccount" class="font-semibold text-[var(--color-primary)]">
-                    Cuenta por Pagar <span class="text-red-500">*</span>
-                </label>
-                <div class="w-full md:w-2/3">
-                    <p-dropdown
-                        id="postToAccount"
-                        formControlName="postToAccount"
-                        [options]="payableAccounts"
-                        optionLabel="fullName"
-                        optionValue="id"
-                        placeholder="Cuenta de cuentas por pagar"
-                        [styleClass]="'w-full'"
-                        [ngClass]="{'ng-invalid ng-dirty': expenseReceiptForm.get('postToAccount')?.invalid && expenseReceiptForm.get('postToAccount')?.touched}">
-                    </p-dropdown>
-                    @if (expenseReceiptForm.get('postToAccount')?.touched && expenseReceiptForm.get('postToAccount')?.invalid) {
-                        <small class="p-error error-message">La cuenta Post To es requerida.</small>
-                    }
-                    <small class="text-gray-500">Cuenta que se debita (reduce la deuda con el proveedor)</small>
-                </div>
-            </div>
-
             <!-- Transfer Account (Cuenta de Crédito - Método de Pago) -->
             <div class="flex flex-col gap-2">
                 <label for="transferAccount" class="font-semibold text-[var(--color-primary)]">
@@ -168,19 +152,50 @@
                     <p-dropdown
                         id="transferAccount"
                         formControlName="transferAccount"
-                        [options]="paymentMethods"
-                        optionLabel="name"
+                        [options]="paymentMethodOptions"
+                        optionLabel="label"
                         optionValue="id"
-                        placeholder="Cuenta de pago (caja, banco, etc.)"
+                        placeholder="Seleccione método de pago de la empresa"
                         [styleClass]="'w-full'"
+                        (onChange)="onPaymentMethodChange()"
                         [ngClass]="{'ng-invalid ng-dirty': expenseReceiptForm.get('transferAccount')?.invalid && expenseReceiptForm.get('transferAccount')?.touched}">
                     </p-dropdown>
                     @if (expenseReceiptForm.get('transferAccount')?.touched && expenseReceiptForm.get('transferAccount')?.invalid) {
-                        <small class="p-error error-message">La cuenta Transfer Account es requerida.</small>
+                        <small class="p-error error-message">El método de pago es requerido.</small>
                     }
-                    <small class="text-gray-500">Cuenta que se acredita (sale el dinero: caja, banco, etc.)</small>
+                    @if (paymentMethodOptions.length === 0) {
+                        <small class="text-orange-600">{{ paymentMethodsHelpMessage }}</small>
+                    }
+                    <small class="text-gray-500">Métodos configurados en maestros de la empresa</small>
                 </div>
             </div>
+
+            <!-- Cuenta bancaria (solo si el método lo exige) -->
+            @if (requiresBankAccount) {
+                <div class="flex flex-col gap-2">
+                    <label for="bankAccountId" class="font-semibold text-[var(--color-primary)]">
+                        Cuenta Bancaria <span class="text-red-500">*</span>
+                    </label>
+                    <div class="w-full md:w-2/3">
+                        <p-dropdown
+                            id="bankAccountId"
+                            formControlName="bankAccountId"
+                            [options]="bankAccountOptions"
+                            optionLabel="label"
+                            optionValue="id"
+                            placeholder="Seleccione cuenta bancaria"
+                            [styleClass]="'w-full'"
+                            [ngClass]="{'ng-invalid ng-dirty': expenseReceiptForm.get('bankAccountId')?.invalid && expenseReceiptForm.get('bankAccountId')?.touched}">
+                        </p-dropdown>
+                        @if (expenseReceiptForm.get('bankAccountId')?.touched && expenseReceiptForm.get('bankAccountId')?.invalid) {
+                            <small class="p-error error-message">La cuenta bancaria es requerida para este método.</small>
+                        }
+                        @if (bankAccountOptions.length === 0) {
+                            <small class="text-orange-600">{{ noAvailableBankAccountsMessage }}</small>
+                        }
+                    </div>
+                </div>
+            }
 
 
             <!-- Fecha de Elaboración -->

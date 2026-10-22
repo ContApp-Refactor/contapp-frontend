@@ -1,0 +1,83 @@
+<div class="flex w-full h-full font-titillium">
+  <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
+    <div class="flex flex-wrap items-center justify-between gap-16 mb-20">
+      <div>
+        <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+          <span class="border-b-4 border-secondary-light inline-block pb-1">Facturas con devolución</span>
+        </h1>
+        <p class="font-family-sans font-normal text-sm mt-12">Facturas de venta y compra que tienen al menos una devolución emitida.</p>
+      </div>
+      <div class="flex items-center gap-8">
+        <p-dropdown
+          [options]="kindOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="kindFilter()"
+          (ngModelChange)="kindFilter.set($event)"
+          styleClass="w-150"
+          size="small"
+        ></p-dropdown>
+        <!-- Volver al menú de Facturación -->
+        <p-button
+          icon="pi pi-arrow-left"
+          [rounded]="true"
+          [outlined]="true"
+          ariaLabel="Volver"
+          title="Volver"
+          (click)="goBack()"
+        ></p-button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto text-sm">
+      <p-table [value]="filtered()" [loading]="loading()" [tableStyle]="{ 'min-width': '70rem' }" styleClass="p-datatable-striped">
+        <ng-template pTemplate="header">
+          <tr>
+            <th style="width: 7rem">Tipo</th>
+            <th style="width: 9rem">Factura</th>
+            <th>Cliente / Proveedor</th>
+            <th style="width: 9rem">Fecha</th>
+            <th style="width: 11rem" class="text-right">Total factura</th>
+            <th style="width: 8rem" class="text-center"># Devoluciones</th>
+            <th style="width: 11rem" class="text-right">Total devuelto</th>
+            <th style="width: 10rem">Estado devolución</th>
+            <th style="width: 6rem"></th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-row>
+          <tr>
+            <td><app-billing-kind-tag [kind]="row.kind" /></td>
+            <td>
+              <p class="font-semibold">{{ row.invoiceNumber ?? '—' }}</p>
+              @if (row.supplierInvoiceNumber) {
+                <p class="text-xs text-gray-500">Fact. proveedor {{ row.supplierInvoiceNumber }}</p>
+              }
+            </td>
+            <td>{{ counterpartyOf(row) }}</td>
+            <td>{{ row.invoiceDate | date: 'dd/MM/yyyy' }}</td>
+            <td class="text-right">{{ row.invoiceTotalCents | copCents }}</td>
+            <td class="text-center">{{ row.returnsCount }}</td>
+            <td class="text-right font-semibold">{{ row.returnedTotalCents | copCents }}</td>
+            <td>
+              <span
+                class="inline-block px-12 py-4 rounded-full text-xs font-semibold font-family-sans"
+                [class]="row.state === 'TOTAL' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'"
+                >{{ stateLabel[row.state] }}</span
+              >
+            </td>
+            <td>
+              <div class="flex justify-end">
+                <p-button label="Ver" icon="pi pi-eye" styleClass="p-button-text" (click)="view(row)"></p-button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="9" class="text-center p-20">No hay facturas con devoluciones</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+</div>

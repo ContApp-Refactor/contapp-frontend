@@ -12,13 +12,16 @@ export interface VendorReportTransaction {
   date: Date;
   dueDate?: Date;
   reference: string;
-  documentNumber?: string; // Número del documento original (factura, nota, etc.)
-  expenseReceiptNumber?: string; // Número del comprobante de egreso (CE-XXXX)
-  type: 'Bill' | 'Payment';
+  documentNumber?: string;
+  expenseReceiptNumber?: string;
+  type: 'Bill' | 'Payment' | 'PaymentReversal' | 'WriteOff' | 'WriteOffReversal';
   description: string;
   debits: number;
   credits: number;
   balance: number;
+  documentStatus: string;
+  voided?: boolean;
+  informational?: boolean;
 }
 
 export interface VendorReport {
@@ -32,8 +35,11 @@ export interface VendorReport {
   };
   transactions: VendorReportTransaction[];
   periodTotals: {
+    openingBalance: number;
+    periodPayments: number;
     totalDebits: number;
     totalCredits: number;
+    writeOffTotal: number;
     netBalance: number;
   };
   totalDue: number;
@@ -49,10 +55,7 @@ export interface VendorReport {
 }
 
 export interface VendorListFilter {
-  searchTerm?: string;
+  supplierId?: number;
   dateFrom?: Date;
   dateTo?: Date;
-  balanceFrom?: number;
-  balanceTo?: number;
-  status?: 'all' | 'with_balance' | 'no_balance';
 }

@@ -134,8 +134,14 @@ export const navbarData: INavbarData[] = [
       {
         routeLink: 'financial/treasury',
         icon: 'money_bag',
+        roles: ['Estudiante', 'Profesor', 'Administrador'],
         label: 'Tesorería',
         items: [
+          {
+            routeLink: 'financial/treasury/operations',
+            icon: 'payments',
+            label: 'Operaciones de Tesorería',
+          },
           {
             routeLink: 'financial/treasury/purchase-bills',
             icon: 'description',
@@ -211,7 +217,7 @@ export const navbarData: INavbarData[] = [
     ],
   },
   {
-    routeLink: 'TO DO',
+    routeLink: '/commercial',
     icon: 'store',
     label: 'Comercial',
     items: [
@@ -250,7 +256,7 @@ export const navbarData: INavbarData[] = [
         label: 'Factura de Venta',
       },
       {
-        routeLink: 'TO DO',
+        routeLink: 'commercial/purchase-invoice',
         icon: 'receipt_long',
         label: 'Factura de Compra',
       },
@@ -275,6 +281,11 @@ export const navbarData: INavbarData[] = [
         label: 'Reportes',
       },
     ],
+  },
+  {
+    routeLink: '/billing',
+    icon: 'receipt_long',
+    label: 'Facturación',
   },
   {
     routeLink: '/audit',

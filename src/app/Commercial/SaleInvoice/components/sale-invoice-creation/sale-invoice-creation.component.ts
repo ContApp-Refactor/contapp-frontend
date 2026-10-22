@@ -331,9 +331,10 @@ export class SaleInvoiceCreationComponent {
    */
   getUnitOfMeasureForId(lstProducts: ProductToSale[]): ProductToSale[] {
     if (lstProducts != null || this.lstProducts.length > 0) {
+      const enterpriseId = this.localStorageMethods.getIdEnterprise();
 
       lstProducts.forEach((prod) => {
-        this.UnitMeasureService.getUnitOfMeasuresId("" + prod.unitOfMeasureId).subscribe({
+        this.UnitMeasureService.getUnitOfMeasuresId("" + prod.unitOfMeasureId, enterpriseId).subscribe({
           next: (response) => {
             prod.unitOfMeasure = response.abbreviation;
           }

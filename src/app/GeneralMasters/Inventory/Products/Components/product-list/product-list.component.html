@@ -81,6 +81,16 @@
       <!-- Contenedor de botones alineado a la derecha en pantallas grandes -->
       <div class="flex justify-start sm:justify-end mt-4 sm:mt-0">
         <div class="flex flex-wrap gap-3">
+          <!-- Solo si se llegó desde Facturación (?returnTo=/billing/...) -->
+          @if (returnTo) {
+            <p-button
+              label="Volver a factura"
+              icon="pi pi-arrow-left"
+              [outlined]="true"
+              (click)="goBackToInvoice()"
+            >
+            </p-button>
+          }
           <!-- Botón "Crear Producto" utilizando p-button -->
           <p-button
             label="Crear"

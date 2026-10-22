@@ -95,7 +95,7 @@ export class ProductEditComponent implements OnInit {
         summary: 'Error',
         detail: 'No se encontró un ID de producto para editar.'
       });
-      this.router.navigate(['/gen-masters/inventory/products/list']);
+      this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' });
     }
   }
 
@@ -140,7 +140,7 @@ export class ProductEditComponent implements OnInit {
           detail: 'No se pudieron cargar los datos del producto.'
         });
         this.isLoading = false;
-        this.router.navigate(['/gen-masters/inventory/products/list']); 
+        this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' }); 
       }
     });
   }
@@ -191,7 +191,7 @@ export class ProductEditComponent implements OnInit {
           summary: 'Actualización Exitosa',
           detail: 'El producto ha sido actualizado con éxito.'
         });
-        this.router.navigate(['/gen-masters/inventory/products/list']);
+        this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' });
       },
       error: (err) => {
         console.error('Error al actualizar el producto:', err);
@@ -205,7 +205,7 @@ export class ProductEditComponent implements OnInit {
             detail: err?.error?.message || 'No se puede editar el producto porque tiene movimientos contables'
           });
           // Redirigir inmediatamente a la lista de productos
-          this.router.navigate(['/gen-masters/inventory/products/list']);
+          this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' });
         } else {
           const errorMessage = err?.error?.message || 'Ha ocurrido un problema al actualizar el producto.';
           let summary = 'Error';
@@ -223,7 +223,7 @@ export class ProductEditComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/gen-masters/inventory/products/list']); 
+    this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' }); 
   }
 
   private hasFormChanges(): boolean {

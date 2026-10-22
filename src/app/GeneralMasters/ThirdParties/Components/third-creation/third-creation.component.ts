@@ -7,7 +7,6 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DropdownModule } from 'primeng/dropdown';
 import { RadioButtonModule } from 'primeng/radiobutton';
-import { MultiSelectModule } from 'primeng/multiselect';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { CardModule } from 'primeng/card';
@@ -49,7 +48,6 @@ import { FormFieldErrorComponent } from '../shared/form-field-error.component';
     InputTextModule,
     DropdownModule,
     RadioButtonModule,
-    MultiSelectModule,
     ToastModule,
     CardModule,
     DividerModule,
@@ -72,7 +70,6 @@ export class ThirdCreationComponent implements OnInit {
   contendPDFRUT: string | null = null;
 
   infoThird: string[] | null = null;
-  selectedThirdTypes: ThirdType[] = [];
 
   submitted = false;
 
@@ -183,7 +180,7 @@ export class ThirdCreationComponent implements OnInit {
     this.createdThirdForm = this.fb.group({
       personType: [null, Validators.required],
       state: [true, Validators.required],
-      thirdTypes: [[], Validators.required],
+      thirdType: [null, Validators.required],
       typeId: [null, Validators.required],
       idNumber: [null, [Validators.required, Validators.min(1)]],
       verificationNumber: [null],
@@ -731,12 +728,14 @@ export class ThirdCreationComponent implements OnInit {
     this.submitted = true;
 
     if (this.createdThirdForm.valid) {
-      const formData = this.createdThirdForm.value;
+      const formData = this.createdThirdForm.getRawValue();
+      const { thirdType, ...formFields } = formData;
 
       // Preparar datos para enviar al backend con códigos geográficos
       const newThird: any = {
         ...this.thirdData,
-        ...formData,
+        ...formFields,
+        thirdTypes: thirdType ? [thirdType] : [],
         entId: this.entData,
         countryCode: formData.country,
         stateCode: formData.province,

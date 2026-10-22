@@ -89,7 +89,7 @@ export class ThirdListComponent implements OnInit {
   selectedThirds: Third[] = [];
   thirdTypes: ThirdType[] = [];
   typeIds: TypeId[] = [];
-  
+
   // UI State
   loading = false;
   loadingPdfRut = false;
@@ -97,8 +97,8 @@ export class ThirdListComponent implements OnInit {
   showDetailView = false;
   searchValue = '';
 
-  bulkStateToggle = false;
-  
+  bulkStateToggle = true; // Default to active
+
   isImporting = false;
   isExporting = false;
 
@@ -110,7 +110,8 @@ export class ThirdListComponent implements OnInit {
   progressPhase = '';
   progressOperationType: 'import' | 'export' = 'import';
   private progressPollingInterval: any = null;
-  
+
+
   // Pagination
   totalRecords = 0;
   rows = 10;
@@ -126,7 +127,7 @@ export class ThirdListComponent implements OnInit {
 
   /** Control de visibilidad del modal de detalles */
   showDetailsModal = false;
-  
+
   // Variables para manejar errores de importación
   importErrors: ImportError[] = [];
   totalErrors = 0;
@@ -137,7 +138,7 @@ export class ThirdListComponent implements OnInit {
 
   /** Datos para el modal de detalles */
   detailsModalData: any = null;
-  
+
   // Company data
   entData: string = '';
   
@@ -339,7 +340,7 @@ export class ThirdListComponent implements OnInit {
    */
   confirmDelete(third: Third): void {
     const displayName = this.getDisplayName(third);
-    
+
     this.confirmationService.confirm({
       message: `¿Desea eliminar a "${displayName}"? Esta acción no se puede deshacer.`,
       header: 'Confirmar Eliminación',
@@ -528,7 +529,7 @@ export class ThirdListComponent implements OnInit {
     this.failedImportsCount = failedImports || errors.length;
     this.successfulImports = successfulImports || 0;
     this.duplicatesOmitted = duplicatesSkipped || 0;
-    
+
     this.showErrorModal = true;
   }
 
@@ -537,7 +538,7 @@ export class ThirdListComponent implements OnInit {
    */
   private showErrorNotification(message: string, details: string): void {
     const detailMessage = details ? `${message}\n${details}` : message;
-    
+
     this.messageService.add({
       severity: 'error',
       summary: 'Error de Importación',
@@ -659,7 +660,7 @@ export class ThirdListComponent implements OnInit {
   onTemplateInProgress(inProgress: boolean): void {
     this.loadingTemplate = inProgress;
   }
-  
+
   /**
    * Cierra el modal de errores de importación
    */
@@ -668,7 +669,7 @@ export class ThirdListComponent implements OnInit {
     this.importErrors = [];
     this.totalErrors = 0;
   }
-  
+
   /**
    * Obtiene la etiqueta amigable para el tipo de error
    */
@@ -710,7 +711,7 @@ export class ThirdListComponent implements OnInit {
   onPdfRutSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    
+
     if (!file) {
       return;
     }
@@ -727,11 +728,11 @@ export class ThirdListComponent implements OnInit {
     }
 
     this.loadingPdfRut = true;
-    
+
     this.thirdService.ExtractInfoPDFRUT(file).subscribe({
       next: (response) => {
         const pdfContent = response.content;
-        
+
         if (pdfContent === this.EMPTY_PDF_CONTENT) {
           this.messageService.add({
             severity: 'error',
@@ -745,25 +746,25 @@ export class ThirdListComponent implements OnInit {
             summary: 'Éxito',
             detail: 'Archivo procesado correctamente'
           });
-          
+
           // Redirigir a la creación del tercero
           this.thirdService.setInfoThirdRUT(pdfContent);
           this.router.navigate(['/gen-masters/third-parties/create']);
         }
-        
+
         // Limpiar el input
         input.value = '';
       },
       error: (err) => {
         this.loadingPdfRut = false;
         const errorMessage = err?.error?.message || 'No se pudo procesar el archivo PDF';
-        
+
         this.messageService.add({
           severity: 'error',
           summary: 'Error de procesamiento',
           detail: errorMessage
         });
-        
+
         // Limpiar el input
         input.value = '';
       }
@@ -1110,10 +1111,10 @@ export class ThirdListComponent implements OnInit {
       const headerInfo = [
         ['ERRORES DE IMPORTACIÓN DE TERCEROS'],
         [''],
-        ['Fecha de exportación:', new Date().toLocaleDateString('es-CO', { 
-          day: '2-digit', 
-          month: 'long', 
-          year: 'numeric' 
+        ['Fecha de exportación:', new Date().toLocaleDateString('es-CO', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric'
         })],
         ['Hora:', new Date().toLocaleTimeString('es-CO')],
         [''],

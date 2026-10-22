@@ -1,0 +1,125 @@
+<div class="flex w-full h-full font-titillium">
+  <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
+    <div class="flex flex-wrap items-center justify-between gap-16 mb-20">
+      <div>
+        <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+          <span class="border-b-4 border-secondary-light inline-block pb-1">Ver facturas</span>
+        </h1>
+        <p class="font-family-sans font-normal text-sm mt-12">Consulta, filtra y anula tus facturas de venta y compra.</p>
+      </div>
+      <div class="flex items-center gap-8">
+        <p-dropdown
+          [options]="kindOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="kindFilter()"
+          (ngModelChange)="kindFilter.set($event)"
+          styleClass="w-150"
+          size="small"
+        ></p-dropdown>
+        <p-dropdown
+          [options]="statusOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event)"
+          styleClass="w-200"
+          size="small"
+        ></p-dropdown>
+        <!-- Volver al menú de Facturación -->
+        <p-button
+          icon="pi pi-arrow-left"
+          [rounded]="true"
+          [outlined]="true"
+          ariaLabel="Volver"
+          title="Volver"
+          (click)="goBack()"
+        ></p-button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto text-sm">
+      <p-table [value]="filtered()" [loading]="loading()" [tableStyle]="{ 'min-width': '60rem' }" styleClass="p-datatable-striped">
+        <ng-template pTemplate="header">
+          <tr>
+            <th scope="col" style="width: 7rem">Tipo</th>
+            <th scope="col" style="width: 9rem">Número</th>
+            <th scope="col">Cliente / Proveedor</th>
+            <th scope="col" style="width: 9rem">Fecha</th>
+            <th scope="col" style="width: 9rem">Estado</th>
+            <th scope="col" style="width: 11rem" class="text-right">Total</th>
+            <th scope="col" style="width: 10rem"></th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-invoice>
+          <tr>
+            <td><app-billing-kind-tag [kind]="invoice.kind" /></td>
+            <td>
+              <p class="font-semibold">{{ invoice.number ?? '—' }}</p>
+              @if (invoice.supplierInvoiceNumber) {
+                <p class="text-xs text-gray-500">Fact. proveedor {{ invoice.supplierInvoiceNumber }}</p>
+              }
+            </td>
+            <td>{{ counterpartyOf(invoice) }}</td>
+            <td>{{ invoice.date | date: 'dd/MM/yyyy' }}</td>
+            <td><app-billing-status-badge [status]="invoice.status" /></td>
+            <td class="text-right font-semibold">{{ totalOf(invoice) | copCents }}</td>
+            <td>
+              <div class="flex justify-end gap-4">
+                <p-button
+                  icon="pi pi-eye"
+                  styleClass="p-button-text"
+                  (click)="view(invoice)"
+                ></p-button>
+                @if (invoice.status === 'EMITIDA') {
+                  <p-button
+                    icon="pi pi-ban"
+                    styleClass="p-button-danger p-button-text"
+                    (click)="openAnnul(invoice)"
+                  ></p-button>
+                }
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="7" class="text-center p-20">No hay facturas para mostrar.</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <!-- Anulación: solo facturas EMITIDA, motivo obligatorio -->
+    <p-dialog
+      header="Anular factura"
+      [modal]="true"
+      [visible]="!!annulTarget()"
+      (visibleChange)="!$event && closeAnnul()"
+      [style]="{ width: '28rem' }"
+    >
+      <p class="text-sm mb-12">
+        Vas a anular la factura <strong>{{ annulTarget()?.number }}</strong
+        >. Esta acción no se puede deshacer.
+      </p>
+      <label for="annulReason" class="text-sm text-primary block mb-4">Motivo de anulación *</label>
+      <textarea
+        id="annulReason"
+        rows="4"
+        class="w-full border border-gray-300 rounded-md p-8 text-sm"
+        [(ngModel)]="annulReason"
+        placeholder="Describe el motivo..."
+      ></textarea>
+      <div class="flex justify-end gap-8 mt-16">
+        <p-button label="Cancelar" styleClass="p-button-outlined" (click)="closeAnnul()"></p-button>
+        <p-button
+          label="Anular factura"
+          icon="pi pi-ban"
+          styleClass="p-button-danger"
+          [loading]="annulling()"
+          (click)="confirmAnnul()"
+        ></p-button>
+      </div>
+    </p-dialog>
+  </div>
+</div>

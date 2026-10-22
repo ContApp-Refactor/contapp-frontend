@@ -23,6 +23,7 @@
       <div class="flex justify-start sm:justify-end mt-4 sm:mt-0">
         <div class="flex flex-wrap gap-3">
           <p-button
+            *ngIf="canCreate"
             label="Crear"
             icon="pi pi-plus"
             (onClick)="createHelpCenter()"
@@ -129,6 +130,7 @@
           <td class="py-3 text-center">
             <div class="flex justify-center gap-2 items-center">
               <p-button
+                *ngIf="canEdit"
                 icon="pi pi-pencil"
                 pTooltip="Editar"
                 tooltipPosition="top"
@@ -136,6 +138,7 @@
                 styleClass="p-button-rounded p-button-text text-complementary-green"
               ></p-button>
               <p-button
+                *ngIf="canDelete"
                 icon="pi pi-trash"
                 pTooltip="Eliminar"
                 tooltipPosition="top"

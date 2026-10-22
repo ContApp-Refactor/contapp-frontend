@@ -70,7 +70,19 @@ export class ProductService {
           this.transformProduct(product, maps)
         );
 
-        return { ...page, content: transformedProducts };
+        // El monolito devuelve la página en formato clásico de Spring (totalElements en la raíz);
+        // el front espera el anidado `page: {...}`. Se normaliza para soportar ambos.
+        const classic = page as any;
+        return {
+          ...page,
+          content: transformedProducts,
+          page: page.page ?? {
+            size: classic.size ?? 10,
+            number: classic.number ?? 0,
+            totalElements: classic.totalElements ?? transformedProducts.length,
+            totalPages: classic.totalPages ?? 0,
+          },
+        };
       })
     );
   }

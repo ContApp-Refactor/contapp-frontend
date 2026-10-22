@@ -1,25 +1,43 @@
 import { AccountingEntryLine } from "./AccountingEntryLine";
-import { ExpenseReceipt } from "./ExpenseReceipt";
+import { PaidInvoiceLineView } from "../../Shared/treasury-purchase-invoice-lines";
 
-export interface ExpenseReceiptDetailView { // <-- Esta es la interfaz del detalle de la vista
+export interface ExpenseReceiptDetailView {
     invoiceId: number;
+    sourceInvoiceId?: number;
     amountPaid: number;
-    invoiceCode: string;        // <-- ¡Ajustado!
-    accountingAccount: number;  // <-- ¡Ajustado!
-    // Podrías añadir: accountingAccountName?: string; si quieres mostrar el nombre
+    invoiceCode: string;
+    invoiceValue: number;
+    retentionsApplied: number;
+    payableAccountCode: string;
+    remainingBalance: number;
+    productLines?: PaidInvoiceLineView[];
 }
 
 export interface ExpenseReceiptDetailsView {
     id: number;
     receiptCode: string;
     issueDate: Date;
-    thirdPartyId: number; // Aunque no se muestra, es útil tenerlo
+    executionDateTime?: Date;
+    thirdPartyId: number;
     supplierName: string;
+    supplierIdentification?: string;
     paymentMethodName: string;
-    status: 'Activo' | 'Anulado';
+    paymentMethodRequiresBankAccount?: boolean;
+    bankAccountId?: number;
+    bankAccountLabel?: string;
+    status: string;
+    statusKey?: string;
+    grossAmount: number;
+    retentionsAmount: number;
+    netAmount: number;
     totalAmount: number;
     observations: string;
     isDirectExpense: boolean;
-    details: ExpenseReceiptDetailView[]; // Usa la interfaz de detalle actualizada
+    accountingEntryId?: number;
+    accountingEntryCode?: string;
+    accountingStatusLabel?: string;
+    scheduleId?: number;
+    scheduleExecutionDate?: string;
+    details: ExpenseReceiptDetailView[];
     accountingEntry?: AccountingEntryLine[];
 }

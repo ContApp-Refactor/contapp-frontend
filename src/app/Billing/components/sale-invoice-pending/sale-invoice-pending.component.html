@@ -1,0 +1,106 @@
+<div class="flex w-full h-full font-titillium">
+  <p-confirmDialog [style]="{ width: '440px', maxWidth: '92vw' }">
+    <!-- Ícono rojo arriba y el texto debajo -->
+    <ng-template pTemplate="message" let-message>
+      <div class="flex flex-col items-center gap-16 w-full text-center">
+        @if (message.icon) {
+          <i class="{{ message.icon }}" style="font-size: 3rem; color: #dc2626"></i>
+        }
+        <p class="font-family-sans text-sm m-0">{{ message.message }}</p>
+      </div>
+    </ng-template>
+  </p-confirmDialog>
+
+  <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
+    <div class="flex items-start justify-between gap-16">
+      <div>
+        <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+          <span class="border-b-4 border-secondary-light inline-block pb-1">Continuar factura pendiente</span>
+        </h1>
+        <p class="font-family-sans font-normal text-sm mt-12 mb-20">
+          Estos son tus borradores de venta y compra. Selecciona uno para continuar editándolo.
+        </p>
+      </div>
+      <div class="flex items-center gap-8">
+        <p-dropdown
+          [options]="kindOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="kindFilter()"
+          (ngModelChange)="kindFilter.set($event)"
+          styleClass="w-150"
+          size="small"
+        ></p-dropdown>
+        <!-- Volver al menú de Facturación -->
+        <p-button
+          icon="pi pi-arrow-left"
+          [rounded]="true"
+          [outlined]="true"
+          ariaLabel="Volver"
+          title="Volver"
+          (click)="goBack()"
+        ></p-button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto text-sm">
+      <p-table [value]="filtered()" [loading]="loading()" [tableStyle]="{ 'min-width': '50rem' }" styleClass="p-datatable-striped">
+        <ng-template pTemplate="header">
+          <tr>
+            <th style="width: 7rem">Tipo</th>
+            <th>Cliente / Proveedor</th>
+            <th style="width: 9rem">Fecha</th>
+            <th style="width: 7rem" class="text-right">Líneas</th>
+            <th style="width: 11rem" class="text-right">Total</th>
+            <th style="width: 12rem">Última edición</th>
+            <th style="width: 17rem"></th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-draft>
+          <tr>
+            <td><app-billing-kind-tag [kind]="draft.kind" /></td>
+            <td>
+              {{ counterpartyOf(draft) }}
+              @if (draft.supplierInvoiceNumber) {
+                <p class="text-xs text-gray-500">Fact. proveedor {{ draft.supplierInvoiceNumber }}</p>
+              }
+            </td>
+            <td>{{ draft.date | date: 'dd/MM/yyyy' }}</td>
+            <td class="text-right">{{ draft.lines.length }}</td>
+            <td class="text-right font-semibold">{{ totalOf(draft) | copCents }}</td>
+            <td>{{ draft.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td>
+              <div class="flex items-center justify-center gap-8">
+                <p-button label="Continuar" icon="pi pi-pencil" (click)="continue(draft)"></p-button>
+                <p-button
+                  icon="pi pi-copy"
+                  [rounded]="true"
+                  [outlined]="true"
+                  ariaLabel="Duplicar"
+                  title="Duplicar"
+                  [disabled]="busy()"
+                  (click)="confirmDuplicate(draft)"
+                ></p-button>
+                <p-button
+                  icon="pi pi-trash"
+                  [rounded]="true"
+                  [outlined]="true"
+                  severity="danger"
+                  ariaLabel="Eliminar"
+                  title="Eliminar"
+                  [disabled]="busy()"
+                  (click)="confirmDelete(draft)"
+                ></p-button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="7" class="text-center p-20">No tienes facturas pendientes.</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </div>
+</div>

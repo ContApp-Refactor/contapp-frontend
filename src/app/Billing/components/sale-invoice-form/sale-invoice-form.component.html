@@ -1,0 +1,444 @@
+<div class="flex w-full h-full font-titillium">
+  <p-confirmDialog [style]="{ width: '440px', maxWidth: '92vw' }">
+    <!-- Ícono rojo arriba y el texto debajo (reemplaza el layout por defecto, ícono al lado) -->
+    <ng-template pTemplate="message" let-message>
+      <div class="flex flex-col items-center gap-16 w-full text-center">
+        <i class="{{ message.icon }}" style="font-size: 3rem; color: #dc2626"></i>
+        <p class="font-family-sans text-sm m-0">{{ message.message }}</p>
+      </div>
+    </ng-template>
+  </p-confirmDialog>
+
+  <!-- Vista previa de impresión (solo lectura, refleja el estado actual del formulario) -->
+  <p-dialog
+    header="Vista factura"
+    [visible]="previewVisible()"
+    (visibleChange)="previewVisible.set($event)"
+    [modal]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [style]="{ width: '56rem', 'max-width': '95vw' }"
+    [contentStyle]="{ 'max-height': '75vh', 'overflow-y': 'auto', background: '#f3f4f6' }"
+  >
+    <app-sale-invoice-preview
+      [kind]="kind()"
+      [number]="number()"
+      [status]="status()"
+      [date]="date()"
+      [client]="selectedClient()"
+      [supplierInvoiceNumber]="supplierInvoiceNumber()"
+      [lines]="lines()"
+    />
+  </p-dialog>
+
+  <!-- Vista de una devolución (solo lectura) -->
+  <p-dialog
+    header="Vista devolución"
+    [visible]="!!previewReturn()"
+    (visibleChange)="!$event && previewReturn.set(null)"
+    [modal]="true"
+    [dismissableMask]="true"
+    [draggable]="false"
+    [style]="{ width: '56rem', 'max-width': '95vw' }"
+    [contentStyle]="{ 'max-height': '75vh', 'overflow-y': 'auto', background: '#f3f4f6' }"
+  >
+    @if (previewReturn(); as pr) {
+      <app-sale-return-preview [saleReturn]="pr" [ordinal]="ordinalOf(pr)" />
+    }
+  </p-dialog>
+
+  <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
+    <!-- Título + acciones -->
+    <div class="flex flex-wrap items-center justify-between gap-16 mb-12">
+      <div>
+        <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
+          <span class="border-b-4 border-secondary-light inline-block pb-1">{{
+            editable() ? cfg().newInvoiceTitle : cfg().invoiceTitle
+          }}</span>
+        </h1>
+        <p class="font-family-sans font-normal text-sm mt-12">
+          @if (editable()) {
+            {{ cfg().headerHint }} El borrador se guarda automáticamente.
+          } @else {
+            Esta factura es de solo lectura.
+          }
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-8">
+        <!-- Volver a la pantalla de donde se vino (pendientes, listado o menú) -->
+        <p-button
+          icon="pi pi-arrow-left"
+          [rounded]="true"
+          [outlined]="true"
+          ariaLabel="Volver"
+          title="Volver"
+          (click)="goBack()"
+        ></p-button>
+        <p-button
+          label="Vista factura"
+          icon="pi pi-eye"
+          styleClass="p-button-outlined"
+          (click)="previewVisible.set(true)"
+        ></p-button>
+        @if (canReturn()) {
+          <p-button
+            label="Devolución"
+            icon="pi pi-replay"
+            styleClass="p-button-outlined"
+            (click)="newReturn()"
+          ></p-button>
+        }
+        @if (editable()) {
+          <p-button label="Emitir" icon="pi pi-check" [disabled]="busy()" (click)="confirmEmit()"></p-button>
+          <p-button
+            label="Eliminar borrador"
+            icon="pi pi-trash"
+            styleClass="p-button-danger p-button-outlined"
+            [disabled]="busy()"
+            (click)="confirmDelete()"
+          ></p-button>
+        }
+      </div>
+    </div>
+
+    @if (loading()) {
+      <p class="font-family-sans text-sm text-gray-500">Cargando factura...</p>
+    } @else {
+      <!-- Cabecera: número, estado, cliente y fecha -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-16 text-sm mb-24">
+        <div class="flex flex-col">
+          <span class="font-normal text-primary mb-4">Número:</span>
+          <span class="font-semibold">
+            @if (number()) {
+              {{ number() }}
+            } @else {
+              <span class="text-gray-500 font-normal">Se asigna al emitir</span>
+            }
+          </span>
+        </div>
+
+        <div class="flex flex-col items-start">
+          <span class="font-normal text-primary mb-4">Estado:</span>
+          <div class="flex items-center gap-12">
+            <app-billing-status-badge [status]="status()" />
+            @if (returnState() !== 'SIN_DEVOLUCION') {
+              <span
+                class="inline-block px-12 py-4 rounded-full text-xs font-semibold font-family-sans bg-amber-100 text-amber-800"
+                >{{ returnState() === 'TOTAL' ? 'Devuelta totalmente' : 'Devuelta parcialmente' }}</span
+              >
+            }
+            @if (editable()) {
+              <span class="text-xs text-gray-500 font-family-sans flex items-center gap-4">
+                @switch (saveState()) {
+                  @case ('pending') {
+                    <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
+                  }
+                  @case ('saving') {
+                    <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
+                  }
+                  @case ('saved') {
+                    <i class="pi pi-check text-xs"></i> Guardado automático
+                  }
+                  @default {
+                    <i class="pi pi-cloud text-xs"></i> Se guarda automáticamente
+                  }
+                }
+              </span>
+            }
+          </div>
+        </div>
+
+        <div class="flex flex-col">
+          <label for="billingClient" class="font-normal text-primary mb-4">{{ cfg().counterparty }}:</label>
+          @if (editable()) {
+            <p-dropdown
+              inputId="billingClient"
+              [options]="clients()"
+              optionLabel="name"
+              optionValue="id"
+              [ngModel]="clientId()"
+              (ngModelChange)="onClientChange($event)"
+              [placeholder]="'Selecciona un ' + cfg().counterpartyLower + '...'"
+              [filter]="true"
+              filterBy="name,document"
+              styleClass="w-full md:w-1/2"
+              size="small"
+            >
+              <ng-template let-client pTemplate="item">
+                <div class="flex flex-col">
+                  <span class="font-semibold">{{ client.name }}</span>
+                  <small>{{ client.document }}</small>
+                </div>
+              </ng-template>
+            </p-dropdown>
+          } @else {
+            <span class="font-semibold">{{ clientName() }}</span>
+          }
+        </div>
+
+        @if (kind() === 'PURCHASE') {
+          <div class="flex flex-col">
+            <label for="supplierInvoiceNumber" class="font-normal text-primary mb-4">N.º factura del proveedor *</label>
+            @if (editable()) {
+              <input
+                id="supplierInvoiceNumber"
+                type="text"
+                maxlength="50"
+                class="h-40 w-full md:w-1/2 px-12 border border-gray-300 rounded-md text-sm bg-white"
+                [ngModel]="supplierInvoiceNumber()"
+                (ngModelChange)="onSupplierInvoiceNumberChange($event)"
+                placeholder="Ej: FE-12345"
+              />
+            } @else {
+              <span class="font-semibold">{{ supplierInvoiceNumber() || '—' }}</span>
+            }
+          </div>
+        }
+
+        <div class="flex flex-col">
+          <label for="billingDate" class="font-normal text-primary mb-4">Fecha:</label>
+          @if (editable()) {
+            <input
+              id="billingDate"
+              type="date"
+              class="h-40 w-full md:w-1/2 px-12 border border-gray-300 rounded-md text-sm bg-white"
+              [ngModel]="date()"
+              (ngModelChange)="onDateChange($event)"
+            />
+          } @else {
+            <span class="font-semibold">{{ date() | date: 'dd/MM/yyyy' }}</span>
+          }
+        </div>
+
+        @if (annulReason()) {
+          <div class="flex flex-col md:col-span-2">
+            <span class="font-normal text-primary mb-4">Motivo de anulación:</span>
+            <span>{{ annulReason() }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Detalle -->
+      <div class="text-sm">
+        <div class="flex flex-wrap items-center justify-between gap-16 mb-12">
+          <h3 class="font-bold text-lg text-primary">Detalle de la Factura</h3>
+          @if (editable()) {
+            <div class="flex flex-col items-end gap-4">
+            <div class="flex items-center gap-8">
+              <p-dropdown
+                [options]="products()"
+                optionLabel="name"
+                optionValue="id"
+                [(ngModel)]="selectedProductId"
+                placeholder="Selecciona un producto..."
+                [filter]="true"
+                filterBy="name,code"
+                styleClass="w-250"
+                size="small"
+                appendTo="body"
+              ></p-dropdown>
+              <p-button
+                label="Agregar"
+                icon="pi pi-plus"
+                [disabled]="!selectedProductId"
+                (click)="addProduct()"
+              ></p-button>
+            </div>
+            <span class="text-xs text-gray-500 font-family-sans">
+              ¿No está el producto?
+              <button
+                type="button"
+                class="text-primary underline font-semibold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
+                [disabled]="busy()"
+                (click)="createProduct()"
+              >
+                Crear producto
+              </button>
+            </span>
+            </div>
+          }
+        </div>
+
+        <div class="overflow-x-auto">
+          <p-table [value]="lines()" [tableStyle]="{ 'min-width': '60rem' }" styleClass="p-datatable-striped">
+            <ng-template pTemplate="header">
+              <tr>
+                <th scope="col" style="width: 3rem">#</th>
+                <th scope="col" style="min-width: 14rem">Producto</th>
+                <th scope="col" style="width: 9rem">Cant.</th>
+                <th scope="col" style="width: 10rem" class="text-right">{{ cfg().refPriceLabel }}</th>
+                <th scope="col" style="width: 13rem">Precio unitario</th>
+                <th scope="col" style="width: 6rem" class="text-right">IVA %</th>
+                <th scope="col" style="width: 10rem" class="text-right">Subtotal</th>
+                @if (editable()) {
+                  <th scope="col" style="width: 4rem"></th>
+                }
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-line let-i="rowIndex">
+              <tr>
+                <td class="text-center">{{ i + 1 }}</td>
+                <td class="font-semibold">{{ line.productName }}</td>
+                <td>
+                  @if (editable()) {
+                    <p-inputNumber
+                      [ngModel]="line.cantidad"
+                      (ngModelChange)="setQuantity(i, $event)"
+                      mode="decimal"
+                      size="small"
+                      [showButtons]="true"
+                      [min]="0"
+                      inputStyleClass="w-full"
+                    ></p-inputNumber>
+                  } @else {
+                    {{ line.cantidad }}
+                  }
+                </td>
+                <td class="text-right text-gray-500">{{ line.precioCatalogoCents | copCents }}</td>
+                <td>
+                  @if (editable()) {
+                    <p-inputNumber
+                      [ngModel]="toPesos(line.precioUnitarioCents)"
+                      (ngModelChange)="setUnitPrice(i, $event)"
+                      mode="currency"
+                      currency="COP"
+                      locale="es-CO"
+                      [minFractionDigits]="0"
+                      [maxFractionDigits]="2"
+                      [min]="0"
+                      size="small"
+                      inputStyleClass="w-full"
+                    ></p-inputNumber>
+                  } @else {
+                    {{ line.precioUnitarioCents | copCents }}
+                  }
+                </td>
+                <td>
+                  @if (editable()) {
+                    <p-inputNumber
+                      [ngModel]="line.ivaPct"
+                      (ngModelChange)="setIva(i, $event)"
+                      mode="decimal"
+                      suffix="%"
+                      [minFractionDigits]="0"
+                      [maxFractionDigits]="2"
+                      [min]="0"
+                      [max]="100"
+                      size="small"
+                      inputStyleClass="w-full"
+                    ></p-inputNumber>
+                  } @else {
+                    <div class="text-right">{{ line.ivaPct }}%</div>
+                  }
+                  @if (line.ivaPct !== line.ivaCatalogoPct) {
+                    <div class="text-gray-500 text-xs mt-4" [class.text-right]="!editable()">
+                      cat. {{ line.ivaCatalogoPct }}%
+                    </div>
+                  }
+                </td>
+                <td class="text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
+                @if (editable()) {
+                  <td class="text-center">
+                    <p-button
+                      icon="pi pi-trash"
+                      styleClass="p-button-danger p-button-text"
+                      (click)="removeLine(i)"
+                    ></p-button>
+                  </td>
+                }
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="emptymessage">
+              <tr>
+                <td [attr.colspan]="editable() ? 8 : 7" class="text-center p-20">
+                  <i class="pi pi-shopping-cart text-primary text-2xl"></i>
+                  <p class="mt-8">No hay productos en la factura.</p>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+      </div>
+
+      <!-- Totales -->
+      <div class="flex justify-end mt-20">
+        <div class="w-full md:w-1/3 p-16 text-sm">
+          <div class="flex flex-col gap-12">
+            <div class="flex justify-between">
+              <span class="text-gray-700">Subtotal:</span>
+              <span class="font-semibold">{{ totals().subtotalCents | copCents }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-700">IVA:</span>
+              <span class="font-semibold">{{ totals().ivaCents | copCents }}</span>
+            </div>
+            <hr />
+            <div class="flex justify-between text-xl">
+              <span class="font-bold text-primary">TOTAL:</span>
+              <span class="font-extrabold text-primary">{{ totals().totalCents | copCents }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Devoluciones de esta factura (solo cuando ya no es borrador) -->
+      @if (!editable()) {
+        <div class="text-sm mt-24">
+          <h3 class="font-bold text-lg text-primary mb-12">Devoluciones</h3>
+          <div class="overflow-x-auto">
+            <p-table [value]="returns()" [tableStyle]="{ 'min-width': '50rem' }" styleClass="p-datatable-striped">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th style="width: 9rem">Número</th>
+                  <th style="width: 9rem">Fecha</th>
+                  <th>Motivo</th>
+                  <th style="width: 10rem" class="text-right">Total</th>
+                  <th style="width: 9rem">Estado</th>
+                  <th style="width: 8rem"></th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-ret>
+                <tr>
+                  <td>
+                    @if (ordinalOf(ret); as n) {
+                      <p class="font-bold">Devolución {{ n }}</p>
+                      <p class="text-xs text-gray-500">{{ ret.number }}</p>
+                    } @else {
+                      <p class="font-bold">Borrador</p>
+                    }
+                  </td>
+                  <td>{{ ret.date | date: 'dd/MM/yyyy' }}</td>
+                  <td>{{ ret.reason || '—' }}</td>
+                  <td class="text-right font-semibold">{{ returnTotal(ret) | copCents }}</td>
+                  <td><app-billing-status-badge [status]="ret.status" /></td>
+                  <td>
+                    <div class="flex justify-end gap-8">
+                      <p-button
+                        label="Vista"
+                        icon="pi pi-eye"
+                        styleClass="p-button-outlined"
+                        (click)="openReturnPreview(ret)"
+                      ></p-button>
+                      <p-button
+                        [label]="ret.status === 'BORRADOR' ? 'Continuar' : 'Detalle'"
+                        [icon]="ret.status === 'BORRADOR' ? 'pi pi-pencil' : 'pi pi-file'"
+                        styleClass="p-button-text"
+                        (click)="openReturn(ret)"
+                      ></p-button>
+                    </div>
+                  </td>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="emptymessage">
+                <tr>
+                  <td colspan="6" class="text-center p-20">Esta factura no tiene devoluciones</td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>

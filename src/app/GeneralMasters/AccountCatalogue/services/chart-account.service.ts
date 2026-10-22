@@ -16,14 +16,14 @@ let API_URL = environment.API_URL + 'accountCatalogue/';
 })
 export class ChartAccountService {
 
- 
+
   private readonly apiURL = API_URL
 
   constructor(private readonly http: HttpClient) { }
 
   /**
      * Lista predefinida de tipos de naturaleza para las cuentas.
-     * 
+     *
      * @type {NatureType[]} - Un array de objetos que representa los tipos de naturaleza disponibles ('Débito' y 'Crédito'), cada uno con un identificador único.
      */
   listNature: NatureType[] = [
@@ -33,7 +33,7 @@ export class ChartAccountService {
 
   /**
      * Lista predefinida de tipos de estados financieros.
-     * 
+     *
      * @type {FinancialStateType[]} - Un array de objetos que representa los tipos de estados financieros disponibles ('Estado de Resultados' y 'Estado de Situación Financiera'), cada uno con un identificador único.
      */
   listFinancialState: FinancialStateType[] = [
@@ -43,7 +43,7 @@ export class ChartAccountService {
 
   /**
      * Lista predefinida de tipos de clasificación financiera.
-     * 
+     *
      * @type {ClasificationType[]} - Un array de objetos que representa los tipos de clasificación disponibles, incluyendo activos, pasivos, patrimonio, ingresos y gastos, cada uno con un identificador único.
      */
   listClasification: ClasificationType[] = [
@@ -59,7 +59,7 @@ export class ChartAccountService {
 
   /**
      * Obtiene una lista de cuentas para un ID de entidad dado.
-     * 
+     *
      * @param entId - El ID de la entidad para la cual se desean obtener las cuentas.
      * @returns Un observable que emite un array de cuentas.
      */
@@ -75,7 +75,7 @@ export class ChartAccountService {
    * @returns Un observable que emite un array de cuentas auxiliares.
    */
   getListAuxiliaryAccounts(entId: string): Observable<Account[]> {
-    return this.http.get<AuxiliaryAccountsApiResponse>(this.apiURL + 'auxiliary/' + entId).pipe(
+    return this.http.get<AuxiliaryAccountsApiResponse>(this.apiURL + 'trees/' + entId).pipe(
       map(response => {
         if (response && Array.isArray(response.auxiliaryAccounts)) {
           return this.convertAccountCatalogueListResToAccount(response.auxiliaryAccounts, entId);
@@ -88,7 +88,7 @@ export class ChartAccountService {
 
   /**
    * Convierte la respuesta del backend AccountCatalogueListRes[] a Account[]
-   * 
+   *
    * @param accountList - Lista de cuentas del backend
    * @param entId - ID de la empresa
    * @returns Array de cuentas convertidas
@@ -103,7 +103,7 @@ export class ChartAccountService {
 
   /**
    * Mapea recursivamente AccountCatalogueListRes a Account
-   * 
+   *
    * @param item - Item del backend
    * @param entId - ID de la empresa
    * @returns Cuenta mapeada
@@ -152,7 +152,7 @@ export class ChartAccountService {
 
   /**
      * Crea una nueva cuenta.
-     * 
+     *
      * @param account - La cuenta a crear.
      * @returns Un observable de la cuenta creada.
      */
@@ -164,7 +164,7 @@ export class ChartAccountService {
 
   /**
    * Mapea AccountCatalogueCreateRes a Account
-   * 
+   *
    * @param item - Item de respuesta del backend
    * @returns Cuenta mapeada
    */
@@ -188,7 +188,7 @@ export class ChartAccountService {
 
   /**
      * Actualiza una cuenta existente.
-     * 
+     *
      * @param id - El ID de la cuenta a actualizar.
      * @param account - La información actualizada de la cuenta.
      * @returns Un observable de la cuenta actualizada.
@@ -201,7 +201,7 @@ export class ChartAccountService {
 
   /**
    * Mapea AccountCatalogueUpdateRes a Account
-   * 
+   *
    * @param item - Item de respuesta del backend
    * @param entId - ID de la empresa
    * @returns Cuenta mapeada
@@ -228,7 +228,7 @@ export class ChartAccountService {
   /**
    * Obtiene una cuenta por su código y el ID de entidad.
    * Si la cuenta no existe (404), devuelve null silenciosamente sin errores en consola.
-   * 
+   *
    * @param code - El código de la cuenta a obtener.
    * @param entId - El ID de la entidad a la que pertenece la cuenta.
    * @returns Un observable de la cuenta obtenida o null si no existe.
@@ -280,7 +280,7 @@ export class ChartAccountService {
   /**
    * Verifica si una cuenta existe sin cargar datos completos ni mostrar errores.
    * Usa método HEAD para verificar existencia sin transferir contenido.
-   * 
+   *
    * @param code - El código de la cuenta a verificar.
    * @param entId - El ID de la entidad a la que pertenece la cuenta.
    * @returns Un observable boolean que indica si la cuenta existe.
@@ -301,7 +301,7 @@ export class ChartAccountService {
 
   /**
    * Mapea ItemAccountCatalogueSearchRes a Account
-   * 
+   *
    * @param item - Item del backend
    * @param entId - ID de la empresa
    * @returns Cuenta mapeada
@@ -326,7 +326,7 @@ export class ChartAccountService {
 
   /**
      * Obtiene la lista de tipos de clasificación.
-     * 
+     *
      * @returns Un array de tipos de clasificación.
      */
   getClasificationType(): ClasificationType[] {
@@ -335,7 +335,7 @@ export class ChartAccountService {
 
   /**
  * Obtiene la lista de tipos de naturaleza.
- * 
+ *
  * @returns Un array de tipos de naturaleza.
  */
   getNatureType(): NatureType[] {
@@ -344,7 +344,7 @@ export class ChartAccountService {
 
   /**
    * Obtiene la lista de tipos de estados financieros.
-   * 
+   *
    * @returns Un array de tipos de estados financieros.
    */
   getFinancialStateType(): FinancialStateType[] {

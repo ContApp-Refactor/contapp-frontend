@@ -160,7 +160,7 @@ export class ProductCreationComponent implements OnInit {
           detail: 'El producto ha sido creado exitosamente.',
           life: 3000
         });
-        this.router.navigate(['/gen-masters/inventory/products/list']); // Redirigir a la lista
+        this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' }); // Redirigir a la lista
       },
       error: (err) => {
         console.error('Error al crear el producto:', err);
@@ -179,6 +179,6 @@ export class ProductCreationComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/gen-masters/inventory/products/list']);
+    this.router.navigate(['/gen-masters/inventory/products/list'], { queryParamsHandling: 'preserve' });
   }
 }

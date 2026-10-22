@@ -2,13 +2,20 @@
   <!-- Header -->
   <div class="flex justify-between items-center mb-8">
     <div>
-      <br><br>
-      <h1 class="text-3xl font-bold text-gray-800 border-b-4 border-primary pb-2">
+      <br /><br />
+      <h1
+        class="text-3xl font-bold text-gray-800 border-b-4 border-primary pb-2"
+      >
         Inicio
       </h1>
       <p class="text-lg text-gray-600 mt-2">Bienvenido a su empresa!!!</p>
     </div>
-    <p-button label="Regresar" icon="pi pi-arrow-left" (click)="goBack()" class="bg-primary text-white rounded-full">
+    <p-button
+      label="Regresar"
+      icon="pi pi-arrow-left"
+      (click)="goBack()"
+      class="bg-primary text-white rounded-full"
+    >
     </p-button>
   </div>
 
@@ -17,7 +24,9 @@
     <div class="lg:col-span-3 space-y-6">
       <!-- Información general -->
       <div class="bg-white rounded-lg shadow-md p-8">
-        <h2 class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-primary">
+        <h2
+          class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-primary"
+        >
           Información general
         </h2>
 
@@ -25,34 +34,48 @@
           <!-- Left Column -->
           <div class="space-y-6">
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Nombre de la empresa:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.name || 'No disponible' }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Nombre de la empresa:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.name || "No disponible"
+              }}</span>
               <!-- <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.dv || 'No disponible' }}</span> -->
-
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Tipo de empresa:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getEnterpriseTypeName() }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Tipo de empresa:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getEnterpriseTypeName()
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Tipo de persona:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getPersonTypeName() }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Tipo de persona:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getPersonTypeName()
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Actividad económica principal:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.mainActivity || 'No disponible'
-                }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Actividad económica principal:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.mainActivity || "No disponible"
+              }}</span>
             </div>
-
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Razón social:</label>
-              <!-- <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.legalName || 'No disponible'
-                }}</span> -->
-                <span class="text-lg font-semibold text-gray-800">{{ getBusinessName() }}</span>
-
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Actividad económica secundaria:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.secondaryActivity || "No disponible"
+              }}</span>
             </div>
           </div>
 
@@ -60,29 +83,75 @@
           <div class="space-y-6">
             <div class="flex flex-col">
               <label class="text-sm font-medium text-gray-600 mb-1">NIT:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.nit || 'No disponible' }}</span>
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.nit || "No disponible"
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Dígito de verificación:</label>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Dígito de verificación:</label
+              >
               <!-- <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.dv || 'No disponible' }}</span> -->
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.dv || 'No disponible' }}</span>
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.dv || "No disponible"
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Tipo de contribuyente:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getTaxPayerTypeName() }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Tipo de contribuyente:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getTaxPayerTypeName()
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Responsabilidades tributarias:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getTaxLiabilitiesNames() }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Responsabilidades tributarias:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getTaxLiabilitiesNames()
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Actividad económica secundaria:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.secondaryActivity || 'No disponible'
-                }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Razón social:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getBusinessName()
+              }}</span>
+            </div>
+
+            <div *ngIf="enterpriseData?.personType?.type === 'NATURAL'" class="flex flex-col">
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Nombre del propietario:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.personType?.name || "No disponible"
+              }}</span>
+            </div>
+
+            <div *ngIf="enterpriseData?.personType?.type === 'NATURAL'" class="flex flex-col">
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Apellidos:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.personType?.surname || "No disponible"
+              }}</span>
+            </div>
+
+            <div class="flex flex-col">
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Estado:</label
+              >
+              <span class="text-lg font-semibold"
+                [class.text-green-600]="enterpriseData?.state === 'ACTIVE'"
+                [class.text-red-500]="enterpriseData?.state === 'INACTIVE'">
+                {{ enterpriseData?.state === 'ACTIVE' ? 'Activo' : enterpriseData?.state === 'INACTIVE' ? 'Inactivo' : 'No disponible' }}
+              </span>
             </div>
           </div>
         </div>
@@ -90,7 +159,9 @@
 
       <!-- Información adicional -->
       <div class="bg-white rounded-lg shadow-md p-8">
-        <h2 class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-primary">
+        <h2
+          class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b-2 border-primary"
+        >
           Información adicional
         </h2>
 
@@ -98,41 +169,87 @@
           <!-- Left Column -->
           <div class="space-y-6">
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">País:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getLocationData('country') }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >País:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getLocationData("country")
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Departamento:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getLocationData('department') }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Departamento:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getLocationData("department")
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Ciudad:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getLocationData('city') }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Ciudad:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getLocationData("city")
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Tiene sucursales:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.branch || 'No disponible' }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Tiene sucursales:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.branch || "No disponible"
+              }}</span>
             </div>
           </div>
 
           <!-- Right Column -->
           <div class="space-y-6">
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Dirección:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ getLocationData('address') }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Dirección:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                getLocationData("address")
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Teléfono:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.phone || 'No disponible' }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Teléfono:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.phone || "No disponible"
+              }}</span>
             </div>
 
             <div class="flex flex-col">
-              <label class="text-sm font-medium text-gray-600 mb-1">Email:</label>
-              <span class="text-lg font-semibold text-gray-800">{{ enterpriseData?.email || 'No disponible' }}</span>
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Email:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.email || "No disponible"
+              }}</span>
+            </div>
+
+            <div class="flex flex-col">
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Método de inventario:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">{{
+                enterpriseData?.inventoryMethods || "No disponible"
+              }}</span>
+            </div>
+
+            <div class="flex flex-col">
+              <label class="text-sm font-medium text-gray-600 mb-1"
+                >Materia:</label
+              >
+              <span class="text-lg font-semibold text-gray-800">
+                {{ getSubjectData() }}
+              </span>
             </div>
           </div>
         </div>
@@ -140,34 +257,199 @@
     </div>
 
     <!-- Sidebar -->
-    <div class="lg:col-span-1">
+    <div class="lg:col-span-1 space-y-4">
+
+      <!-- CARD EMPRESA INCOMPLETA -->
+      <div
+        *ngIf="showIncompleteCard"
+        class="bg-white rounded-lg shadow-md p-6 border border-yellow-200"
+      >
+        <p class="text-yellow-800 font-semibold text-sm text-center mb-3">
+          Empresa incompleta
+        </p>
+
+        <div class="flex flex-col items-center mb-3">
+          <div class="relative flex items-center justify-center w-[90px] h-[90px]">
+            <svg viewBox="0 0 120 120" class="w-full h-full">
+              <circle cx="60" cy="60" [attr.r]="radius" stroke="#e5e7eb" stroke-width="8" fill="none" />
+              <circle
+                cx="60" cy="60" [attr.r]="radius"
+                stroke="#1e3a8a" stroke-width="8" fill="none"
+                stroke-linecap="round"
+                [attr.stroke-dasharray]="circumference"
+                [attr.stroke-dashoffset]="strokeDashoffset"
+                class="transition-all duration-300"
+                transform="rotate(-90 60 60)"
+              />
+            </svg>
+            <div class="absolute flex flex-col items-center justify-center">
+              <span class="text-base font-bold text-gray-800 leading-none">{{ completionPercentage }}%</span>
+              <span class="text-[9px] text-gray-500 mt-1">Completado</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-center">
+          <p-button
+            label="Completar"
+            icon="pi pi-check-circle"
+            (click)="openCompleteModal()"
+          ></p-button>
+        </div>
+      </div>
+
       <div class="bg-white rounded-lg shadow-md p-8">
-        <h3 class="text-xl font-bold text-gray-800 mb-8 text-center">Mi empresa</h3>
+        <h3 class="text-xl font-bold text-gray-800 mb-8 text-center">
+          Mi empresa
+        </h3>
 
         <!-- Logo -->
         <div class="flex justify-center mb-8">
-          <div class="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden shadow-lg">
-            <img *ngIf="enterpriseData?.logo" [src]="enterpriseData?.logo" [alt]="enterpriseData?.name"
-              class="w-full h-full rounded-full object-cover">
-            <i *ngIf="!enterpriseData?.logo" class="pi pi-building text-4xl text-gray-400"></i>
+          <div
+            class="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden shadow-lg"
+          >
+            <img
+              *ngIf="enterpriseData?.logo"
+              [src]="enterpriseData?.logo"
+              [alt]="enterpriseData?.name"
+              class="w-full h-full rounded-full object-cover"
+            />
+            <i
+              *ngIf="!enterpriseData?.logo"
+              class="pi pi-building text-4xl text-gray-400"
+            ></i>
           </div>
         </div>
 
         <!-- Company Info -->
         <div class="text-center mb-8 space-y-4">
-          <h4 class="text-2xl font-bold text-gray-800">{{ enterpriseData?.name || 'Nombre de empresa' }}</h4>
+          <h4 class="text-2xl font-bold text-gray-800">
+            {{ enterpriseData?.name || "Nombre de empresa" }}
+          </h4>
           <div class="space-y-2">
-            <p class="text-gray-600 font-medium">NIT: {{ enterpriseData?.nit || 'No disponible' }}</p>
-            <p class="text-gray-600">{{ getLocationData('department') }}, {{ getLocationData('city') }}</p>
+            <p class="text-gray-600 font-medium">
+              NIT: {{ enterpriseData?.nit || "No disponible" }}
+            </p>
+            <p class="text-gray-600">
+              {{ getLocationData("department") }}, {{ getLocationData("city") }}
+            </p>
           </div>
         </div>
 
         <!-- Action Buttons -->
         <div class="flex gap-4 justify-start">
-          <p-button label="Editar" icon="pi pi-pencil" (click)="goToEdit()" class="flex-1 text-primary h-12"></p-button>
-          <p-button label="Archivar" icon="pi pi-archive" class="flex-1 text-gray-600 h-12"></p-button>
+          <p-button
+            label="Editar"
+            icon="pi pi-pencil"
+            (click)="goToEdit()"
+            class="flex-1 text-primary h-12"
+          ></p-button>
+          <p-button
+            label="Archivar"
+            icon="pi pi-archive"
+            class="flex-1 text-gray-600 h-12"
+            (click)="openArchiveConfirmation()"
+          ></p-button>
         </div>
+
       </div>
     </div>
   </div>
 </div>
+
+<!-- Modal Empresa Inactivada -->
+<p-dialog
+  header="Empresa inactivada"
+  [(visible)]="showArchiveSuccessModal"
+  [modal]="true"
+  [closable]="false"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="flex flex-col items-center gap-4 p-4 text-center">
+    <i class="pi pi-check-circle text-6xl text-green-500"></i>
+    <p>La empresa fue inactivada correctamente.</p>
+    <p-button
+      label="Aceptar"
+      icon="pi pi-check"
+      class="p-button-success"
+      (click)="closeArchiveSuccess()"
+    ></p-button>
+  </div>
+</p-dialog>
+
+<!-- MODAL COMPLETAR INFORMACIÓN -->
+<p-dialog
+  header="Completar información"
+  [(visible)]="showCompleteModal"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [style]="{ width: '420px' }"
+  [contentStyle]="{ padding: '2rem' }"
+>
+  <!-- Texto -->
+  <div class="text-center mb-6">
+    <p class="text-gray-700 font-medium">
+      Para completar la información asegúrese de tener:
+    </p>
+
+    <ul class="text-sm text-gray-500 mt-3 space-y-1">
+      <li>• Impuestos configurados</li>
+    </ul>
+  </div>
+
+  <!-- BOTONES EN FILA -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <!-- Crear impuestos -->
+    <button
+      (click)="goToCreateTaxes()"
+      class="flex flex-col items-center justify-center gap-2 bg-primary text-white py-3 rounded-lg hover:opacity-90 transition"
+    >
+      <i class="pi pi-percentage text-lg"></i>
+      <span class="text-xs font-medium">Impuestos</span>
+    </button>
+
+    <!-- Completar empresa -->
+    <button
+      (click)="completeEnterprise()"
+      class="flex flex-col items-center justify-center gap-2 bg-primary text-white py-3 rounded-lg hover:opacity-90 transition"
+    >
+      <i class="pi pi-pencil text-lg"></i>
+      <span class="text-xs font-medium">Empresa</span>
+    </button>
+  </div>
+</p-dialog>
+
+<!-- Modal Confirmar Archivar Empresa -->
+<p-dialog
+  header="Confirmar archivo"
+  [(visible)]="showArchiveConfirm"
+  [modal]="true"
+  [closable]="false"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="flex flex-col items-center gap-4 p-4 text-center">
+    <i class="pi pi-archive text-6xl text-yellow-500"></i>
+    <p>
+      ¿Estás seguro de que deseas archivar la empresa
+      <strong>{{ enterpriseData?.name }}</strong
+      >?
+    </p>
+    <div class="flex gap-3 mt-4">
+      <p-button
+        label="Cancelar"
+        icon="pi pi-times"
+        class="p-button-secondary"
+        (click)="cancelArchive()"
+      ></p-button>
+      <p-button
+        label="Archivar"
+        icon="pi pi-check"
+        class="p-button-warning"
+        (click)="confirmArchive()"
+      ></p-button>
+    </div>
+  </div>
+</p-dialog>

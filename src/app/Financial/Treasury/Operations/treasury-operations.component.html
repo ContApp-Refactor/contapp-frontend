@@ -1,0 +1,1246 @@
+<div class="container-fluid p-4">
+  <p-toast></p-toast>
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-[var(--color-primary)] mb-2 inline-block">Operaciones de Tesorería</h1>
+      <app-contextual-help
+        class="ml-2 inline-flex align-middle"
+        [title]="help.title"
+        [summary]="help.summary"
+        [helpCenterSlug]="help.slug">
+      </app-contextual-help>
+      <p class="text-gray-600">Gestione obligaciones pendientes, comprobantes de pago, programaciones de pago y bajas de CxP</p>
+    </div>
+    <div class="flex gap-2">
+      <p-button
+        label="Exportar PDF"
+        icon="pi pi-file-pdf"
+        severity="danger"
+        [outlined]="true"
+        [loading]="exportingPdf"
+        [disabled]="!hasExportData || busy"
+        (onClick)="exportToPdf()">
+      </p-button>
+      <p-button
+        label="Exportar CSV"
+        icon="pi pi-file-excel"
+        severity="success"
+        [outlined]="true"
+        [loading]="exportingCsv"
+        [disabled]="!hasExportData || busy"
+        (onClick)="exportToCsv()">
+      </p-button>
+      <p-button
+        label="Actualizar"
+        icon="pi pi-refresh"
+        severity="secondary"
+        [outlined]="true"
+        [loading]="busy"
+        (onClick)="reload()">
+      </p-button>
+    </div>
+  </div>
+
+  <div *ngIf="loadError" class="flex flex-wrap items-center gap-3 mb-4">
+    <p-message severity="error" [text]="loadError" styleClass="w-full"></p-message>
+    <p-button
+      label="Reintentar"
+      icon="pi pi-refresh"
+      severity="secondary"
+      [outlined]="true"
+      [loading]="loading"
+      (onClick)="reload()">
+    </p-button>
+  </div>
+  <p-message *ngIf="error" severity="error" [text]="error" styleClass="mb-4 w-full"></p-message>
+  <p-message
+    *ngIf="noActivePaymentMethods && paymentMethodsHelpMessage"
+    severity="warn"
+    [text]="paymentMethodsHelpMessage"
+    styleClass="mb-4 w-full">
+  </p-message>
+
+  <div *ngIf="loaded" class="treasury-sections">
+  <fieldset [disabled]="busy" class="treasury-fieldset">
+    <p-card header="Obligaciones pendientes">
+      <p-table
+        [value]="payables"
+        [loading]="busy"
+        styleClass="p-datatable-striped"
+        [paginator]="true"
+        [rows]="10"
+        [rowsPerPageOptions]="[5, 10, 20, 50]"
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} obligaciones"
+        [scrollable]="true"
+        scrollHeight="420px">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Proveedor</th>
+            <th>Factura</th>
+            <th>Vence</th>
+            <th class="text-right">Disponible</th>
+            <th>En programación</th>
+            <th style="min-width: 11rem">Acciones</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-payable>
+          <tr>
+            <td>
+              <div class="flex items-center gap-2">
+                <i class="pi pi-building text-gray-500"></i>
+                <span>{{ supplierName(payable.supplierId) }}</span>
+              </div>
+            </td>
+            <td><span class="font-mono font-semibold text-blue-600">{{ payable.reference }}</span></td>
+            <td>{{ payable.dueDate }}</td>
+            <td class="text-right font-semibold text-green-600">
+              {{ payable.availableAmount | currency:'COP':'symbol':'1.0-2' }}
+            </td>
+            <td>
+              <p-tag
+                *ngIf="scheduledLabelForPayable(payable) as scheduledLabel"
+                [value]="scheduledLabel"
+                severity="info"
+                icon="pi pi-clock">
+              </p-tag>
+              <span *ngIf="!scheduledLabelForPayable(payable)" class="text-gray-500">—</span>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <p-button
+                  icon="pi pi-wallet"
+                  ariaLabel="Pagar"
+                  styleClass="treasury-icon-action"
+                  size="small"
+                  [disabled]="hasActivePaymentScheduleForPayable(payable)"
+                  [pTooltip]="activePaymentScheduleTooltip(payable) || 'Pagar'"
+                  tooltipPosition="top"
+                  (onClick)="openPaymentDialog(payable)">
+                </p-button>
+                <p-button
+                  icon="pi pi-clock"
+                  ariaLabel="Programar pago"
+                  styleClass="treasury-icon-action"
+                  size="small"
+                  severity="secondary"
+                  [outlined]="true"
+                  [disabled]="hasActivePaymentScheduleForPayable(payable)"
+                  [pTooltip]="activePaymentScheduleTooltip(payable) || 'Programar pago'"
+                  tooltipPosition="top"
+                  (onClick)="openScheduleDialog(payable)">
+                </p-button>
+                <p-button
+                  icon="pi pi-minus-circle"
+                  ariaLabel="Registrar baja de CxP"
+                  styleClass="treasury-icon-action"
+                  size="small"
+                  severity="danger"
+                  [outlined]="true"
+                  [disabled]="!canWriteOffPayable(payable)"
+                  [pTooltip]="writeOffPayableTooltip(payable) || 'Registrar baja de CxP'"
+                  tooltipPosition="top"
+                  (onClick)="openWriteOffDialog(payable)">
+                </p-button>
+                <p-button
+                  icon="pi pi-calendar"
+                  ariaLabel="Cambiar vencimiento"
+                  styleClass="treasury-icon-action"
+                  size="small"
+                  severity="secondary"
+                  [outlined]="true"
+                  pTooltip="Cambiar vencimiento"
+                  tooltipPosition="top"
+                  (onClick)="openDueDateDialog(payable)">
+                </p-button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="6" class="text-center py-8">
+              <div class="flex flex-col items-center gap-3">
+                <i class="pi pi-inbox text-4xl text-gray-400"></i>
+                <p class="text-gray-600">No hay obligaciones pendientes</p>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </p-card>
+  </fieldset>
+
+  <p-card header="Comprobantes de pago" class="treasury-vouchers-card">
+    <div class="treasury-voucher-filters mb-4 pb-4 border-b border-gray-200">
+      <h3 class="text-base font-semibold text-[var(--color-primary)] mb-3">Filtros de comprobantes de pago</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+        <div class="flex flex-col gap-2">
+          <label for="voucherNumber" class="font-semibold text-[var(--color-primary)]">Número de comprobante</label>
+          <input
+            pInputText
+            id="voucherNumber"
+            [ngModel]="voucherNumberFilter"
+            (ngModelChange)="onVoucherNumberFilterChange($event)"
+            placeholder="Buscar por número...">
+        </div>
+        <div class="flex flex-col gap-2">
+          <label for="voucherSupplier" class="font-semibold text-[var(--color-primary)]">Proveedor</label>
+          <p-autoComplete
+            id="voucherSupplier"
+            [(ngModel)]="voucherSupplierFilter"
+            [suggestions]="filteredVoucherSuppliers"
+            (completeMethod)="searchVoucherSupplier($event)"
+            field="name"
+            placeholder="Todos los proveedores"
+            [dropdown]="true"
+            [showClear]="true"
+            (onSelect)="onVoucherSupplierFilterChange()"
+            (onClear)="onVoucherSupplierFilterChange()"
+            styleClass="w-full">
+          </p-autoComplete>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label for="voucherStatus" class="font-semibold text-[var(--color-primary)]">Estado</label>
+          <p-dropdown
+            id="voucherStatus"
+            [(ngModel)]="voucherStatusFilter"
+            (ngModelChange)="onVoucherStatusFilterChange()"
+            [options]="voucherStatusOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Todos los estados"
+            [showClear]="true"
+            styleClass="w-full">
+          </p-dropdown>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label for="voucherDateFrom" class="font-semibold text-[var(--color-primary)]">Desde</label>
+          <p-datePicker
+            inputId="voucherDateFrom"
+            [(ngModel)]="voucherDateFrom"
+            (ngModelChange)="onVoucherDateFilterChange()"
+            dateFormat="dd/mm/yy"
+            [showIcon]="true"
+            placeholder="Fecha desde"
+            styleClass="w-full">
+          </p-datePicker>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label for="voucherDateTo" class="font-semibold text-[var(--color-primary)]">Hasta</label>
+          <p-datePicker
+            inputId="voucherDateTo"
+            [(ngModel)]="voucherDateTo"
+            (ngModelChange)="onVoucherDateFilterChange()"
+            dateFormat="dd/mm/yy"
+            [showIcon]="true"
+            placeholder="Fecha hasta"
+            styleClass="w-full">
+          </p-datePicker>
+        </div>
+        <div class="flex flex-col gap-2 md:col-span-2 lg:col-span-1">
+          <label class="font-semibold text-[var(--color-primary)] invisible md:visible">Limpiar</label>
+          <p-button
+            label="Limpiar filtros"
+            icon="pi pi-filter-slash"
+            severity="secondary"
+            [outlined]="true"
+            styleClass="w-full"
+            (onClick)="clearVoucherFilters()">
+          </p-button>
+        </div>
+      </div>
+    </div>
+    <p-table
+      [value]="vouchers"
+      [loading]="busy"
+      [first]="voucherTableFirst"
+      (onPage)="onVoucherTablePage($event)"
+      styleClass="p-datatable-striped"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[5, 10, 20]"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} comprobantes de pago">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Número</th>
+          <th>Fecha</th>
+          <th>Estado</th>
+          <th class="text-right">Total</th>
+          <th>Asiento contable</th>
+          <th style="min-width: 10rem">Acciones</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-voucher>
+        <tr>
+          <td><span class="font-mono font-semibold text-blue-600">{{ voucher.voucherNumber }}</span></td>
+          <td>{{ voucher.issueDate }}</td>
+          <td>
+            <p-tag [value]="statusLabel(voucher.status)" [severity]="getStatusSeverity(voucher.status)"></p-tag>
+            <small *ngIf="voucher.failureReason" class="block text-red-600 mt-1">{{ voucher.failureReason }}</small>
+          </td>
+          <td class="text-right font-semibold">{{ voucher.total | currency:'COP' }}</td>
+          <td>{{ voucherAccountingEntryLabel(voucher) }}</td>
+          <td>
+            <div class="action-buttons">
+              <p-button
+                *ngIf="voucher.status === 'DRAFT' || voucher.status === 'FAILED'"
+                icon="pi pi-check"
+                [ariaLabel]="voucher.status === 'FAILED' ? 'Reintentar contabilización' : 'Contabilizar'"
+                styleClass="treasury-icon-action"
+                [pTooltip]="voucher.status === 'FAILED' ? 'Reintentar contabilización' : 'Contabilizar'"
+                tooltipPosition="top"
+                size="small"
+                [loading]="postingVoucherId === voucher.id"
+                [disabled]="busy && postingVoucherId !== voucher.id"
+                (onClick)="post(voucher)">
+              </p-button>
+              <p-button
+                *ngIf="voucher.status === 'DRAFT'"
+                icon="pi pi-pencil"
+                ariaLabel="Editar comprobante"
+                styleClass="treasury-icon-action"
+                pTooltip="Editar comprobante"
+                tooltipPosition="top"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                (onClick)="edit(voucher)">
+              </p-button>
+              <p-button
+                *ngIf="voucher.status === 'DRAFT'"
+                icon="pi pi-trash"
+                ariaLabel="Eliminar comprobante"
+                styleClass="treasury-icon-action"
+                pTooltip="Eliminar comprobante"
+                tooltipPosition="top"
+                size="small"
+                severity="danger"
+                [text]="true"
+                (onClick)="remove(voucher)">
+              </p-button>
+              <p-button
+                *ngIf="voucher.status === 'POSTED' || voucher.status === 'VOID_FAILED'"
+                icon="pi pi-times"
+                [ariaLabel]="voucher.status === 'VOID_FAILED' ? 'Reintentar anulación' : 'Anular comprobante'"
+                styleClass="treasury-icon-action"
+                [pTooltip]="voucher.status === 'VOID_FAILED' ? 'Reintentar anulación' : 'Anular comprobante'"
+                tooltipPosition="top"
+                size="small"
+                severity="danger"
+                [outlined]="true"
+                (onClick)="void(voucher)">
+              </p-button>
+              <p-button
+                *ngIf="voucher.accountingEntryId"
+                icon="pi pi-eye"
+                ariaLabel="Ver asiento contable"
+                styleClass="treasury-icon-action"
+                pTooltip="Ver asiento contable"
+                tooltipPosition="top"
+                size="small"
+                severity="info"
+                [text]="true"
+                (onClick)="showAccounting(voucher)">
+              </p-button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6" class="text-center py-8">
+            <div class="flex flex-col items-center gap-3">
+              <i class="pi pi-inbox text-4xl text-gray-400"></i>
+              <p class="text-gray-600">No hay comprobantes de pago para mostrar</p>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
+
+  <p-card *ngIf="accountingEntry" header="Asiento contable">
+    <div class="mb-3 flex flex-wrap gap-4 text-sm text-gray-700">
+      <span *ngIf="accountingEntryHeader.documentTypeLabel"><strong>Origen:</strong> {{ accountingEntryHeader.documentTypeLabel }}</span>
+      <span *ngIf="accountingEntryHeader.voucherNumber"><strong>Comprobante:</strong> {{ accountingEntryHeader.voucherNumber }}</span>
+      <span *ngIf="accountingEntryHeader.supplierLabel"><strong>Proveedor:</strong> {{ accountingEntryHeader.supplierLabel }}</span>
+      <span *ngIf="accountingEntryHeader.entryCode"><strong>Asiento:</strong> {{ accountingEntryHeader.entryCode }}</span>
+      <span *ngIf="accountingEntryHeader.entryDate"><strong>Fecha:</strong> {{ accountingEntryHeader.entryDate }}</span>
+      <span *ngIf="accountingEntryHeader.entryStatus"><strong>Estado:</strong> {{ accountingStatusLabel(accountingEntryHeader.entryStatus) }}</span>
+    </div>
+    <p-message
+      *ngIf="accountingMovements.length && !accountingIsBalanced"
+      severity="warn"
+      text="El asiento no está balanceado: el total débito difiere del total crédito."
+      styleClass="mb-3 w-full">
+    </p-message>
+    <p-table [value]="accountingMovements" styleClass="p-datatable-sm p-datatable-striped" *ngIf="accountingMovements.length">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Código cuenta</th>
+          <th>Cuenta</th>
+          <th>Detalle</th>
+          <th class="text-right">Débito</th>
+          <th class="text-right">Crédito</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-row>
+        <tr>
+          <td class="font-mono">{{ row.accountCode }}</td>
+          <td>{{ row.accountName }}</td>
+          <td>{{ row.detail }}</td>
+          <td class="text-right">{{ row.debit | currency:'COP':'symbol':'1.0-2' }}</td>
+          <td class="text-right">{{ row.credit | currency:'COP':'symbol':'1.0-2' }}</td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="footer">
+        <tr>
+          <td colspan="3" class="font-semibold text-right">Totales</td>
+          <td class="text-right font-semibold">{{ accountingDebitTotal | currency:'COP':'symbol':'1.0-2' }}</td>
+          <td class="text-right font-semibold">{{ accountingCreditTotal | currency:'COP':'symbol':'1.0-2' }}</td>
+        </tr>
+      </ng-template>
+    </p-table>
+    <p *ngIf="!accountingMovements.length" class="text-gray-600">El asiento no trae movimientos para mostrar.</p>
+  </p-card>
+
+  <p-card header="Programaciones de pago">
+    <p-table
+      [value]="schedules"
+      [loading]="busy"
+      styleClass="p-datatable-striped"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[5, 10, 20]"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} programaciones de pago">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Fecha ejecución</th>
+          <th>Proveedor</th>
+          <th>Factura(s)</th>
+          <th>Método</th>
+          <th>Estado</th>
+          <th class="text-right">Total</th>
+          <th>Reintentos</th>
+          <th>Comprobante</th>
+          <th style="min-width: 9rem">Acciones</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-item>
+        <tr>
+          <td>{{ item.executionDate }}</td>
+          <td>{{ scheduleSuppliersLabel(item) }}</td>
+          <td class="font-mono text-sm">{{ scheduleInvoicesLabel(item) }}</td>
+          <td>{{ scheduleMethodLabel(item) }}</td>
+          <td>
+            <p-tag [value]="scheduleLabel(item.status)" [severity]="getStatusSeverity(item.status)"></p-tag>
+          </td>
+          <td class="text-right font-semibold">{{ scheduleTotal(item) | currency:'COP':'symbol':'1.0-2' }}</td>
+          <td>{{ item.retryCount }}</td>
+          <td>
+            <button
+              *ngIf="canViewScheduleVoucher(item)"
+              type="button"
+              class="font-mono font-semibold text-blue-600 hover:underline bg-transparent border-0 p-0"
+              (click)="openScheduleVoucher(item)">
+              {{ scheduleVoucherLabel(item) }}
+            </button>
+            <span *ngIf="!canViewScheduleVoucher(item)">—</span>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <p-button
+                icon="pi pi-eye"
+                ariaLabel="Ver detalle de programación"
+                styleClass="treasury-icon-action"
+                pTooltip="Ver detalle"
+                tooltipPosition="top"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                (onClick)="showScheduleDetail(item)">
+              </p-button>
+              <p-button
+                *ngIf="canCancelSchedule(item)"
+                icon="pi pi-ban"
+                ariaLabel="Desprogramar pago"
+                styleClass="treasury-icon-action"
+                pTooltip="Desprogramar pago"
+                tooltipPosition="top"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                (onClick)="deschedule(item)">
+              </p-button>
+              <p-button
+                *ngIf="canViewScheduleVoucher(item)"
+                icon="pi pi-file"
+                ariaLabel="Ver comprobante"
+                styleClass="treasury-icon-action"
+                pTooltip="Ver comprobante"
+                tooltipPosition="top"
+                size="small"
+                (onClick)="openScheduleVoucher(item)">
+              </p-button>
+              <p-button
+                *ngIf="item.status === 'FAILED'"
+                icon="pi pi-refresh"
+                ariaLabel="Reintentar programación"
+                styleClass="treasury-icon-action"
+                pTooltip="Reintentar programación"
+                tooltipPosition="top"
+                size="small"
+                (onClick)="retry(item)">
+              </p-button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="9" class="text-center py-8">
+            <div class="flex flex-col items-center gap-3">
+              <i class="pi pi-calendar text-4xl text-gray-400"></i>
+              <p class="text-gray-600">No hay programaciones de pago</p>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
+
+  <p-card header="Bajas de CxP" #writeOffsSection>
+    <p-table
+      [value]="writeOffs"
+      [loading]="busy"
+      styleClass="p-datatable-striped"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[5, 10, 20]"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} bajas">
+      <ng-template pTemplate="header">
+        <tr>
+          <th scope="col">N.º</th>
+          <th scope="col">Fecha</th>
+          <th scope="col">Proveedor</th>
+          <th scope="col">Factura / referencia</th>
+          <th scope="col" class="text-right">Total</th>
+          <th scope="col">Cuenta contrapartida</th>
+          <th scope="col">Estado</th>
+          <th scope="col" style="min-width: 10rem">Acciones</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-item>
+        <tr>
+          <td class="font-mono">{{ writeOffNumberLabel(item) }}</td>
+          <td>{{ writeOffDateLabel(item) }}</td>
+          <td>{{ writeOffSupplierLabel(item) }}</td>
+          <td class="font-mono text-blue-600">{{ writeOffInvoiceReference(item) }}</td>
+          <td class="text-right font-semibold">{{ item.total | currency:'COP' }}</td>
+          <td>{{ writeOffCounterpartLabel(item) }}</td>
+          <td>
+            <p-tag [value]="writeOffLabel(item.status)" [severity]="getStatusSeverity(item.status)"></p-tag>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <p-button
+                icon="pi pi-eye"
+                ariaLabel="Ver detalle de baja"
+                styleClass="treasury-icon-action"
+                pTooltip="Ver detalle"
+                tooltipPosition="top"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                (onClick)="showWriteOffDetail(item)">
+              </p-button>
+              <p-button
+                *ngIf="canPostWriteOff(item)"
+                icon="pi pi-check"
+                [ariaLabel]="item.status === 'FAILED' ? 'Reintentar contabilización' : 'Contabilizar baja'"
+                styleClass="treasury-icon-action"
+                [pTooltip]="item.status === 'FAILED' ? 'Reintentar contabilización' : 'Contabilizar baja'"
+                tooltipPosition="top"
+                size="small"
+                (onClick)="confirmWriteOff(item)">
+              </p-button>
+              <p-button
+                *ngIf="canDiscardWriteOff(item)"
+                icon="pi pi-trash"
+                ariaLabel="Descartar borrador"
+                styleClass="treasury-icon-action"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [pTooltip]="writeOffDiscardTooltip"
+                tooltipPosition="top"
+                (onClick)="discardDraftWriteOff(item)">
+              </p-button>
+              <p-button
+                *ngIf="canShowWriteOffAccounting(item)"
+                icon="pi pi-book"
+                ariaLabel="Ver asiento contable"
+                styleClass="treasury-icon-action"
+                pTooltip="Ver asiento contable"
+                tooltipPosition="top"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                (onClick)="showWriteOffAccounting(item)">
+              </p-button>
+              <p-button
+                *ngIf="canVoidWriteOff(item)"
+                icon="pi pi-times"
+                [ariaLabel]="item.status === 'VOID_FAILED' ? 'Reintentar anulación' : 'Anular baja'"
+                styleClass="treasury-icon-action"
+                size="small"
+                severity="danger"
+                [outlined]="true"
+                [pTooltip]="writeOffVoidTooltip"
+                tooltipPosition="top"
+                (onClick)="voidWriteOff(item)">
+              </p-button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="8" class="text-center py-8">
+            <div class="flex flex-col items-center gap-3">
+              <i class="pi pi-inbox text-4xl text-gray-400"></i>
+              <p class="text-gray-600">No hay bajas de CxP</p>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
+  </div>
+</div>
+
+<p-dialog
+  [header]="paymentDialogHeader"
+  [(visible)]="paymentDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(560px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelPaymentDialog()">
+  <div class="flex flex-col gap-4" *ngIf="dialogLines.length">
+    <div class="treasury-dialog-payables flex flex-col gap-3">
+      <div
+        *ngFor="let line of dialogLines"
+        class="treasury-dialog-payable-card rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div class="flex justify-between items-start gap-4 mb-3">
+          <div>
+            <p class="text-xs text-gray-500 mb-1 m-0">Proveedor</p>
+            <span class="font-semibold text-gray-800">{{ supplierName(line.supplierId) }}</span>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-gray-500 mb-1 m-0">Disponible</p>
+            <span class="font-semibold text-green-600">{{ line.maxAmount | currency:'COP':'symbol':'1.0-2' }}</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 text-sm">
+          <div>
+            <p class="text-xs text-gray-500 mb-1 m-0">Factura</p>
+            <span class="font-mono font-semibold text-blue-600">{{ line.reference }}</span>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500 mb-1 m-0">Cuenta por pagar</p>
+            <span class="font-mono font-semibold text-gray-800">{{ line.payableAccountCode || '—' }}</span>
+            <small class="block text-gray-500">Definida en la factura de compra</small>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="font-semibold text-sm text-[var(--color-primary)]">Monto a pagar</label>
+          <p-selectButton
+            [options]="paymentAmountOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="line.paymentMode"
+            (ngModelChange)="setDialogLinePaymentMode(line, $event)"
+            styleClass="treasury-payment-mode-select">
+          </p-selectButton>
+          <p-inputNumber
+            *ngIf="line.paymentMode === 'partial'"
+            [(ngModel)]="line.amount"
+            (ngModelChange)="onDialogLineAmountChange(line)"
+            mode="currency"
+            currency="COP"
+            locale="es-CO"
+            [min]="0.01"
+            [max]="line.maxAmount"
+            placeholder="Ingrese monto parcial"
+            styleClass="w-full">
+          </p-inputNumber>
+          <p *ngIf="line.paymentMode === 'full'" class="text-sm text-gray-600 m-0">
+            Se pagará el total:
+            <strong>{{ line.maxAmount | currency:'COP':'symbol':'1.0-2' }}</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-between text-sm font-semibold border-t border-gray-200 pt-2">
+      <span>Total</span>
+      <span>{{ dialogPaymentTotal | currency:'COP' }}</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="flex flex-col gap-2">
+        <label for="dialogPaymentMethod" class="font-semibold text-[var(--color-primary)]">Método</label>
+        <p-dropdown
+          inputId="dialogPaymentMethod"
+          [(ngModel)]="dialogPaymentMethodId"
+          [options]="methodOptions"
+          optionLabel="label"
+          optionValue="id"
+          placeholder="Seleccione"
+          [showClear]="true"
+          styleClass="w-full"
+          appendTo="body"
+          (onChange)="dialogPaymentMethodChanged()">
+        </p-dropdown>
+        <p *ngIf="noActivePaymentMethods" class="text-orange-600 text-sm m-0">
+          {{ paymentMethodsHelpMessage }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2" *ngIf="dialogRequiresBankAccount">
+        <label for="dialogBankAccount" class="font-semibold text-[var(--color-primary)]">Cuenta bancaria</label>
+        <p-dropdown
+          inputId="dialogBankAccount"
+          [(ngModel)]="dialogBankAccountId"
+          [options]="bankOptions"
+          optionLabel="label"
+          optionValue="id"
+          placeholder="Seleccione"
+          [showClear]="true"
+          styleClass="w-full"
+          appendTo="body">
+        </p-dropdown>
+        <p *ngIf="dialogBankAccountsUnavailable" class="text-orange-600 text-sm m-0">
+          {{ noAvailableBankAccountsMessage }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2 md:col-span-2">
+        <label for="dialogObservations" class="font-semibold text-[var(--color-primary)]">Observaciones</label>
+        <textarea
+          pInputTextarea
+          id="dialogObservations"
+          rows="2"
+          [(ngModel)]="dialogObservations"
+          placeholder="Observaciones..."
+          class="w-full">
+        </textarea>
+      </div>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end">
+      <p-button
+        label="Cancelar"
+        severity="secondary"
+        [outlined]="true"
+        [disabled]="busy"
+        (onClick)="cancelPaymentDialog()">
+      </p-button>
+      <p-button
+        [label]="isEditingVoucher ? 'Guardar borrador' : 'Crear borrador'"
+        icon="pi pi-save"
+        severity="secondary"
+        [outlined]="true"
+        [loading]="busy"
+        [disabled]="cannotConfirmPaymentDialog"
+        (onClick)="confirmCreateFromDialog()">
+      </p-button>
+      <p-button
+        *ngIf="!isEditingVoucher"
+        [label]="dialogPayButtonLabel"
+        icon="pi pi-wallet"
+        severity="success"
+        [loading]="busy"
+        [disabled]="cannotConfirmPaymentDialog"
+        (onClick)="confirmPayFromDialog()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Programar pago"
+  [(visible)]="scheduleDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(560px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelScheduleDialog()">
+  <div class="flex flex-col gap-4" *ngIf="scheduleLines.length">
+    <div class="treasury-dialog-payables flex flex-col gap-3">
+      <div
+        *ngFor="let line of scheduleLines"
+        class="treasury-dialog-payable-card rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <div class="flex justify-between items-start gap-4 mb-3">
+          <div>
+            <p class="text-xs text-gray-500 mb-1 m-0">Proveedor</p>
+            <span class="font-semibold text-gray-800">{{ supplierName(line.supplierId) }}</span>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-gray-500 mb-1 m-0">Disponible</p>
+            <span class="font-semibold text-green-600">{{ line.maxAmount | currency:'COP':'symbol':'1.0-2' }}</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 text-sm">
+          <div>
+            <p class="text-xs text-gray-500 mb-1 m-0">Factura</p>
+            <span class="font-mono font-semibold text-blue-600">{{ line.reference }}</span>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500 mb-1 m-0">Cuenta por pagar</p>
+            <span class="font-mono font-semibold text-gray-800">{{ line.payableAccountCode || '—' }}</span>
+            <small class="block text-gray-500">Definida en la factura de compra</small>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="font-semibold text-sm text-[var(--color-primary)]">Monto a programar</label>
+          <p-selectButton
+            [options]="paymentAmountOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="line.paymentMode"
+            (ngModelChange)="setDialogLinePaymentMode(line, $event)"
+            styleClass="treasury-payment-mode-select">
+          </p-selectButton>
+          <p-inputNumber
+            *ngIf="line.paymentMode === 'partial'"
+            [(ngModel)]="line.amount"
+            (ngModelChange)="onDialogLineAmountChange(line)"
+            mode="currency"
+            currency="COP"
+            locale="es-CO"
+            [min]="0.01"
+            [max]="line.maxAmount"
+            placeholder="Ingrese monto parcial"
+            styleClass="w-full">
+          </p-inputNumber>
+          <p *ngIf="line.paymentMode === 'full'" class="text-sm text-gray-600 m-0">
+            Se programará el total:
+            <strong>{{ line.maxAmount | currency:'COP':'symbol':'1.0-2' }}</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-between text-sm font-semibold border-t border-gray-200 pt-2">
+      <span>Total programado</span>
+      <span>{{ scheduleDialogTotal | currency:'COP' }}</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="flex flex-col gap-2">
+        <label for="schedulePaymentMethod" class="font-semibold text-[var(--color-primary)]">Método</label>
+        <p-dropdown
+          inputId="schedulePaymentMethod"
+          [(ngModel)]="schedulePaymentMethodId"
+          [options]="methodOptions"
+          optionLabel="label"
+          optionValue="id"
+          placeholder="Seleccione"
+          [showClear]="true"
+          styleClass="w-full"
+          appendTo="body"
+          (onChange)="schedulePaymentMethodChanged()">
+        </p-dropdown>
+        <p *ngIf="noActivePaymentMethods" class="text-orange-600 text-sm m-0">
+          {{ paymentMethodsHelpMessage }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2" *ngIf="scheduleRequiresBankAccount">
+        <label for="scheduleBankAccount" class="font-semibold text-[var(--color-primary)]">Cuenta bancaria</label>
+        <p-dropdown
+          inputId="scheduleBankAccount"
+          [(ngModel)]="scheduleBankAccountId"
+          [options]="bankOptions"
+          optionLabel="label"
+          optionValue="id"
+          placeholder="Seleccione"
+          [showClear]="true"
+          styleClass="w-full"
+          appendTo="body">
+        </p-dropdown>
+        <p *ngIf="scheduleBankAccountsUnavailable" class="text-orange-600 text-sm m-0">
+          {{ noAvailableBankAccountsMessage }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <label for="scheduleExecutionDate" class="font-semibold text-[var(--color-primary)]">Fecha programada</label>
+        <p-datePicker
+          inputId="scheduleExecutionDate"
+          [(ngModel)]="scheduleExecutionDate"
+          (ngModelChange)="onScheduleExecutionDateChange($event)"
+          dateFormat="dd/mm/yy"
+          [showIcon]="true"
+          iconDisplay="input"
+          [minDate]="minExecutionDate"
+          appendTo="body"
+          [readonlyInput]="false"
+          [showOnFocus]="true"
+          placeholder="Seleccione fecha"
+          styleClass="w-full treasury-due-date-picker">
+        </p-datePicker>
+        <small class="text-gray-500">Puede ser hoy o una fecha futura.</small>
+      </div>
+      <div class="flex flex-col gap-2 md:col-span-2">
+        <label for="scheduleObservations" class="font-semibold text-[var(--color-primary)]">Observaciones</label>
+        <textarea
+          pInputTextarea
+          id="scheduleObservations"
+          rows="2"
+          [(ngModel)]="scheduleObservations"
+          placeholder="Observaciones..."
+          class="w-full">
+        </textarea>
+      </div>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end">
+      <p-button
+        label="Cancelar"
+        severity="secondary"
+        [outlined]="true"
+        [disabled]="busy"
+        (onClick)="cancelScheduleDialog()">
+      </p-button>
+      <p-button
+        label="Programar pago"
+        icon="pi pi-clock"
+        severity="success"
+        [loading]="busy"
+        [disabled]="cannotConfirmScheduleDialog"
+        (onClick)="confirmScheduleFromDialog()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Cambiar vencimiento"
+  [(visible)]="dueDateDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(440px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelDueDateDialog()">
+  <div class="flex flex-col gap-4" *ngIf="dueDateTarget">
+    <p class="text-sm text-gray-600 m-0">
+      Factura <span class="font-mono font-semibold text-blue-600">{{ dueDateTarget.reference }}</span>
+      — vence actualmente <strong>{{ dueDateTarget.dueDate }}</strong>
+    </p>
+    <div class="flex flex-col gap-2">
+      <label for="newDueDate" class="font-semibold text-[var(--color-primary)]">Nuevo vencimiento</label>
+      <p-datePicker
+        inputId="newDueDate"
+        [(ngModel)]="newDueDate"
+        (ngModelChange)="onDueDatePickerChange($event)"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        iconDisplay="input"
+        [minDate]="minDueDate"
+        appendTo="body"
+        [readonlyInput]="false"
+        [showOnFocus]="true"
+        placeholder="Seleccione fecha"
+        styleClass="w-full treasury-due-date-picker">
+      </p-datePicker>
+      <small class="text-gray-500">No puede ser hoy ni una fecha anterior.</small>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="dueDateReason" class="font-semibold text-[var(--color-primary)]">Motivo del cambio</label>
+      <textarea
+        pInputTextarea
+        id="dueDateReason"
+        rows="3"
+        [(ngModel)]="dueDateReason"
+        placeholder="Indique el motivo del cambio"
+        class="w-full">
+      </textarea>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end">
+      <p-button
+        label="Cancelar"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="cancelDueDateDialog()">
+      </p-button>
+      <p-button
+        label="Guardar"
+        icon="pi pi-check"
+        [disabled]="busy"
+        (onClick)="confirmDueDateChange()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Baja de CxP"
+  [(visible)]="writeOffDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(520px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelWriteOffDialog()">
+  <div class="flex flex-col gap-4" *ngIf="writeOffTarget">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      <div>
+        <p class="text-xs text-gray-500 mb-1 m-0">Proveedor</p>
+        <p class="font-semibold m-0">{{ supplierName(writeOffTarget.supplierId) }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 mb-1 m-0">Factura / referencia</p>
+        <p class="font-mono font-semibold text-blue-600 m-0">{{ writeOffTarget.reference }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 mb-1 m-0">Saldo disponible</p>
+        <p class="font-semibold text-green-600 m-0">
+          {{ writeOffTarget.availableAmount | currency:'COP':'symbol':'1.0-2' }}
+        </p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 mb-1 m-0">Cuenta por pagar (CxP)</p>
+        <p class="font-semibold m-0">{{ payableAccountLabel(writeOffTarget) }}</p>
+      </div>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="writeOffAmount" class="font-semibold text-[var(--color-primary)]">Monto de baja *</label>
+      <p-inputNumber
+        inputId="writeOffAmount"
+        [(ngModel)]="writeOffAmount"
+        mode="currency"
+        currency="COP"
+        locale="es-CO"
+        [min]="0.01"
+        [max]="writeOffTarget.availableAmount"
+        styleClass="w-full">
+      </p-inputNumber>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="writeOffCounterpartAccount" class="font-semibold text-[var(--color-primary)] inline-flex items-center gap-1">
+        Cuenta contrapartida *
+        <app-contextual-help
+          class="inline-flex align-middle"
+          iconClass="text-base"
+          [title]="writeOffCounterpartHelp.title"
+          [summary]="writeOffCounterpartHelp.summary"
+          [helpCenterSlug]="writeOffCounterpartHelp.slug">
+        </app-contextual-help>
+      </label>
+      <p-dropdown
+        inputId="writeOffCounterpartAccount"
+        [(ngModel)]="writeOffCounterpartAccountId"
+        [options]="accountOptions"
+        optionLabel="label"
+        optionValue="id"
+        placeholder="Seleccione cuenta"
+        [filter]="true"
+        filterBy="label"
+        styleClass="w-full"
+        appendTo="body">
+      </p-dropdown>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="writeOffReasonModal" class="font-semibold text-[var(--color-primary)]">Motivo *</label>
+      <textarea
+        pInputTextarea
+        id="writeOffReasonModal"
+        rows="3"
+        [(ngModel)]="writeOffReason"
+        placeholder="Indique el motivo de la baja"
+        class="w-full">
+      </textarea>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end">
+      <p-button
+        label="Cancelar"
+        severity="secondary"
+        [outlined]="true"
+        [disabled]="busy"
+        (onClick)="cancelWriteOffDialog()">
+      </p-button>
+      <p-button
+        label="Crear baja"
+        icon="pi pi-check"
+        severity="danger"
+        [loading]="busy"
+        [disabled]="busy"
+        (onClick)="confirmWriteOffFromDialog()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Descartar borrador"
+  [(visible)]="writeOffDiscardDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(440px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelDiscardWriteOffDialog()">
+  <div class="flex flex-col gap-3" *ngIf="writeOffDiscardTarget">
+    <p class="text-sm text-gray-700 m-0">
+      ¿Desea descartar esta baja de CxP? La obligación no será modificada.
+    </p>
+    <div class="rounded border border-gray-200 bg-gray-50 p-3 text-sm">
+      <div class="flex justify-between gap-2">
+        <span class="text-gray-500">Monto</span>
+        <span class="font-semibold">{{ writeOffDiscardTarget.total | currency:'COP' }}</span>
+      </div>
+      <div class="flex justify-between gap-2 mt-2" *ngIf="writeOffDiscardTarget.reason">
+        <span class="text-gray-500">Motivo</span>
+        <span class="text-right">{{ writeOffDiscardTarget.reason }}</span>
+      </div>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end">
+      <p-button
+        label="Cancelar"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="cancelDiscardWriteOffDialog()">
+      </p-button>
+      <p-button
+        label="Descartar borrador"
+        icon="pi pi-trash"
+        severity="danger"
+        [disabled]="busy"
+        (onClick)="confirmDiscardWriteOff()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Detalle de baja de CxP"
+  [(visible)]="writeOffDetailDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(520px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelWriteOffDetailDialog()">
+  <div class="flex flex-col gap-3 text-sm" *ngIf="writeOffDetailTarget as item">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <span class="text-gray-500">N.º</span>
+        <p class="font-mono font-semibold m-0">{{ writeOffNumberLabel(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Fecha</span>
+        <p class="font-semibold m-0">{{ writeOffDateLabel(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Proveedor</span>
+        <p class="font-semibold m-0">{{ writeOffSupplierLabel(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Factura / referencia</span>
+        <p class="font-mono font-semibold text-blue-600 m-0">{{ writeOffInvoiceReference(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Saldo original</span>
+        <p class="font-semibold m-0">{{ writeOffOriginalBalanceLabel(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Saldo disponible</span>
+        <p class="font-semibold m-0">{{ writeOffAvailableBalanceLabel(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Monto de baja</span>
+        <p class="font-semibold m-0">{{ item.total | currency:'COP' }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Estado</span>
+        <p class="m-0">
+          <p-tag [value]="writeOffLabel(item.status)" [severity]="getStatusSeverity(item.status)"></p-tag>
+        </p>
+      </div>
+      <div>
+        <span class="text-gray-500">Cuenta CxP</span>
+        <p class="font-semibold m-0">{{ writeOffPayableAccountLabel(item) }}</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Cuenta contrapartida</span>
+        <p class="font-semibold m-0">{{ writeOffCounterpartLabel(item) }}</p>
+      </div>
+      <div *ngIf="canShowWriteOffAccounting(item)">
+        <span class="text-gray-500">Asiento</span>
+        <p class="font-semibold m-0">{{ writeOffAccountingEntryLabel(item) }}</p>
+      </div>
+    </div>
+    <div *ngIf="item.reason">
+      <span class="text-gray-500">Motivo</span>
+      <p class="m-0 mt-1">{{ item.reason }}</p>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end">
+      <p-button
+        label="Cerrar"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="cancelWriteOffDetailDialog()">
+      </p-button>
+      <p-button
+        *ngIf="writeOffDetailTarget && canShowWriteOffAccounting(writeOffDetailTarget)"
+        label="Ver asiento"
+        icon="pi pi-book"
+        (onClick)="showWriteOffAccounting(writeOffDetailTarget!)">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Detalle de programación de pago"
+  [(visible)]="scheduleDetailDialogVisible"
+  [modal]="true"
+  [style]="{ width: 'min(560px, 95vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="cancelScheduleDetailDialog()">
+  <app-treasury-schedule-detail-panel
+    [item]="scheduleDetailTarget ?? null"
+    [view]="scheduleDetailView(scheduleDetailTarget)">
+  </app-treasury-schedule-detail-panel>
+  <ng-template pTemplate="footer">
+    <div class="flex gap-2 justify-end flex-wrap">
+      <p-button
+        label="Cerrar"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="cancelScheduleDetailDialog()">
+      </p-button>
+      <p-button
+        *ngIf="scheduleDetailTarget && canViewScheduleVoucher(scheduleDetailTarget)"
+        label="Ver comprobante"
+        icon="pi pi-file"
+        (onClick)="openScheduleVoucher(scheduleDetailTarget!)">
+      </p-button>
+      <p-button
+        *ngIf="scheduleDetailTarget && canCancelSchedule(scheduleDetailTarget)"
+        label="Desprogramar"
+        icon="pi pi-ban"
+        severity="danger"
+        [outlined]="true"
+        (onClick)="deschedule(scheduleDetailTarget!); cancelScheduleDetailDialog()">
+      </p-button>
+    </div>
+  </ng-template>
+</p-dialog>

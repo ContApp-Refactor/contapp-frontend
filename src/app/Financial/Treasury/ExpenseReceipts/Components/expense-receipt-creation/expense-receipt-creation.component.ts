@@ -23,6 +23,20 @@ import { PaymentMethod } from '../../../../../GeneralMasters/PaymentMethods/mode
 import { ExpenseReceiptService } from '../../Service/expense-receipt.service';
 import { PurchaseInvoice } from '../../Model/Models';
 import { ExpenseReceiptCreateRequest } from '../../Model/ExpenseReceiptCreateRequest';
+import { ChartAccountService } from '../../../../../GeneralMasters/AccountCatalogue/services/chart-account.service';
+import { BankAccountsService, BankAccount } from '../../../../../GeneralMasters/BankAccounts/services/bank-accounts.service';
+import { forkJoin } from 'rxjs';
+import {
+  buildActiveAccountIdSet,
+  filterSelectablePaymentMethods,
+} from '../../../Shared/treasury-account.integration';
+import { translatePaymentMethodName } from '../../../Shared/treasury-status-labels';
+import { ContextualHelpComponent } from '../../../../../Shared/Components/contextual-help/contextual-help.component';
+import { TREASURY_HELP } from '../../../Shared/treasury-help-content';
+import {
+  NO_AVAILABLE_BANK_ACCOUNTS_MESSAGE,
+  paymentMethodsAvailabilityMessage,
+} from '../../../Shared/treasury-payment-messages';
 
 // Modelos adicionales para el frontend
 interface DropdownOption {
@@ -55,6 +69,7 @@ interface Supplier {
     MessagesModule,
     FormsModule,
     CardModule,
+    ContextualHelpComponent,
   ],
   templateUrl: './expense-receipt-creation.component.html',
   styleUrl: './expense-receipt-creation.component.css',
@@ -66,8 +81,23 @@ export class ExpenseReceiptCreationComponent {
   expenseReceiptForm!: FormGroup;
   receiptTypes: DropdownOption[] = [];
   paymentMethods: PaymentMethod[] = [];
+  paymentMethodOptions: { id: number; label: string; requiresBankAccount: boolean }[] = [];
+  allPaymentMethodsCount = 0;
+  bankAccounts: BankAccount[] = [];
+  bankAccountOptions: { id: number; label: string }[] = [];
   receiptTypeOptions: DropdownOption[] = [];
   auxiliaryAccounts: DropdownOption[] = [];
+  requiresBankAccount = false;
+  readonly help = TREASURY_HELP.makePayment;
+  readonly noAvailableBankAccountsMessage = NO_AVAILABLE_BANK_ACCOUNTS_MESSAGE;
+  readonly supplierEmptyMessage = 'No hay proveedores con facturas pendientes';
+  readonly supplierFilterEmptyMessage = 'No se encontraron proveedores que coincidan con la búsqueda';
+  supplierSearchQuery = '';
+  allSuppliersCount = 0;
+
+  get paymentMethodsHelpMessage(): string {
+    return paymentMethodsAvailabilityMessage(this.allPaymentMethodsCount, this.paymentMethodOptions.length);
+  }
 
   // Para Autocomplete de Proveedor
   suppliers: Supplier[] = [];
@@ -79,9 +109,6 @@ export class ExpenseReceiptCreationComponent {
   // Para selección múltiple de facturas
   selectedInvoices: any[] = [];
 
-  // Cuentas por pagar (Post To)
-  payableAccounts: any[] = [];
-
   // Detalles de la factura seleccionada
   selectedInvoiceDetails: any = null;
 
@@ -91,6 +118,7 @@ export class ExpenseReceiptCreationComponent {
   billPaymentInfo: {
     billId?: number;
     billCode?: string;
+    supplierId?: number;
     supplierName?: string;
     totalAmount?: number;
     paidAmount?: number;
@@ -103,40 +131,42 @@ export class ExpenseReceiptCreationComponent {
     private router: Router,
     private route: ActivatedRoute,
     private paymentMethodService: PaymentMethodsServiceService,
-    private expenseReceiptService: ExpenseReceiptService
+    private expenseReceiptService: ExpenseReceiptService,
+    private chartAccountService: ChartAccountService,
+    private bankAccountsService: BankAccountsService
   ) { }
 
   ngOnInit(): void {
-    // Check if we're coming from a bill payment
-    this.route.queryParams.subscribe(params => {
-      if (params['billId']) {
-        this.billPaymentInfo = {
-          billId: +params['billId'],
-          billCode: params['billCode'],
-          supplierName: params['supplierName'],
-          totalAmount: +params['totalAmount'],
-          paidAmount: +params['paidAmount'] || 0,
-          pendingBalance: +params['pendingBalance']
-        };
-      }
-    });
-
     this.initializeForm();
     this.loadDropdownOptions();
+    this.expenseReceiptService.getSuppliers('').subscribe((suppliers) => {
+      this.allSuppliersCount = suppliers.length;
+    });
     this.updateTotalAmount();
     this.subscribeToFormChanges();
 
-    // Pre-populate form if coming from bill payment
-    if (this.billPaymentInfo.billId) {
+    this.route.queryParams.subscribe((params) => {
+      const billId = params['billId'] || params['invoiceId'];
+      if (!billId) return;
+
+      this.billPaymentInfo = {
+        billId: +billId,
+        billCode: params['billCode'] || params['reference'],
+        supplierId: params['supplierId'] ? +params['supplierId'] : undefined,
+        supplierName: params['supplierName'],
+        totalAmount: params['totalAmount'] ? +params['totalAmount'] : undefined,
+        paidAmount: params['paidAmount'] ? +params['paidAmount'] : 0,
+        pendingBalance: params['pendingBalance'] ? +params['pendingBalance'] : undefined,
+      };
       this.prefillFormWithBillInfo();
-    }
+    });
   }
 
   initializeForm(): void {
     this.expenseReceiptForm = this.fb.group({
       supplier: [null, Validators.required],
-      postToAccount: [null, Validators.required],
       transferAccount: [null, Validators.required],
+      bankAccountId: [null],
       issueDate: [new Date(), Validators.required],
       totalAmount: [0, [Validators.required, Validators.min(0.01)]],
       observations: [''],
@@ -145,16 +175,21 @@ export class ExpenseReceiptCreationComponent {
     });
   }
 
-  // Validator for partial payment
+  // Validator for partial payment / overpay UX (backend also rejects with 409)
   validatePaymentAmount(): boolean {
-    const totalAmount = this.expenseReceiptForm.get('totalAmount')?.value || 0;
-    const pendingBalance = this.billPaymentInfo.pendingBalance || 0;
+    const totalAmount = Number(this.expenseReceiptForm.get('totalAmount')?.value || 0);
+    const fromBill = Number(this.billPaymentInfo.pendingBalance || 0);
+    const fromSelection = this.selectedInvoices.reduce(
+      (sum, inv) => sum + Number(inv.pendingBalance || 0),
+      0,
+    );
+    const pendingBalance = fromBill > 0 ? fromBill : fromSelection;
 
-    if (this.billPaymentInfo.billId && totalAmount > pendingBalance) {
+    if (pendingBalance > 0 && totalAmount > pendingBalance + 0.001) {
       this.messageService.add({
         severity: 'warn',
         summary: 'Monto Excedido',
-        detail: `El monto del pago (${this.formatCurrency(totalAmount)}) no puede exceder el saldo pendiente (${this.formatCurrency(pendingBalance)})`
+        detail: `El monto del pago (${this.formatCurrency(totalAmount)}) no puede exceder el saldo pendiente (${this.formatCurrency(pendingBalance)}).`
       });
       return false;
     }
@@ -163,43 +198,86 @@ export class ExpenseReceiptCreationComponent {
   }
 
   loadDropdownOptions(): void {
-    // Cargar métodos de pago (Transfer Account)
-    this.paymentMethodService.findAll(this.localStorageMethods.getIdEnterprise() || 'test', 0, 100)
-      .subscribe({
-        next: (page) => {
-          this.paymentMethods = page.content;
+    const enterpriseId = this.localStorageMethods.getIdEnterprise();
+    if (!enterpriseId) {
+      this.messageService.add({ severity: 'error', summary: 'Empresa requerida', detail: 'Seleccione una empresa activa.' });
+      return;
+    }
 
-          // Si no hay métodos de pago configurados, usar datos de respaldo
-          if(this.paymentMethods.length === 0){
-            this.paymentMethods = [
-              { id: 1, name: 'Caja', accountingAccount: '110505', accountingAccountId: 1, status: true, idEnterprise: '' },
-              { id: 2, name: 'Banco', accountingAccount: '111005', accountingAccountId: 2, status: true, idEnterprise: '' },
-              { id: 3, name: 'Tarjeta de Crédito', accountingAccount: '112005', accountingAccountId: 3, status: true, idEnterprise: '' }
-            ];
-          }
-        },
-        error: (error) => {
-          console.error('Error al cargar métodos de pago:', error);
-          // En caso de error, usar datos de respaldo
-          this.paymentMethods = [
-            { id: 1, name: 'Caja', accountingAccount: '110505', accountingAccountId: 1, status: true, idEnterprise: '' },
-            { id: 2, name: 'Banco', accountingAccount: '111005', accountingAccountId: 2, status: true, idEnterprise: '' },
-            { id: 3, name: 'Tarjeta de Crédito', accountingAccount: '112005', accountingAccountId: 3, status: true, idEnterprise: '' }
-          ];
+    // Métodos de pago con cuenta contable activa en catálogo
+    forkJoin({
+      methods: this.paymentMethodService.findAllActive(enterpriseId),
+      accounts: this.chartAccountService.getListAuxiliaryAccounts(enterpriseId),
+    }).subscribe({
+      next: ({ methods, accounts }) => {
+        const activeAccountIds = buildActiveAccountIdSet(accounts);
+        const configured = (methods.content || []).filter((method) => method.status !== false);
+        this.allPaymentMethodsCount = configured.length;
+        this.paymentMethods = filterSelectablePaymentMethods(
+          configured,
+          activeAccountIds,
+        );
+        this.paymentMethodOptions = this.paymentMethods.map((method) => ({
+          id: method.id!,
+          label: `${translatePaymentMethodName(method.name)} (${method.accountingAccount})`,
+          requiresBankAccount: Boolean(method.requiresBankAccount),
+        }));
+        if (this.paymentMethodOptions.length === 0) {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'Métodos de pago',
+            detail: this.paymentMethodsHelpMessage,
+            life: 8000,
+          });
         }
-      });
+      },
+      error: (error) => {
+        console.error('Error al cargar métodos de pago:', error);
+        this.paymentMethods = [];
+        this.paymentMethodOptions = [];
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Métodos de pago',
+          detail: 'No se pudieron cargar los métodos de pago de la empresa.',
+        });
+      },
+    });
 
-    // Cargar cuentas por pagar (Post To)
-    this.payableAccounts = [
-      { id: 1, code: '220505', name: 'Proveedores Nacionales', fullName: '220505 - Proveedores Nacionales' },
-      { id: 2, code: '220510', name: 'Proveedores del Exterior', fullName: '220510 - Proveedores del Exterior' },
-      { id: 3, code: '220515', name: 'Cuentas por Pagar Diversas', fullName: '220515 - Cuentas por Pagar Diversas' }
-    ];
+    // Cuentas bancarias reales (para Cheque / Transferencia)
+    this.bankAccountsService.findAllActive(enterpriseId).subscribe({
+      next: (page) => {
+        this.bankAccounts = page.content || [];
+        this.bankAccountOptions = this.bankAccounts.map((bank: any) => ({
+          id: bank.id,
+          label: `${bank.bank?.name || 'Banco'} - ${bank.accountNumber}`,
+        }));
+      },
+      error: (error) => {
+        console.error('Error al cargar cuentas bancarias:', error);
+        this.bankAccounts = [];
+        this.bankAccountOptions = [];
+      }
+    });
 
     // Cargar cuentas auxiliares para gastos directos
     this.expenseReceiptService.getAuxiliaryAccounts().subscribe(data => {
       this.auxiliaryAccounts = data;
     });
+  }
+
+  onPaymentMethodChange(): void {
+    const methodId = this.expenseReceiptForm.get('transferAccount')?.value;
+    const method = this.paymentMethods.find(m => m.id === methodId);
+    this.requiresBankAccount = Boolean(method?.requiresBankAccount);
+
+    const bankCtrl = this.expenseReceiptForm.get('bankAccountId');
+    if (this.requiresBankAccount) {
+      bankCtrl?.setValidators([Validators.required]);
+    } else {
+      bankCtrl?.clearValidators();
+      bankCtrl?.setValue(null);
+    }
+    bankCtrl?.updateValueAndValidity();
   }
 
   subscribeToFormChanges(): void {
@@ -210,36 +288,74 @@ export class ExpenseReceiptCreationComponent {
   prefillFormWithBillInfo(): void {
     if (!this.billPaymentInfo.billId) return;
 
-    // Set supplier (mock supplier object)
-    const supplier = {
-      id: 1, // This should be the actual supplier ID from the bill
-      name: this.billPaymentInfo.supplierName || ''
-    };
-    this.expenseReceiptForm.patchValue({
-      supplier: supplier,
-      totalAmount: this.billPaymentInfo.pendingBalance
-    });
-
-    // Load invoices for this supplier
-    if (supplier.id) {
-      this.loadInvoicesForSupplier(supplier.id);
+    const supplierId = this.billPaymentInfo.supplierId;
+    if (!supplierId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Proveedor requerido',
+        detail: 'No se pudo precargar el proveedor de la factura. Selecciónelo manualmente.',
+      });
+      return;
     }
 
-    // Show message about partial payment
+    this.expenseReceiptService.getSupplierById(supplierId).subscribe((supplier) => {
+      const resolved = supplier || {
+        id: supplierId,
+        name: this.billPaymentInfo.supplierName || `Proveedor ${supplierId}`,
+        accountsPayableAccount: { id: 0, code: '', name: '' },
+      };
+
+      this.expenseReceiptForm.patchValue({
+        supplier: resolved,
+        totalAmount: this.billPaymentInfo.pendingBalance ?? this.billPaymentInfo.totalAmount ?? 0,
+      });
+
+      this.expenseReceiptService.getInvoicesBySupplier(supplierId).subscribe((invoices) => {
+        this.availableInvoices = invoices.map((invoice) => ({
+          id: invoice.id,
+          billId: invoice.factCode,
+          date: invoice.expirationDate,
+          total: invoice.pendingValue,
+          paidAmount: 0,
+          pendingBalance: invoice.pendingValue,
+          payableAccountId: invoice.payableAccountId,
+          displayText: `${invoice.factCode} - ${this.formatCurrency(invoice.pendingValue)}`,
+        }));
+
+        const target =
+          this.availableInvoices.find((inv) => inv.id === this.billPaymentInfo.billId) ||
+          this.availableInvoices.find((inv) => inv.billId === this.billPaymentInfo.billCode);
+
+        this.selectedInvoices = target ? [target] : [];
+        this.onInvoiceSelectionChange();
+      });
+    });
+
     if (this.billPaymentInfo.paidAmount && this.billPaymentInfo.paidAmount > 0) {
       this.messageService.add({
         severity: 'info',
-        summary: 'Pago Parcial',
-        detail: `Esta factura ya tiene un pago de ${this.formatCurrency(this.billPaymentInfo.paidAmount)}. Saldo pendiente: ${this.formatCurrency(this.billPaymentInfo.pendingBalance || 0)}`
+        summary: 'Pago parcial',
+        detail: `Esta factura ya tiene un pago de ${this.formatCurrency(this.billPaymentInfo.paidAmount)}. Saldo pendiente: ${this.formatCurrency(this.billPaymentInfo.pendingBalance || 0)}`,
       });
     }
   }
 
   // Autocompletado de proveedores
   searchSupplier(event: any): void {
-    this.expenseReceiptService.getSuppliers(event.query).subscribe(data => {
+    this.supplierSearchQuery = String(event.query || '').trim();
+    this.expenseReceiptService.getSuppliers(this.supplierSearchQuery).subscribe((data) => {
       this.filteredSuppliers = data;
+      if (!this.supplierSearchQuery) {
+        this.allSuppliersCount = data.length;
+      }
     });
+  }
+
+  get supplierAutocompleteEmptyMessage(): string {
+    if (this.allSuppliersCount === 0) {
+      return this.supplierEmptyMessage;
+    }
+    return this.supplierFilterEmptyMessage;
   }
 
   formatCurrency(amount: number): string {
@@ -261,45 +377,24 @@ export class ExpenseReceiptCreationComponent {
 
   // Cargar facturas del proveedor seleccionado
   loadInvoicesForSupplier(supplierId: number): void {
-    // Mock data de facturas contabilizadas (POSTED) o parcialmente pagadas del proveedor
-    const mockInvoices = [
-      {
-        id: 1,
-        billId: 'BILL-20250914-0001',
-        date: new Date('2025-09-14'),
-        total: 1190000,
+    // Las obligaciones disponibles provienen de la réplica de Tesorería.
+    this.expenseReceiptService.getInvoicesBySupplier(supplierId).subscribe(invoices => {
+      this.availableInvoices = invoices.map(invoice => ({
+        id: invoice.id,
+        billId: invoice.factCode,
+        date: invoice.expirationDate,
+        total: invoice.pendingValue,
         paidAmount: 0,
-        pendingBalance: 1190000,
-        displayText: 'BILL-20250914-0001 - $1,190,000 (14/09/2025)'
-      },
-      {
-        id: 2,
-        billId: 'BILL-20250913-0002',
-        date: new Date('2025-09-13'),
-        total: 595000,
-        paidAmount: 200000,
-        pendingBalance: 395000,
-        displayText: 'BILL-20250913-0002 - $595,000 (13/09/2025)'
-      },
-      {
-        id: 3,
-        billId: 'BILL-20250912-0003',
-        date: new Date('2025-09-12'),
-        total: 850000,
-        paidAmount: 0,
-        pendingBalance: 850000,
-        displayText: 'BILL-20250912-0003 - $850,000 (12/09/2025)'
-      }
-    ];
-
-    this.availableInvoices = mockInvoices;
+        pendingBalance: invoice.pendingValue,
+        payableAccountId: invoice.payableAccountId,
+        displayText: `${invoice.factCode} - ${this.formatCurrency(invoice.pendingValue)}`
+      }));
+    });
 
     // Limpiar selección anterior
     this.selectedInvoices = [];
     this.selectedInvoiceDetails = null;
-    
-    // Actualizar el total a 0
-    this.expenseReceiptForm.get('totalAmount')?.setValue(0);
+    this.expenseReceiptForm.patchValue({ totalAmount: 0 });
   }
 
   // Calcular el total de las facturas seleccionadas
@@ -317,9 +412,17 @@ export class ExpenseReceiptCreationComponent {
   getPaymentMethodName(): string {
     const methodId = this.expenseReceiptForm.get('transferAccount')?.value;
     if (!methodId) return '';
-    
-    const method = this.paymentMethods.find(m => m.id === methodId);
-    return method ? `${method.name} (${method.accountingAccount})` : '';
+
+    const option = this.paymentMethodOptions.find(m => m.id === methodId);
+    if (!option) return '';
+
+    if (this.requiresBankAccount) {
+      const bankId = this.expenseReceiptForm.get('bankAccountId')?.value;
+      const bank = this.bankAccountOptions.find(b => b.id === bankId);
+      return bank ? `${option.label} · ${bank.label}` : option.label;
+    }
+
+    return option.label;
   }
 
   // Obtener los IDs de las facturas seleccionadas como string
@@ -333,23 +436,43 @@ export class ExpenseReceiptCreationComponent {
   }
 
   isFormValidForSubmission(): boolean {
-    // Validar que se haya seleccionado al menos una factura
     if (this.selectedInvoices.length === 0) {
       return false;
     }
-    
-    // Validar los campos del formulario
+
+    if (this.paymentMethodOptions.length === 0) {
+      return false;
+    }
+
+    if (!this.requiresBankAccount && this.expenseReceiptForm.get('bankAccountId')?.value) {
+      return false;
+    }
+
+    if (this.requiresBankAccount && this.bankAccountOptions.length === 0) {
+      return false;
+    }
+
     const basicValidation = this.expenseReceiptForm.get('supplier')?.valid &&
-                           this.expenseReceiptForm.get('postToAccount')?.valid &&
                            this.expenseReceiptForm.get('transferAccount')?.valid &&
                            this.expenseReceiptForm.get('issueDate')?.valid &&
-                           this.expenseReceiptForm.get('totalAmount')?.valid;
-    
+                           this.expenseReceiptForm.get('totalAmount')?.valid &&
+                           (!this.requiresBankAccount || this.expenseReceiptForm.get('bankAccountId')?.valid);
+
     return basicValidation || false;
   }
 
   onSubmit(): void {
     this.expenseReceiptForm.markAllAsTouched();
+
+    if (this.paymentMethodOptions.length === 0) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Métodos de pago',
+        detail: this.paymentMethodsHelpMessage,
+        life: 8000,
+      });
+      return;
+    }
 
     // Validar selección de facturas
     if (this.selectedInvoices.length === 0) {
@@ -361,24 +484,37 @@ export class ExpenseReceiptCreationComponent {
       return;
     }
 
+    if (!this.validatePaymentAmount()) {
+      return;
+    }
+
     if (!this.isFormValidForSubmission()) {
+      const bankValue = this.expenseReceiptForm.get('bankAccountId')?.value;
+      let detail = 'Por favor, complete todos los campos requeridos.';
+      if (this.requiresBankAccount && this.bankAccountOptions.length === 0) {
+        detail = NO_AVAILABLE_BANK_ACCOUNTS_MESSAGE;
+      } else if (this.requiresBankAccount && !bankValue) {
+        detail = 'El método de pago exige una cuenta bancaria.';
+      } else if (!this.requiresBankAccount && bankValue) {
+        detail = 'El método seleccionado no admite cuenta bancaria.';
+      }
       this.messageService.add({
         severity: 'error',
         summary: 'Error de Validación',
-        detail: 'Por favor, complete todos los campos requeridos.'
+        detail,
       });
       return;
     }
 
     const formValue = this.expenseReceiptForm.value;
     const supplier: Supplier = formValue.supplier;
-    const enterpriseId = "asdasdasfafa"; // TODO: Obtener del localStorage
+    const enterpriseId = this.localStorageMethods.getIdEnterprise();
 
     if (!enterpriseId) {
       this.messageService.add({
         severity: 'error',
         summary: 'Error de Configuración',
-        detail: 'No se encontró el ID de la empresa. Por favor, inicie sesión de nuevo.'
+        detail: 'No se encontró el identificador de la empresa. Por favor, inicie sesión de nuevo.'
       });
       return;
     }
@@ -393,12 +529,12 @@ export class ExpenseReceiptCreationComponent {
     const requestData: ExpenseReceiptCreateRequest = {
       thirdPartyId: supplier.id,
       paymentMethodId: formValue.transferAccount,
+      bankAccountId: this.requiresBankAccount ? formValue.bankAccountId : null,
       receiptTypeId: 1, // Siempre es pago de factura
-      observations: formValue.observations || `Pago de ${this.selectedInvoices.length} factura(s): ${this.selectedInvoices.map(inv => inv.billId).join(', ')}`,
+      observations: formValue.observations || `Pago de ${this.selectedInvoices.length} ${this.selectedInvoices.length === 1 ? 'factura' : 'facturas'}: ${this.selectedInvoices.map(inv => inv.billId).join(', ')}`,
       enterpriseId: enterpriseId,
       totalAmount: formValue.totalAmount,
       details: paymentDetails,
-      ledgerAccountId: formValue.postToAccount
     };
 
     // Mostrar resumen antes de enviar
@@ -425,7 +561,7 @@ export class ExpenseReceiptCreationComponent {
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'Ocurrió un error al crear el comprobante de egreso. Intente nuevamente.'
+          detail: error?.error?.message || 'Ocurrió un error al crear el comprobante de egreso. Intente nuevamente.'
         });
       }
     });

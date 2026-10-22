@@ -10,7 +10,6 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DropdownModule } from 'primeng/dropdown';
 import { RadioButtonModule } from 'primeng/radiobutton';
-import { MultiSelectModule } from 'primeng/multiselect';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { CardModule } from 'primeng/card';
@@ -52,7 +51,6 @@ import Swal from 'sweetalert2';
     InputTextModule,
     DropdownModule,
     RadioButtonModule,
-    MultiSelectModule,
     ToastModule,
     CardModule,
     DividerModule,
@@ -250,7 +248,7 @@ export class ThirdEditComponent implements OnInit {
   private initializeForm(): void {
     this.createdThirdForm = this.fb.group({
       personType: ['', Validators.required],
-      thirdTypes: [[], Validators.required],
+      thirdType: [null, Validators.required],
       typeId: ['', Validators.required],
       idNumber: ['', [Validators.required, Validators.min(1)]],
       verificationNumber: [''],
@@ -450,9 +448,17 @@ export class ThirdEditComponent implements OnInit {
       }
     }
 
+    let selectedThirdType = null;
+    if (third.thirdTypes?.length) {
+      const firstType = third.thirdTypes[0];
+      selectedThirdType = this.thirdTypes.find(
+        t => t.thirdTypeId === firstType.thirdTypeId
+      ) ?? firstType;
+    }
+
     this.createdThirdForm.patchValue({
       personType: third.personType,
-      thirdTypes: third.thirdTypes,
+      thirdType: selectedThirdType,
       typeId: selectedTypeId,
       idNumber: third.idNumber,
       verificationNumber: third.verificationNumber,
@@ -512,11 +518,9 @@ export class ThirdEditComponent implements OnInit {
   private normalizeFormValue(value: any): any {
     const normalized = { ...value };
     
-    // Normalizar arrays de objetos (thirdTypes) comparando por IDs
-    if (normalized.thirdTypes && Array.isArray(normalized.thirdTypes)) {
-      normalized.thirdTypes = normalized.thirdTypes
-        .map((t: any) => t.thirdTypeId)
-        .sort();
+    // Normalizar tipo de tercero (objeto único) comparando por ID
+    if (normalized.thirdType && typeof normalized.thirdType === 'object') {
+      normalized.thirdType = normalized.thirdType.thirdTypeId;
     }
     
     // Normalizar typeId (comparar solo el ID)
@@ -691,12 +695,14 @@ export class ThirdEditComponent implements OnInit {
     this.submitted = true;
 
     if (this.createdThirdForm.valid) {
-      const formData = this.createdThirdForm.value;
+      const formData = this.createdThirdForm.getRawValue();
+      const { thirdType, ...formFields } = formData;
       
       // Preparar datos para enviar al backend con códigos geográficos
       const updatedThird: any = {
         ...this.thirdEdit,
-        ...formData,
+        ...formFields,
+        thirdTypes: thirdType ? [thirdType] : [],
         countryCode: formData.country,
         stateCode: formData.province,
         cityCode: formData.city,

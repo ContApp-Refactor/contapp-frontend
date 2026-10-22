@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { safeReturnTo } from '../../../../../Billing/utils/return-trail';
 
 import { CommonModule } from '@angular/common';
 import { TableModule } from 'primeng/table';
@@ -147,12 +148,21 @@ export class ProductListComponent implements OnInit {
     private readonly confirmationService: ConfirmationService,
     private readonly helpCenterService: HelpCenterService,
     private readonly authService: AuthService,
+    private readonly route: ActivatedRoute,
   ) {
     this.helpCenterUrl =
       this.helpCenterService.getHelpCenterUrl('configuracion');
   }
 
+  // Ruta segura para "Volver a factura" (solo si llegó con ?returnTo=/billing/...)
+  returnTo: string | null = null;
+
+  goBackToInvoice(): void {
+    if (this.returnTo) this.router.navigateByUrl(this.returnTo);
+  }
+
   ngOnInit(): void {
+    this.returnTo = safeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'));
     this.entData = this.localStorageMethods.loadEnterpriseData();
     this.getProducts();
     const perms = this.authService.getCurrentUserPermissions();
@@ -225,14 +235,17 @@ export class ProductListComponent implements OnInit {
   }
 
   redirectTo(route: string): void {
-    this.router.navigateByUrl(route);
+    // navigateByUrl no soporta queryParamsHandling: se conservan los query params a mano
+    const tree = this.router.parseUrl(route);
+    tree.queryParams = { ...this.route.snapshot.queryParams, ...tree.queryParams };
+    this.router.navigateByUrl(tree);
   }
 
   redirectToEdit(productId: number): void {
-    this.router.navigate([
-      '/gen-masters/inventory/products/edit/',
-      productId.toString(),
-    ]);
+    this.router.navigate(
+      ['/gen-masters/inventory/products/edit/', productId.toString()],
+      { queryParamsHandling: 'preserve' },
+    );
   }
 
   deleteProduct(productId: number): void {

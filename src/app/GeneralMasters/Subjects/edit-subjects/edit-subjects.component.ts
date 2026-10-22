@@ -1,10 +1,12 @@
 import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-edit-subjects',
-  imports: [],
+  standalone: true,
+  imports: [CommonModule],
   templateUrl: './edit-subjects.component.html',
-  styleUrl: './edit-subjects.component.css'
+  styleUrls: ['./edit-subjects.component.css']
 })
 export class EditSubjectsComponent {
 

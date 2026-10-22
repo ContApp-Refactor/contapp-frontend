@@ -266,7 +266,7 @@ export class BillCreationComponent implements OnInit {
       taxes: this.taxes,
       total: this.total,
       notes: headerData.notes,
-      enterpriseId: this.localStorageMethods.getIdEnterprise() || 'test-enterprise',
+      enterpriseId: this.localStorageMethods.getIdEnterprise(),
       lineItems: lineItemsData.map((item: any) => ({
         date: item.date,
         description: item.description,

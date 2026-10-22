@@ -8,7 +8,7 @@ import { Subject } from '../models/subjects';
   providedIn: 'root',
 })
 export class SubjectService {
-  private apiUrl = environment.API_URL + 'subjects/';
+  private apiUrl = environment.API_URL + 'enterprises/subjects/';
 
   constructor(private http: HttpClient) {}
 

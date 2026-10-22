@@ -1,390 +1,305 @@
-<!-- Purchase Bills List -->
 <div class="container-fluid p-4">
-    <!-- Page Header -->
-    <div class="flex justify-between items-center mb-6">
-        <div>
-            <h1 class="text-3xl font-bold text-[var(--color-primary)] mb-2">Programación Pagos de Factura</h1>
-            <p class="text-gray-600">Organiza y controla los pagos pendientes a proveedores</p>
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h1 class="text-3xl font-bold text-[var(--color-primary)] mb-2 inline-block">Programación de Pagos</h1>
+      <app-contextual-help
+        class="ml-2 inline-flex align-middle"
+        [title]="help.title"
+        [summary]="help.summary"
+        [helpCenterSlug]="help.slug">
+      </app-contextual-help>
+      <p class="text-gray-600">Consulte y gestione pagos programados desde Operaciones de Tesorería</p>
+    </div>
+    <div class="flex gap-2">
+      <p-button
+        label="Exportar PDF"
+        icon="pi pi-file-pdf"
+        severity="danger"
+        [outlined]="true"
+        [loading]="exportingPdf"
+        [disabled]="!filteredSchedules.length"
+        (onClick)="exportToPdf()">
+      </p-button>
+      <p-button
+        label="Exportar CSV"
+        icon="pi pi-file-excel"
+        severity="success"
+        [outlined]="true"
+        [loading]="exportingCsv"
+        [disabled]="!filteredSchedules.length"
+        (onClick)="exportToCsv()">
+      </p-button>
+    </div>
+  </div>
+
+  <p-card header="Filtros" class="mb-4">
+    <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="flex flex-col gap-2">
+        <label for="supplierId" class="font-semibold text-[var(--color-primary)]">Proveedor</label>
+        <p-dropdown
+          id="supplierId"
+          formControlName="supplierId"
+          [options]="supplierOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Todos los proveedores"
+          [showClear]="true"
+          [filter]="true"
+          filterBy="label"
+          styleClass="w-full">
+        </p-dropdown>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label for="status" class="font-semibold text-[var(--color-primary)]">Estado</label>
+        <p-dropdown
+          id="status"
+          formControlName="status"
+          [options]="statusOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Todos los estados"
+          [showClear]="true"
+          styleClass="w-full">
+        </p-dropdown>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label for="dateFrom" class="font-semibold text-[var(--color-primary)]">Desde</label>
+        <p-calendar
+          id="dateFrom"
+          formControlName="dateFrom"
+          dateFormat="dd/mm/yy"
+          [showIcon]="true"
+          placeholder="Fecha desde"
+          styleClass="w-full">
+        </p-calendar>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label for="dateTo" class="font-semibold text-[var(--color-primary)]">Hasta</label>
+        <p-calendar
+          id="dateTo"
+          formControlName="dateTo"
+          dateFormat="dd/mm/yy"
+          [showIcon]="true"
+          placeholder="Fecha hasta"
+          styleClass="w-full">
+        </p-calendar>
+      </div>
+
+      <div class="flex flex-col gap-2 md:col-span-2 lg:col-span-4">
+        <div class="flex gap-2 justify-end">
+          <p-button
+            label="Limpiar filtros"
+            icon="pi pi-filter-slash"
+            severity="secondary"
+            [outlined]="true"
+            (onClick)="clearFilters()">
+          </p-button>
         </div>
-        <div class="flex gap-2">
-            <p-button
-                label="Exportar"
-                icon="pi pi-download"
+      </div>
+    </form>
+  </p-card>
+
+  <p-card header="Programaciones de pago" class="mb-4">
+    <p-table
+      [value]="filteredSchedules"
+      [loading]="loading"
+      [paginator]="true"
+      [rows]="10"
+      [rowsPerPageOptions]="[5, 10, 20, 50]"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} programaciones"
+      styleClass="p-datatable-striped">
+
+      <ng-template pTemplate="caption">
+        <div class="flex justify-between items-center">
+          <span class="text-lg font-semibold">
+            Total: {{ filteredSchedules.length }} programaciones
+          </span>
+        </div>
+      </ng-template>
+
+      <ng-template pTemplate="header">
+        <tr>
+          <th scope="col">Fecha ejecución</th>
+          <th scope="col">Proveedor</th>
+          <th scope="col">Factura(s)</th>
+          <th scope="col">Método</th>
+          <th scope="col">Estado</th>
+          <th scope="col" class="text-right">Total</th>
+          <th scope="col">Reintentos</th>
+          <th scope="col">Comprobante</th>
+          <th scope="col" style="min-width: 10rem">Acciones</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-item>
+        <tr>
+          <td>{{ formatDate(item.executionDate) }}</td>
+          <td>{{ suppliersLabel(item) }}</td>
+          <td class="font-mono text-sm">{{ invoicesLabel(item) }}</td>
+          <td>{{ methodLabel(item) }}</td>
+          <td>
+            <p-tag [value]="scheduleLabel(item.status)" [severity]="getStatusSeverity(item.status)"></p-tag>
+          </td>
+          <td class="text-right font-semibold">{{ formatCurrency(scheduleTotalFn(item)) }}</td>
+          <td>{{ item.retryCount }}</td>
+          <td>
+            <button
+              *ngIf="canViewScheduleVoucher(item)"
+              type="button"
+              class="font-mono font-semibold text-blue-600 hover:underline bg-transparent border-0 p-0"
+              (click)="openScheduleVoucher(item)">
+              {{ scheduleVoucherLabel(item) }}
+            </button>
+            <span *ngIf="!canViewScheduleVoucher(item)">—</span>
+          </td>
+          <td>
+            <div class="flex flex-wrap gap-1">
+              <p-button
+                label="Ver detalle"
+                icon="pi pi-eye"
+                size="small"
                 severity="secondary"
-                (onClick)="onExportData()">
-            </p-button>
-        </div>
-    </div>
-
-    <!-- Filters Card -->
-    <p-card header="Filtros de Búsqueda" class="mb-4">
-        <!-- Info banner cuando se selecciona Contabilizada -->
-        <div *ngIf="showCutoffDateSelector" class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded">
-            <div class="flex items-center gap-2">
-                <i class="pi pi-info-circle text-blue-600"></i>
-                <div class="text-sm">
-                    <p class="font-semibold text-blue-800">Filtro de Fecha de Corte Activo</p>
-                    <p class="text-blue-700">Seleccione un rango de fechas predefinido o personalizado para filtrar las facturas contabilizadas.</p>
-                </div>
+                [outlined]="true"
+                (onClick)="showScheduleDetail(item)">
+              </p-button>
+              <p-button
+                *ngIf="canCancelSchedule(item)"
+                label="Cancelar"
+                icon="pi pi-ban"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [disabled]="actionBusy"
+                (onClick)="cancelSchedule(item)">
+              </p-button>
+              <p-button
+                *ngIf="canViewScheduleVoucher(item)"
+                label="Ver comprobante"
+                icon="pi pi-file"
+                size="small"
+                [disabled]="actionBusy"
+                (onClick)="openScheduleVoucher(item)">
+              </p-button>
+              <p-button
+                *ngIf="item.status === 'FAILED'"
+                label="Reintentar"
+                icon="pi pi-refresh"
+                size="small"
+                [disabled]="actionBusy"
+                (onClick)="retrySchedule(item)">
+              </p-button>
             </div>
-        </div>
+          </td>
+        </tr>
+      </ng-template>
 
-        <form [formGroup]="filterForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <!-- Número de factura Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="billId" class="font-semibold text-[var(--color-primary)]">Número de factura</label>
-                <input
-                    pInputText
-                    id="billId"
-                    formControlName="billId"
-                    placeholder="Buscar por número de factura...">
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="9" class="text-center py-8">
+            <div class="flex flex-col items-center gap-4">
+              <i class="pi pi-calendar text-4xl text-gray-400"></i>
+              <div>
+                <p class="text-lg font-semibold text-gray-600 mb-2">No se encontraron programaciones</p>
+                <p class="text-gray-500">
+                  {{ allSchedules.length > 0
+                    ? emptyFiltersMessage
+                    : 'Las programaciones se crean desde Operaciones de Tesorería al programar una obligación pendiente.' }}
+                </p>
+              </div>
             </div>
+          </td>
+        </tr>
+      </ng-template>
 
-            <!-- Supplier Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="supplierName" class="font-semibold text-[var(--color-primary)]">Proveedor</label>
-                <input
-                    pInputText
-                    id="supplierName"
-                    formControlName="supplierName"
-                    placeholder="Buscar por proveedor...">
+      <ng-template pTemplate="loadingbody">
+        <tr>
+          <td colspan="9" class="text-center py-8">
+            <div class="flex flex-col items-center gap-4">
+              <i class="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
+              <p class="text-lg text-gray-600">Cargando programaciones...</p>
             </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
 
-            <!-- Status Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="status" class="font-semibold text-[var(--color-primary)]">Estado</label>
-                <p-dropdown
-                    id="status"
-                    formControlName="status"
-                    [options]="statusOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Todos los estados">
-                </p-dropdown>
-            </div>
-
-            <!-- Fecha de Corte Filter (solo para Contabilizada) -->
-            <div class="flex flex-col gap-2" *ngIf="showCutoffDateSelector">
-                <label for="cutoffDateRange" class="font-semibold text-[var(--color-primary)]">
-                    📅 Fecha de Corte
-                </label>
-                <p-dropdown
-                    id="cutoffDateRange"
-                    formControlName="cutoffDateRange"
-                    [options]="cutoffDateOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Seleccione un rango"
-                    [showClear]="true">
-                </p-dropdown>
-            </div>
-
-            <!-- Date From Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="dateFrom" class="font-semibold text-[var(--color-primary)]">
-                    Desde
-                    <span *ngIf="showCutoffDateSelector" class="text-xs text-gray-500">(Auto)</span>
-                </label>
-                <p-calendar
-                    id="dateFrom"
-                    formControlName="dateFrom"
-                    dateFormat="dd/mm/yy"
-                    [showIcon]="true"
-                    [disabled]="showCutoffDateSelector && filterForm.get('cutoffDateRange')?.value && filterForm.get('cutoffDateRange')?.value !== 'CUSTOM'"
-                    placeholder="Fecha desde">
-                </p-calendar>
-            </div>
-
-            <!-- Date To Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="dateTo" class="font-semibold text-[var(--color-primary)]">
-                    Hasta
-                    <span *ngIf="showCutoffDateSelector" class="text-xs text-gray-500">(Auto)</span>
-                </label>
-                <p-calendar
-                    id="dateTo"
-                    formControlName="dateTo"
-                    dateFormat="dd/mm/yy"
-                    [showIcon]="true"
-                    [disabled]="showCutoffDateSelector && filterForm.get('cutoffDateRange')?.value && filterForm.get('cutoffDateRange')?.value !== 'CUSTOM'"
-                    placeholder="Fecha hasta">
-                </p-calendar>
-            </div>
-
-            <!-- Min Amount Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="minAmount" class="font-semibold text-[var(--color-primary)]">Monto Mínimo</label>
-                <p-inputNumber
-                    id="minAmount"
-                    formControlName="minAmount"
-                    mode="currency"
-                    currency="COP"
-                    locale="es-CO"
-                    placeholder="0">
-                </p-inputNumber>
-            </div>
-
-            <!-- Max Amount Filter -->
-            <div class="flex flex-col gap-2">
-                <label for="maxAmount" class="font-semibold text-[var(--color-primary)]">Monto Máximo</label>
-                <p-inputNumber
-                    id="maxAmount"
-                    formControlName="maxAmount"
-                    mode="currency"
-                    currency="COP"
-                    locale="es-CO"
-                    placeholder="999999999">
-                </p-inputNumber>
-            </div>
-
-            <!-- Filter Actions -->
-            <div class="flex flex-col gap-2 md:col-span-1 lg:col-span-1">
-                <label class="font-semibold text-[var(--color-primary)]">Acciones</label>
-                <div class="filter-actions filter-buttons-container">
-                    <!-- Clear Filters Button -->
-                    <p-button
-                        label="Limpiar Filtros"
-                        icon="pi pi-filter-slash"
-                        severity="secondary"
-                        [outlined]="true"
-                        size="small"
-                        styleClass="w-full"
-                        pTooltip="Eliminar todos los filtros aplicados"
-                        tooltipPosition="top"
-                        (onClick)="clearFilters()">
-                    </p-button>
-
-                </div>
-            </div>
-        </form>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+    <p-card>
+      <div class="text-center">
+        <i class="pi pi-clock text-3xl text-orange-500 mb-2"></i>
+        <h3 class="text-2xl font-bold text-gray-800">{{ getScheduledCount() }}</h3>
+        <p class="text-gray-600">Programadas</p>
+      </div>
     </p-card>
 
-    <!-- Bills Table -->
-    <p-card header="Programación de Pagos" class="mb-4">
-        <p-table
-            [value]="filteredBills"
-            [loading]="loading"
-            [paginator]="true"
-            [rows]="10"
-            [rowsPerPageOptions]="[5, 10, 20, 50]"
-            [showCurrentPageReport]="true"
-            currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} programaciones"
-            [globalFilterFields]="['billId', 'supplierName', 'statusDisplay']"
-            styleClass="p-datatable-striped">
-
-            <ng-template pTemplate="caption">
-                <div class="flex justify-between items-center">
-                    <span class="text-lg font-semibold">
-                        Total: {{ filteredBills.length }} programaciones
-                    </span>
-                    <div class="flex gap-2">
-                        <span class="p-input-icon-left">
-                            <i class="pi pi-search"></i>
-                            <input
-                                pInputText
-                                type="text"
-                                placeholder="Búsqueda global..."
-                                (input)="$event.target && $any($event.target).value && $any(dt).filterGlobal($any($event.target).value, 'contains')"
-                                #dt>
-                        </span>
-                    </div>
-                </div>
-            </ng-template>
-
-            <ng-template pTemplate="header">
-                <tr>
-                    <th pSortableColumn="billId" style="width: 150px">
-                        Número de factura <p-sortIcon field="billId"></p-sortIcon>
-                    </th>
-                    <th pSortableColumn="dateOpened" style="width: 120px">
-                        Fecha <p-sortIcon field="dateOpened"></p-sortIcon>
-                    </th>
-                    <th pSortableColumn="supplierName" style="width: 200px">
-                        Proveedor <p-sortIcon field="supplierName"></p-sortIcon>
-                    </th>
-                    <th pSortableColumn="total" style="width: 150px" class="text-right">
-                        Total <p-sortIcon field="total"></p-sortIcon>
-                    </th>
-                    <th pSortableColumn="status" style="width: 120px">
-                        Estado <p-sortIcon field="status"></p-sortIcon>
-                    </th>
-                    <th style="width: 150px">Acciones</th>
-                </tr>
-            </ng-template>
-
-            <ng-template pTemplate="body" let-bill>
-                <tr>
-                    <td>
-                        <span class="font-mono font-semibold text-blue-600">{{ bill.billId }}</span>
-                    </td>
-                    <td>
-                        <span>{{ formatDate(bill.dateOpened) }}</span>
-                    </td>
-                    <td>
-                        <div class="flex items-center gap-2">
-                            <i class="pi pi-building text-gray-500"></i>
-                            <span>{{ bill.supplierName }}</span>
-                        </div>
-                    </td>
-                    <td class="text-right">
-                        <span class="font-semibold text-green-600">{{ formatCurrency(bill.total) }}</span>
-                    </td>
-                    <td>
-                        <p-tag
-                            [value]="bill.statusDisplay"
-                            [severity]="getStatusSeverity(bill.status)">
-                        </p-tag>
-                    </td>
-                    <td>
-                        <div class="flex gap-2 flex-wrap">
-                            <p-button
-                                label="Pagar"
-                                icon="pi pi-wallet"
-                                size="small"
-                                severity="success"
-                                pTooltip="Programar pago"
-                                (onClick)="onPayBill(bill)">
-                            </p-button>
-                            <!-- View Button -->
-                            <p-button
-                                icon="pi pi-eye"
-                                size="small"
-                                severity="info"
-                                [text]="true"
-                                pTooltip="Ver detalles"
-                                (onClick)="onViewBill(bill)">
-                            </p-button>
-
-                            <!-- Edit Button -->
-                            <p-button
-                                icon="pi pi-pencil"
-                                size="small"
-                                severity="warn"
-                                [text]="true"
-                                [disabled]="bill.status === 'POSTED' || bill.status === 'PAID'"
-                                pTooltip="Editar factura"
-                                (onClick)="onEditBill(bill)">
-                            </p-button>
-
-                            <!-- Delete Button -->
-                            <p-button
-                                icon="pi pi-trash"
-                                size="small"
-                                severity="danger"
-                                [text]="true"
-                                [disabled]="bill.status === 'POSTED' || bill.status === 'PAID'"
-                                pTooltip="Eliminar factura"
-                                (onClick)="onDeleteBill(bill)">
-                            </p-button>
-                        </div>
-                    </td>
-                </tr>
-            </ng-template>
-
-            <ng-template pTemplate="emptymessage">
-                <tr>
-                    <td colspan="6" class="text-center py-8">
-                        <div class="flex flex-col items-center gap-4">
-                            <i class="pi pi-inbox text-4xl text-gray-400"></i>
-                            <div>
-                                <p class="text-lg font-semibold text-gray-600 mb-2">No se encontraron programaciones</p>
-                                <p class="text-gray-500">
-                                    {{ filteredBills.length === 0 && allBills.length > 0
-                                        ? 'Intente ajustar los filtros de búsqueda'
-                                        : 'No existen pagos programados actualmente' }}
-                                </p>
-                            </div>
-                        </div>
-                    </td>
-                </tr>
-            </ng-template>
-
-            <ng-template pTemplate="loadingbody">
-                <tr>
-                    <td colspan="6" class="text-center py-8">
-                        <div class="flex flex-col items-center gap-4">
-                            <i class="pi pi-spin pi-spinner text-3xl text-blue-500"></i>
-                            <p class="text-lg text-gray-600">Cargando facturas...</p>
-                        </div>
-                    </td>
-                </tr>
-            </ng-template>
-        </p-table>
+    <p-card>
+      <div class="text-center">
+        <i class="pi pi-check-circle text-3xl text-green-500 mb-2"></i>
+        <h3 class="text-2xl font-bold text-gray-800">{{ getExecutedCount() }}</h3>
+        <p class="text-gray-600">Ejecutadas</p>
+      </div>
     </p-card>
 
-    <!-- Summary Statistics -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-        <p-card>
-            <div class="text-center">
-                <i class="pi pi-file-o text-3xl text-blue-500 mb-2"></i>
-                <h3 class="text-2xl font-bold text-gray-800">{{ allBills.length }}</h3>
-                <p class="text-gray-600">Total Programaciones</p>
-            </div>
-        </p-card>
-
-        <p-card>
-            <div class="text-center">
-                <i class="pi pi-clock text-3xl text-orange-500 mb-2"></i>
-                <h3 class="text-2xl font-bold text-gray-800">
-                    {{ getDraftCount() }}
-                </h3>
-                <p class="text-gray-600">Borradores</p>
-            </div>
-        </p-card>
-
-        <p-card [ngClass]="{'border-2 border-green-400': showCutoffDateSelector}">
-            <div class="text-center">
-                <i class="pi pi-check-circle text-3xl text-green-500 mb-2"></i>
-                <h3 class="text-2xl font-bold text-gray-800">
-                    {{ getPostedCount() }}
-                </h3>
-                <p class="text-gray-600">Contabilizadas</p>
-                <span *ngIf="showCutoffDateSelector" class="text-xs text-green-600 font-semibold">
-                    🎯 Filtro activo
-                </span>
-            </div>
-        </p-card>
-
-        <p-card>
-            <div class="text-center">
-                <i class="pi pi-money-bill text-3xl text-purple-500 mb-2"></i>
-                <h3 class="text-2xl font-bold text-gray-800">
-                    {{ getPaidCount() }}
-                </h3>
-                <p class="text-gray-600">Pagadas</p>
-            </div>
-        </p-card>
-    </div>
-
-    <!-- Estadísticas adicionales de filtrado por fecha de corte -->
-    <p-card *ngIf="showCutoffDateSelector && filterForm.get('cutoffDateRange')?.value && filterForm.get('cutoffDateRange')?.value !== ''"
-            class="mb-4 border-l-4 border-green-500">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="text-center">
-                <i class="pi pi-filter text-2xl text-green-600 mb-2"></i>
-                <h4 class="text-lg font-bold text-gray-800">{{ filteredBills.length }}</h4>
-                <p class="text-sm text-gray-600">Facturas en Rango</p>
-            </div>
-            <div class="text-center">
-                <i class="pi pi-calendar text-2xl text-blue-600 mb-2"></i>
-                <h4 class="text-lg font-bold text-gray-800">
-                    {{ filterForm.get('cutoffDateRange')?.value ? getCutoffDateLabel() : '-' }}
-                </h4>
-                <p class="text-sm text-gray-600">Período Seleccionado</p>
-            </div>
-            <div class="text-center">
-                <i class="pi pi-dollar text-2xl text-purple-600 mb-2"></i>
-                <h4 class="text-lg font-bold text-gray-800">
-                    {{ getTotalFilteredAmount() }}
-                </h4>
-                <p class="text-sm text-gray-600">Total del Período</p>
-            </div>
-        </div>
+    <p-card>
+      <div class="text-center">
+        <i class="pi pi-exclamation-triangle text-3xl text-red-500 mb-2"></i>
+        <h3 class="text-2xl font-bold text-gray-800">{{ getFailedCount() }}</h3>
+        <p class="text-gray-600">Fallidas</p>
+      </div>
     </p-card>
 
-    <!-- Toast Messages -->
-    <p-toast></p-toast>
+    <p-card>
+      <div class="text-center">
+        <i class="pi pi-ban text-3xl text-gray-500 mb-2"></i>
+        <h3 class="text-2xl font-bold text-gray-800">{{ getCanceledCount() }}</h3>
+        <p class="text-gray-600">Canceladas</p>
+      </div>
+    </p-card>
+  </div>
 
-    <!-- Confirmation Dialog -->
-    <p-confirmDialog></p-confirmDialog>
+  <p-dialog
+    header="Detalle de programación de pago"
+    [(visible)]="scheduleDetailDialogVisible"
+    [modal]="true"
+    [style]="{ width: 'min(560px, 95vw)' }"
+    [draggable]="false"
+    [resizable]="false"
+    (onHide)="cancelScheduleDetailDialog()">
+    <app-treasury-schedule-detail-panel
+      [item]="scheduleDetailTarget ?? null"
+      [view]="scheduleDetailView(scheduleDetailTarget)">
+    </app-treasury-schedule-detail-panel>
+    <ng-template pTemplate="footer">
+      <div class="flex gap-2 justify-end flex-wrap">
+        <p-button
+          label="Cerrar"
+          severity="secondary"
+          [outlined]="true"
+          (onClick)="cancelScheduleDetailDialog()">
+        </p-button>
+        <p-button
+          *ngIf="scheduleDetailTarget && canViewScheduleVoucher(scheduleDetailTarget)"
+          label="Ver comprobante"
+          icon="pi pi-file"
+          (onClick)="openScheduleVoucher(scheduleDetailTarget!)">
+        </p-button>
+        <p-button
+          *ngIf="scheduleDetailTarget && canCancelSchedule(scheduleDetailTarget)"
+          label="Cancelar"
+          icon="pi pi-ban"
+          severity="danger"
+          [outlined]="true"
+          [disabled]="actionBusy"
+          (onClick)="cancelSchedule(scheduleDetailTarget!); cancelScheduleDetailDialog()">
+        </p-button>
+      </div>
+    </ng-template>
+  </p-dialog>
+
+  <p-toast></p-toast>
 </div>

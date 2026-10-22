@@ -4,6 +4,7 @@ export interface PaymentMethod {
   accountingAccount: string; // Código completo para compatibilidad (código - descripción)
   accountingAccountId: number | null; // Solo el ID de la cuenta contable
   status: boolean;
+  requiresBankAccount: boolean;
   isDeleted?: boolean;
   idEnterprise: string;
 }

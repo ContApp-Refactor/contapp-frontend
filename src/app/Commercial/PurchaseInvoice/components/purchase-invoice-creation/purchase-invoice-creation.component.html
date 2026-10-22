@@ -1,0 +1,178 @@
+<div class="purchase-page flex w-full min-h-full font-titillium bg-gray-50">
+  <p-toast></p-toast>
+  <p-confirmDialog></p-confirmDialog>
+
+  <div class="purchase-shell flex-1 min-w-0 m-2 md:m-6 font-sm bg-white rounded-2xl p-4 md:p-8">
+    <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-5 mb-8">
+      <div>
+        <h1 class="font-family-titillium font-bold text-2xl md:text-3xl/41 text-primary border-b-4 border-secondary inline-block pb-1">
+          Creación de Factura de Compra
+        </h1>
+        <p class="font-family-sans font-normal text-sm mt-2 text-gray-600">
+          Registre la compra al proveedor. La obligación se sincronizará automáticamente con Tesorería.
+        </p>
+        <div class="automation-note mt-3">
+          <i class="pi pi-check-circle"></i>
+          <span>La cuenta por pagar y el código de factura se asignan automáticamente.</span>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 lg:justify-end shrink-0">
+        <p-button label="Guardar factura" icon="pi pi-save" (click)="saveInvoice()"
+          [disabled]="lstProducts.length === 0 || !supplier" [loading]="saving"></p-button>
+        <p-button label="Cancelar" icon="pi pi-times" severity="secondary" [outlined]="true"
+          (click)="cancel()"></p-button>
+      </div>
+    </div>
+
+    <section class="form-section">
+      <div class="section-heading">
+        <i class="pi pi-file-edit"></i>
+        <div>
+          <h2>Datos de la compra</h2>
+          <p>Seleccione el tercero y defina las condiciones de pago.</p>
+        </div>
+      </div>
+
+      <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-6 text-sm">
+        <div class="flex flex-col">
+          <label for="supplierSearch" class="field-label">Proveedor <span aria-hidden="true">*</span></label>
+          <p-autoComplete id="supplierSearch" [(ngModel)]="supplier" [suggestions]="filteredSuppliers" size="small"
+            (completeMethod)="searchSupplier($event)" (onFocus)="searchSupplier({ query: '' })"
+            (onSelect)="onSupplierSelect()" [dropdown]="true" optionLabel="displayName" [forceSelection]="true"
+            placeholder="Busque por nombre o NIT..." styleClass="w-full">
+            <ng-template let-supplier pTemplate="item">
+              <div class="flex flex-col py-1">
+                <span class="font-semibold">{{ supplier.displayName }}</span>
+                <small class="text-gray-500">{{ supplier.typeId?.typeId || 'Identificación' }} {{ supplier.idNumber }}</small>
+              </div>
+            </ng-template>
+          </p-autoComplete>
+          <small class="field-help">Se muestran los proveedores activos de la empresa.</small>
+        </div>
+
+        <div class="flex flex-col">
+          <label for="issueDate" class="field-label">Fecha de emisión</label>
+          <p-datepicker inputId="issueDate" [(ngModel)]="currentDate"
+            (ngModelChange)="onIssueDateChange($event)" dateFormat="dd/mm/yy" [showIcon]="true"
+            styleClass="w-full" size="small"></p-datepicker>
+        </div>
+
+        <div class="flex flex-col">
+          <label for="paymentTermDays" class="field-label">Plazo de pago (días)</label>
+          <p-inputNumber id="paymentTermDays" [(ngModel)]="paymentTermDays" [min]="1"
+            (ngModelChange)="onPaymentTermChange()" styleClass="w-full" size="small"></p-inputNumber>
+          <small class="field-help">Se sincroniza con la fecha de vencimiento.</small>
+        </div>
+
+        <div class="flex flex-col">
+          <label for="dueDate" class="field-label">Fecha de vencimiento</label>
+          <p-datepicker id="dueDate" [(ngModel)]="dueDate" (ngModelChange)="onDueDateChange($event)"
+            dateFormat="dd/mm/yy" size="small" placeholder="Seleccione o use el plazo" [showIcon]="true"
+            [minDate]="minDueDate" styleClass="w-full"></p-datepicker>
+          <small class="field-help">Debe ser posterior a la emisión. Al cambiarla, se actualiza el plazo.</small>
+        </div>
+
+        <div class="flex flex-col md:col-span-2">
+          <label for="observations" class="field-label">Observaciones</label>
+          <input pInputText id="observations" [(ngModel)]="observations"
+            placeholder="Información adicional para esta compra (opcional)" class="w-full" />
+        </div>
+      </div>
+    </section>
+
+    <section class="form-section mt-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+        <div class="section-heading compact">
+          <i class="pi pi-shopping-cart"></i>
+          <div>
+            <h2>Detalle de la compra</h2>
+            <p>Agregue los productos incluidos en la factura.</p>
+          </div>
+        </div>
+        <p-button class="w-full sm:w-auto" label="Agregar productos" icon="pi pi-plus" (click)="selectProducts()"
+          [disabled]="!supplier" pTooltip="Primero seleccione un proveedor" tooltipPosition="top"></p-button>
+      </div>
+
+      <div class="overflow-x-auto" *ngIf="lstProducts.length > 0">
+        <p-table [value]="lstProducts" [tableStyle]="{ 'min-width': '65rem' }" styleClass="p-datatable-striped">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>#</th>
+              <th>Descripción</th>
+              <th>Cant.</th>
+              <th>Precio unit.</th>
+              <th>Descuento</th>
+              <th>IVA</th>
+              <th class="text-right">Subtotal</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-prod let-i="rowIndex">
+            <tr>
+              <td class="text-center">{{ i + 1 }}</td>
+              <td>
+                <span class="font-semibold">{{ prod.name }}</span><br />
+                <small class="text-gray-500">{{ prod.description }}</small>
+              </td>
+              <td>
+                <p-inputNumber [(ngModel)]="prod.amount" mode="decimal" size="small" [showButtons]="true"
+                  [min]="maxQuantityFor(prod) > 0 ? 1 : 0" [max]="maxQuantityFor(prod)"
+                  (ngModelChange)="onQuantityChange(prod)" inputStyleClass="w-full"></p-inputNumber>
+                <small class="field-help">Disponible: {{ maxQuantityFor(prod) }}</small>
+              </td>
+              <td>
+                <p-inputNumber [(ngModel)]="prod.cost" mode="currency" size="small" currency="COP" locale="es-CO"
+                  (ngModelChange)="calculateLine(prod)" inputStyleClass="w-full"></p-inputNumber>
+              </td>
+              <td>
+                <div class="flex gap-2">
+                  <p-inputNumber [(ngModel)]="prod.descuentos[0]" size="small" suffix="%" [min]="0" [max]="100"
+                    (ngModelChange)="switchDescuento('porc', prod)" inputStyleClass="w-full"></p-inputNumber>
+                  <p-inputNumber [(ngModel)]="prod.descuentos[1]" size="small" mode="currency" currency="COP" locale="es-CO"
+                    (ngModelChange)="switchDescuento('val', prod)" inputStyleClass="w-full"></p-inputNumber>
+                </div>
+              </td>
+              <td>
+                <p-inputNumber [(ngModel)]="prod.IVA" size="small" suffix="%" [min]="0" [max]="100"
+                  (ngModelChange)="calculateLine(prod)" inputStyleClass="w-full"></p-inputNumber>
+              </td>
+              <td class="text-right">{{ formatCop(lineSubtotal(prod)) }}</td>
+              <td>
+                <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="deleteProduct(i)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+
+      <div class="empty-products" *ngIf="lstProducts.length === 0">
+        <i class="pi pi-shopping-cart"></i>
+        <strong>Aún no hay productos</strong>
+        <span>Seleccione un proveedor y luego agregue los productos de la compra.</span>
+      </div>
+
+      <div class="summary-panel mt-6" *ngIf="lstProducts.length > 0">
+        <div class="summary-card">
+          <span>Subtotal</span>
+          <strong>{{ formatCop(subTotal) }}</strong>
+        </div>
+        <div class="summary-card">
+          <span>Impuestos</span>
+          <strong>{{ formatCop(taxTotal) }}</strong>
+        </div>
+        <div class="summary-card editable">
+          <label for="initialPayment">Abono inicial</label>
+          <p-inputNumber [(ngModel)]="initialPayment" mode="currency" currency="COP" locale="es-CO"
+            [min]="0" [max]="maxInitialPayment()" inputId="initialPayment"
+            (ngModelChange)="onInitialPaymentChange()" styleClass="w-full"></p-inputNumber>
+          <small class="field-help">Opcional (0 = todo pendiente). Mín. {{ formatCop(minInitialPayment()) }} si registra abono. No use el total completo.</small>
+        </div>
+        <div class="summary-card total-card">
+          <span>Total factura</span>
+          <strong>{{ formatCop(total) }}</strong>
+          <small>Pendiente: {{ formatCop(pendingTotal) }}</small>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

@@ -1,0 +1,319 @@
+/* Treasury Operations — aligned with bill-list / expense-receipts */
+
+.container-fluid {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.treasury-fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.treasury-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  margin-top: 0.5rem;
+}
+
+.treasury-sections > .treasury-fieldset,
+.treasury-sections > p-card {
+  display: block;
+}
+
+.accounting-json {
+  margin: 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: auto;
+  font-size: 0.85rem;
+  max-height: 320px;
+}
+
+/* Card customizations */
+::ng-deep .p-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+::ng-deep .p-card-header {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+  font-weight: 600;
+  border-radius: 10px 10px 0 0;
+  padding: 1.25rem;
+}
+
+::ng-deep .p-card-body {
+  padding: 1.5rem;
+}
+
+/* Form styling */
+::ng-deep .p-inputtext,
+::ng-deep .p-dropdown,
+::ng-deep .p-inputnumber input {
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+}
+
+::ng-deep .p-inputtext:focus,
+::ng-deep .p-dropdown:focus,
+::ng-deep .p-inputnumber input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+::ng-deep .p-dropdown {
+  width: 100%;
+}
+
+/* Table styling */
+::ng-deep .p-datatable {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+::ng-deep .p-datatable .p-datatable-header {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-bottom: 2px solid var(--color-primary);
+  padding: 1.25rem;
+}
+
+::ng-deep .p-datatable .p-datatable-thead > tr > th {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 600;
+  border: none;
+  padding: 1rem;
+  font-size: 0.95rem;
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr {
+  transition: all 0.2s ease;
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr:hover {
+  background-color: #e0e7ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+::ng-deep .p-datatable .p-datatable-tbody > tr > td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.95rem;
+}
+
+/* Status tags */
+::ng-deep .p-tag {
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Button customizations */
+::ng-deep .p-button {
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+::ng-deep .p-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-buttons ::ng-deep .treasury-icon-action {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  justify-content: center;
+}
+
+/* Pagination */
+::ng-deep .p-paginator {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-top: 2px solid var(--color-primary);
+  padding: 1rem;
+}
+
+::ng-deep .p-paginator .p-paginator-pages .p-paginator-page {
+  border-radius: 8px;
+  margin: 0 2px;
+  transition: all 0.2s ease;
+}
+
+/* Filter actions */
+.filter-buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+::ng-deep .filter-actions .p-button {
+  transition: all 0.3s ease;
+  font-weight: 600;
+  border-width: 2px;
+}
+
+::ng-deep .p-message {
+  display: block;
+  border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+  .container-fluid {
+    padding: 1rem;
+  }
+
+  ::ng-deep .p-datatable {
+    font-size: 0.85rem;
+  }
+
+  ::ng-deep .p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .action-buttons {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.625rem;
+  }
+}
+
+::ng-deep .treasury-due-date-picker {
+  width: 100%;
+}
+
+::ng-deep .treasury-due-date-picker .p-datepicker-input {
+  width: 100%;
+}
+
+::ng-deep .p-datepicker-panel {
+  z-index: 1200;
+}
+
+.treasury-payment-card ::ng-deep .p-card-body {
+  padding-top: 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
+.treasury-payment-hint {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  line-height: 1.5;
+}
+
+.treasury-edit-banner {
+  margin-bottom: 1.25rem;
+}
+
+::ng-deep .treasury-editing-row > td {
+  background-color: #e0e7ff !important;
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+::ng-deep .treasury-editing-row:hover > td {
+  background-color: #dbeafe !important;
+}
+
+.treasury-pay-amount-cell ::ng-deep .p-button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+::ng-deep .treasury-payment-mode-select {
+  width: 100%;
+}
+
+::ng-deep .treasury-payment-mode-select .p-togglebutton {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+::ng-deep .treasury-payment-mode-select .p-togglebutton-label {
+  font-weight: 600;
+}
+
+.treasury-dialog-payable-card {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.treasury-payment-form {
+  padding-top: 0.5rem;
+}
+
+.treasury-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.treasury-field-label {
+  line-height: 1.25rem;
+  min-height: 1.25rem;
+}
+
+.treasury-control-slot {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.treasury-control-slot ::ng-deep .p-dropdown,
+.treasury-control-slot ::ng-deep .p-inputtext,
+.treasury-control-slot ::ng-deep .treasury-due-date-picker {
+  width: 100%;
+}
+
+.treasury-control-slot ::ng-deep .p-dropdown,
+.treasury-control-slot ::ng-deep .p-inputtext,
+.treasury-control-slot ::ng-deep .treasury-due-date-picker .p-datepicker-input {
+  min-height: 2.75rem;
+}
+
+.treasury-field-hint {
+  display: block;
+  min-height: 1.125rem;
+  line-height: 1.125rem;
+  font-size: 0.8125rem;
+}
+
+.treasury-payment-actions {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.treasury-payment-actions ::ng-deep .p-button {
+  min-height: 2.75rem;
+  padding: 0.65rem 1.25rem;
+}

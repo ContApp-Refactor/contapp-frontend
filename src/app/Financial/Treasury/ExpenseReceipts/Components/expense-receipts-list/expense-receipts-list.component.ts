@@ -2,20 +2,28 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AutoCompleteModule } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
 import { CalendarModule } from 'primeng/calendar';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputTextModule } from 'primeng/inputtext';
-import { InputNumberModule } from 'primeng/inputnumber';
 import { TableModule } from 'primeng/table';
 import { TooltipModule } from 'primeng/tooltip';
 import { CardModule } from 'primeng/card';
 import { ToastModule } from 'primeng/toast';
 import { TagModule } from 'primeng/tag';
+import { MessageModule } from 'primeng/message';
 import { MessageService } from 'primeng/api';
 import { ExpenseReceiptService } from '../../Service/expense-receipt.service';
-import { DropdownOption, ExpenseReceiptView } from '../../Model/Models';
+import { DropdownOption, ExpenseReceiptView, ReceiptFilterOption } from '../../Model/Models';
+import { exportErrorDetail, exportSuccessDetail, reportEmptyFiltersMessage, voucherStatusFilterOptions, accountingEntryStatusLabel } from '../../../Shared/treasury-status-labels';
+import {
+  AccountingEntryViewHeader,
+  AccountingMovementViewRow,
+  accountingTotalsBalanced,
+} from '../../../Shared/treasury-accounting-display';
+import { ContextualHelpComponent } from '../../../../../Shared/Components/contextual-help/contextual-help.component';
+import { TREASURY_HELP } from '../../../Shared/treasury-help-content';
+import { TreasuryExportService } from '../../../Shared/treasury-export.service';
 
 @Component({
   selector: 'app-expense-receipts-list',
@@ -27,116 +35,161 @@ import { DropdownOption, ExpenseReceiptView } from '../../Model/Models';
     TableModule,
     ButtonModule,
     InputTextModule,
-    InputNumberModule,
     CalendarModule,
     DropdownModule,
     TooltipModule,
-    AutoCompleteModule,
     CardModule,
     ToastModule,
-    TagModule
+    TagModule,
+    MessageModule,
+    ContextualHelpComponent,
   ],
   templateUrl: './expense-receipts-list.component.html',
   styleUrls: ['./expense-receipts-list.component.css'],
-  providers: [MessageService]
+  providers: [MessageService],
 })
 export class ExpenseReceiptsListComponent implements OnInit {
   filterForm!: FormGroup;
   allReceipts: ExpenseReceiptView[] = [];
   filteredReceipts: ExpenseReceiptView[] = [];
-  loading: boolean = false;
+  loading = false;
 
-  // Propiedades para el AutoComplete de Proveedor
-  allSuppliers: string[] = []; // Lista única de nombres de proveedores
-  supplierSuggestions: string[] = []; // Sugerencias para el dropdown
+  supplierOptions: ReceiptFilterOption[] = [];
 
-  statusOptions: DropdownOption[] = [];
+  statusOptions: DropdownOption[] = voucherStatusFilterOptions();
+  readonly emptyFiltersMessage = reportEmptyFiltersMessage();
+  readonly help = TREASURY_HELP.expenseReceipts;
+  exportingPdf = false;
+  exportingCsv = false;
+  accountingEntry: any = null;
+  accountingEntryHeader: AccountingEntryViewHeader = {};
+  accountingMovements: AccountingMovementViewRow[] = [];
+  accountingDebitTotal = 0;
+  accountingCreditTotal = 0;
+  accountingReceiptCode = '';
+  loadingAccounting = false;
+
+  accountingStatusLabel = accountingEntryStatusLabel;
 
   constructor(
     private fb: FormBuilder,
     private router: Router,
     private expenseReceiptService: ExpenseReceiptService,
-    private messageService: MessageService
-  ) { }
+    private messageService: MessageService,
+    private exportService: TreasuryExportService,
+  ) {}
 
   ngOnInit(): void {
     this.initializeForm();
+    this.setupFilterSubscriptions();
+    this.showVoidNavigationFeedback();
     this.loadReceipts();
-    this.filteredReceipts = this.allReceipts;
-    this.statusOptions = [
-      { label: 'Activo', value: 'Activo' },
-      { label: 'Anulado', value: 'Anulado' }
-    ];
+  }
+
+  private showVoidNavigationFeedback(): void {
+    const navigationState = this.router.lastSuccessfulNavigation?.extras?.state as {
+      voidReceiptFeedback?: {
+        severity: 'success' | 'warn' | 'error';
+        summary: string;
+        detail: string;
+      };
+    } | undefined;
+    const historyState = history.state as {
+      voidReceiptFeedback?: {
+        severity: 'success' | 'warn' | 'error';
+        summary: string;
+        detail: string;
+      };
+    };
+    const feedback = navigationState?.voidReceiptFeedback ?? historyState?.voidReceiptFeedback;
+    if (!feedback) {
+      return;
+    }
+    if (historyState?.voidReceiptFeedback) {
+      const { voidReceiptFeedback: _, ...rest } = history.state as Record<string, unknown>;
+      history.replaceState(rest, '');
+    }
+    setTimeout(() => {
+      this.messageService.add({
+        severity: feedback.severity,
+        summary: feedback.summary,
+        detail: feedback.detail,
+        life: 8000,
+      });
+    });
   }
 
   initializeForm(): void {
     this.filterForm = this.fb.group({
-      supplier: [''], // El valor será un string simple
+      supplierId: [null],
+      receiptCode: [''],
       startDate: [null],
       endDate: [null],
-      status: [null],
-      receiptCode: [''],
-      minAmount: [null],
-      maxAmount: [null]
+      status: [''],
     });
+  }
+
+  setupFilterSubscriptions(): void {
+    this.filterForm.valueChanges.subscribe(() => this.applyFilters());
   }
 
   loadReceipts(): void {
-    this.expenseReceiptService.getAllExpenseReceipts().subscribe(data => {
-      this.allReceipts = data;
-      this.filteredReceipts = [...this.allReceipts];
-      // Extraer una lista única de nombres de proveedores para el AutoComplete
-      this.allSuppliers = [...new Set(this.allReceipts.map(r => r.supplierName))];
+    this.loading = true;
+    this.expenseReceiptService.getAllExpenseReceipts().subscribe({
+      next: (data) => {
+        this.allReceipts = data;
+        this.buildFilterOptions(data);
+        this.filteredReceipts = [...data];
+        this.applyFilters();
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudieron cargar los comprobantes de egreso.',
+        });
+      },
     });
   }
 
-  // Método para el evento (completeMethod) del AutoComplete
-  searchSupplier(event: any): void {
-    const query = event.query.toLowerCase();
-    this.supplierSuggestions = this.allSuppliers.filter(supplier =>
-      supplier.toLowerCase().includes(query)
-    );
+  buildFilterOptions(receipts: ExpenseReceiptView[]): void {
+    this.supplierOptions = [...new Set(receipts.map((r) => r.thirdPartyId).filter((id) => id > 0))]
+      .map((id) => {
+        const name = receipts.find((r) => r.thirdPartyId === id)?.supplierName || `Proveedor ${id}`;
+        return { value: id, label: `${id} — ${name}` };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
   }
 
   applyFilters(): void {
     const filters = this.filterForm.value;
     let results = [...this.allReceipts];
 
-    // Filtro por proveedor
-    if (filters.supplier) {
-      const supplierQuery = filters.supplier.toLowerCase();
-      results = results.filter(r => r.supplierName.toLowerCase().includes(supplierQuery));
+    if (filters.supplierId != null) {
+      results = results.filter((r) => r.thirdPartyId === Number(filters.supplierId));
     }
 
-    // Filtro por estado
+    const receiptCodeTerm = String(filters.receiptCode ?? '').trim().toLowerCase();
+    if (receiptCodeTerm) {
+      results = results.filter((r) => String(r.receiptCode).toLowerCase().includes(receiptCodeTerm));
+    }
+
     if (filters.status) {
-      results = results.filter(r => r.status === filters.status);
+      results = results.filter((r) => (r.statusKey || '') === filters.status);
     }
 
-    // Filtro por rango de fechas
     if (filters.startDate) {
-      results = results.filter(r => r.issueDate >= filters.startDate);
+      const from = new Date(filters.startDate);
+      from.setHours(0, 0, 0, 0);
+      results = results.filter((r) => new Date(r.issueDate) >= from);
     }
 
     if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        results = results.filter(r => r.issueDate <= endDate);
-    }
-
-    // Filtro por código de comprobante
-    if (filters.receiptCode) {
-      const codeQuery = filters.receiptCode.toLowerCase();
-      results = results.filter(r => r.receiptCode.toLowerCase().includes(codeQuery));
-    }
-
-    // Filtro por rango de montos
-    if (filters.minAmount !== null && filters.minAmount !== undefined) {
-      results = results.filter(r => r.totalAmount >= filters.minAmount);
-    }
-
-    if (filters.maxAmount !== null && filters.maxAmount !== undefined) {
-      results = results.filter(r => r.totalAmount <= filters.maxAmount);
+      const endDate = new Date(filters.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      results = results.filter((r) => new Date(r.issueDate) <= endDate);
     }
 
     this.filteredReceipts = results;
@@ -144,56 +197,95 @@ export class ExpenseReceiptsListComponent implements OnInit {
 
   clearFilters(): void {
     this.filterForm.reset({
-      supplier: '',
+      supplierId: null,
+      receiptCode: '',
       startDate: null,
       endDate: null,
-      status: null,
-      receiptCode: '',
-      minAmount: null,
-      maxAmount: null
+      status: '',
     });
     this.filteredReceipts = [...this.allReceipts];
   }
 
-  goToCreateReceipt(): void {
-    this.router.navigate(['/financial/treasury/expense-receipts/creation']);
-  }
-
   viewReceiptDetails(receipt: ExpenseReceiptView): void {
-    console.log('Viendo detalles del recibo de gasto:', receipt);
     this.router.navigate(['/financial/treasury/expense-receipts/details', receipt.id]);
   }
 
-  // Métodos para las estadísticas
+  showAccounting(receipt: ExpenseReceiptView): void {
+    this.loadingAccounting = true;
+    this.accountingEntry = null;
+    this.accountingEntryHeader = {};
+    this.accountingMovements = [];
+    this.accountingDebitTotal = 0;
+    this.accountingCreditTotal = 0;
+    this.accountingReceiptCode = receipt.receiptCode;
+    this.expenseReceiptService.getAccountingEntryView(receipt.id, {
+      voucherNumber: receipt.receiptCode,
+      supplierLabel: receipt.supplierName,
+    }).subscribe({
+      next: (view) => {
+        this.accountingEntry = view.header;
+        this.accountingEntryHeader = view.header;
+        this.accountingMovements = view.movements;
+        this.accountingDebitTotal = this.accountingMovements.reduce((sum, row) => sum + row.debit, 0);
+        this.accountingCreditTotal = this.accountingMovements.reduce((sum, row) => sum + row.credit, 0);
+        this.loadingAccounting = false;
+      },
+      error: () => {
+        this.loadingAccounting = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Asiento no disponible',
+          detail: 'No fue posible consultar el asiento del comprobante.',
+        });
+      },
+    });
+  }
+
+  get accountingIsBalanced(): boolean {
+    return accountingTotalsBalanced(this.accountingDebitTotal, this.accountingCreditTotal);
+  }
+
+  clearAccountingView(): void {
+    this.accountingEntry = null;
+    this.accountingEntryHeader = {};
+    this.accountingMovements = [];
+    this.accountingDebitTotal = 0;
+    this.accountingCreditTotal = 0;
+    this.accountingReceiptCode = '';
+  }
+
   getTotalReceipts(): number {
-    return this.filteredReceipts.length;
+    return this.allReceipts.length;
   }
 
   getActiveReceipts(): number {
-    return this.filteredReceipts.filter(r => r.status !== 'Anulado').length;
+    return this.filteredReceipts.filter((r) => r.statusKey === 'POSTED' || r.status === 'Contabilizado').length;
   }
 
   getCancelledReceipts(): number {
-    return this.filteredReceipts.filter(r => r.status === 'Anulado').length;
+    return this.filteredReceipts.filter((r) => r.statusKey === 'VOIDED' || r.status === 'Anulado').length;
   }
 
   getTotalAmount(): number {
     return this.filteredReceipts
-      .filter(r => r.status !== 'Anulado')
+      .filter((r) => r.statusKey !== 'VOIDED' && r.status !== 'Anulado')
       .reduce((sum, receipt) => sum + (receipt.totalAmount || 0), 0);
   }
 
-  // Método para obtener la severidad del tag de estado
   getStatusSeverity(status: string): 'success' | 'info' | 'warning' | 'danger' {
-    switch (status?.toLowerCase()) {
-      case 'activo':
+    switch ((status || '').toLowerCase()) {
+      case 'contabilizado':
       case 'pagado':
       case 'completado':
         return 'success';
+      case 'borrador':
+      case 'contabilizando':
       case 'pendiente':
-      case 'en proceso':
         return 'warning';
       case 'anulado':
+      case 'fallido':
+      case 'anulación fallida':
+      case 'anulando':
       case 'cancelado':
         return 'danger';
       default:
@@ -201,111 +293,91 @@ export class ExpenseReceiptsListComponent implements OnInit {
     }
   }
 
-  // Métodos para las acciones adicionales
-  printReceipt(receipt: ExpenseReceiptView): void {
-    this.messageService.add({
-      severity: 'info',
-      summary: 'Imprimir',
-      detail: `Imprimiendo comprobante ${receipt.receiptCode}`
-    });
-    // Aquí iría la lógica para imprimir
-  }
-
   cancelReceipt(receipt: ExpenseReceiptView): void {
-    if (receipt.status === 'Anulado') {
+    if (receipt.statusKey === 'VOIDED' || receipt.status === 'Anulado') {
       return;
     }
 
-    // Mostrar confirmación
     this.messageService.add({
       severity: 'warn',
       summary: 'Anular Comprobante',
-      detail: `¿Está seguro de anular el comprobante ${receipt.receiptCode}?`
-    });
-
-    // Aquí iría la lógica para anular el comprobante
-    // Por ahora solo mostramos el mensaje
-  }
-
-  // Métodos para filtros mejorados
-  getActiveFiltersCount(): number {
-    const filters = this.filterForm.value;
-    let count = 0;
-
-    if (filters.supplier) count++;
-    if (filters.startDate) count++;
-    if (filters.endDate) count++;
-    if (filters.status) count++;
-    if (filters.receiptCode) count++;
-    if (filters.minAmount !== null && filters.minAmount !== undefined) count++;
-    if (filters.maxAmount !== null && filters.maxAmount !== undefined) count++;
-
-    return count;
-  }
-
-  applyQuickFilter(type: 'today' | 'week' | 'month'): void {
-    const today = new Date();
-    let startDate: Date;
-
-    switch (type) {
-      case 'today':
-        startDate = new Date(today);
-        this.filterForm.patchValue({
-          startDate: startDate,
-          endDate: today
-        });
-        break;
-      case 'week':
-        startDate = new Date(today);
-        startDate.setDate(today.getDate() - 7);
-        this.filterForm.patchValue({
-          startDate: startDate,
-          endDate: today
-        });
-        break;
-      case 'month':
-        startDate = new Date(today);
-        startDate.setDate(today.getDate() - 30);
-        this.filterForm.patchValue({
-          startDate: startDate,
-          endDate: today
-        });
-        break;
-    }
-
-    this.applyFilters();
-
-    this.messageService.add({
-      severity: 'success',
-      summary: 'Filtro Aplicado',
-      detail: `Mostrando comprobantes de ${type === 'today' ? 'hoy' : type === 'week' ? 'los últimos 7 días' : 'los últimos 30 días'}`
+      detail: `Use Operaciones de Tesorería para anular ${receipt.receiptCode}.`,
     });
   }
 
-  // Utility methods for consistent formatting
   formatCurrency(amount: number): string {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+      maximumFractionDigits: 0,
+    }).format(amount || 0);
   }
 
   formatDate(date: Date): string {
     return new Intl.DateTimeFormat('es-CO', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
+      day: '2-digit',
     }).format(new Date(date));
   }
 
-  // Export functionality
-  onExportData(): void {
-    this.messageService.add({
-      severity: 'info',
-      summary: 'Funcionalidad Pendiente',
-      detail: 'La exportación de datos será implementada próximamente.'
-    });
+  exportToCsv(): void {
+    this.runExport('csv');
+  }
+
+  exportToPdf(): void {
+    this.runExport('pdf');
+  }
+
+  private runExport(format: 'csv' | 'pdf'): void {
+    if (!this.filteredReceipts.length) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Sin datos',
+        detail: this.emptyFiltersMessage,
+      });
+      return;
+    }
+
+    const headers = ['Código', 'Fecha', 'Proveedor', 'Total', 'Estado'];
+    const rows = this.filteredReceipts.map((receipt) => [
+      receipt.receiptCode,
+      this.formatDate(receipt.issueDate),
+      receipt.supplierName,
+      receipt.totalAmount,
+      receipt.status,
+    ]);
+    const options = {
+      title: 'Comprobantes de egreso',
+      subtitle: `${rows.length} comprobante(s) exportado(s)`,
+      filename: this.exportService.datedFilename('comprobantes-egreso', format),
+      headers,
+      rows,
+    };
+
+    const loadingFlag = format === 'csv' ? 'exportingCsv' : 'exportingPdf';
+    this[loadingFlag] = true;
+    try {
+      if (format === 'csv') {
+        this.exportService.downloadCsv(options);
+      } else {
+        this.exportService.downloadPdf(options);
+      }
+      this.messageService.add({
+        severity: 'success',
+        summary: 'Exportado',
+        detail: exportSuccessDetail('comprobantes', format),
+      });
+    } catch (error) {
+      console.error(`Error al exportar ${format}:`, error);
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: exportErrorDetail(format),
+      });
+    } finally {
+      this[loadingFlag] = false;
+    }
   }
 }

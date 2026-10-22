@@ -53,6 +53,9 @@ export class HelpCenterListComponent implements OnInit {
   currentSortOrder: string = 'asc';
   searchTerm: string = '';
   canToggleState = false;
+  canCreate = false;
+  canEdit = false;
+  canDelete = false;
 
   constructor(
     private readonly service: HelpCenterServiceService,
@@ -67,7 +70,11 @@ export class HelpCenterListComponent implements OnInit {
   ngOnInit(): void {
     this.loadModuleNames();
     const perms = this.authService.getCurrentUserPermissions();
-    this.canToggleState = perms.includes('HC#CS');
+    const isAdmin = this.authService.hasRole('Administrador');
+    this.canCreate = isAdmin && perms.includes('HC#C');
+    this.canEdit = isAdmin && perms.includes('HC#U');
+    this.canToggleState = isAdmin && perms.includes('HC#CS');
+    this.canDelete = isAdmin && perms.includes('HC#D');
   }
 
   private loadModuleNames(): void {
@@ -180,17 +187,19 @@ export class HelpCenterListComponent implements OnInit {
   }
 
   createHelpCenter() {
+    if (!this.canCreate) return;
     this.router.navigate(['/gen-masters/help-center/create']);
   }
 
   editHelpCenter(row: HelpCenter) {
+    if (!this.canEdit) return;
     if (!row?.id) return;
     this.router.navigate(['/gen-masters/help-center/edit', row.id]);
   }
 
   deleteHelpCenter(row: HelpCenter) {
     if (!row?.id) return;
-    if (!this.authService.requireAnyPermission(['HC#D'])) return;
+    if (!this.canDelete || !this.authService.requireAnyPermission(['HC#D'])) return;
     this.confirmationService.confirm({
       header: 'Confirmar Eliminación',
       message: `¿Desea eliminar el centro de ayuda "${row.name}"? Esta acción no se puede deshacer.`,
@@ -205,6 +214,7 @@ export class HelpCenterListComponent implements OnInit {
   }
 
   changeHelpCenterState(helpCenter: HelpCenter) {
+    if (!this.canToggleState) return;
     if (!helpCenter?.id) return;
 
     const newStatus = !helpCenter.status;

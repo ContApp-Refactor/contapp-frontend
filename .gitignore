@@ -47,3 +47,6 @@ Thumbs.db
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Agent instructions
+AGENTS.md

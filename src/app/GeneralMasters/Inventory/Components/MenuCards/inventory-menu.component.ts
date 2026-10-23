@@ -18,10 +18,10 @@ interface InventoryOption {
 export class InventoryMenuComponent {
   inventoryOptions: InventoryOption[] = [
     {
-      title: 'Productos',
-      icon: 'box',
-      route: '/gen-masters/inventory/products/list',
-      description: 'Gestión de productos del inventario'
+      title: 'Unidades de Medida',
+      icon: 'square_foot',
+      route: '/gen-masters/inventory/measurement-units/list',
+      description: 'Configuración de unidades de medida'
     },
     {
       title: 'Tipos de Productos',
@@ -36,10 +36,10 @@ export class InventoryMenuComponent {
       description: 'Gestión de categorías de productos'
     },
     {
-      title: 'Unidades de Medida',
-      icon: 'square_foot',
-      route: '/gen-masters/inventory/measurement-units/list',
-      description: 'Configuración de unidades de medida'
+      title: 'Productos',
+      icon: 'box',
+      route: '/gen-masters/inventory/products/list',
+      description: 'Gestión de productos del inventario'
     }
   ];
 

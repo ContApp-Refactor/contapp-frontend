@@ -42,6 +42,9 @@
       <!-- Action Buttons -->
       <div class="flex justify-start sm:justify-end mt-4 sm:mt-0">
         <div class="flex gap-1 flex-nowrap whitespace-nowrap">
+          <p-button *ngIf="returnTo" label="Volver a factura" icon="pi pi-arrow-left" [style]="{'white-space': 'nowrap'}" (click)="goBackToInvoice()">
+          </p-button>
+
           <p-button label="Crear" icon="pi pi-plus" [style]="{'white-space': 'nowrap'}" (click)="navigateToCreate()">
           </p-button>
 

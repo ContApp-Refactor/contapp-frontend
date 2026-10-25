@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, forkJoin, map, of, switchMap } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { Observable, catchError, forkJoin, map, of, switchMap, tap, throwError } from 'rxjs';
 import { InvoiceStatus } from '../models/billing-sale-invoice.model';
 import { DocumentKind } from '../models/document-kind';
 import {
@@ -12,6 +12,7 @@ import {
   SaleReturnDraftInput,
 } from '../models/billing-sale-return.model';
 import { BillingSaleReturnApi } from './billing-sale-return.api';
+import { BillingDocumentKindRegistry, INVOICE_BASE, RETURN_BASE } from './billing-document-kind-registry';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
 
 interface ReturnLineDto {
@@ -68,6 +69,8 @@ interface InvoiceWithReturnsDto {
   state: InvoiceReturnState;
 }
 
+const KINDS: DocumentKind[] = ['SALE', 'PURCHASE'];
+
 const toReturnLine = (l: ReturnLineDto): SaleReturnLine => ({
   productId: l.productId,
   productName: l.productName,
@@ -100,22 +103,53 @@ const toSaleReturn = (r: ReturnDto): SaleReturn => ({
 export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
   private readonly http = inject(HttpClient);
   private readonly localStorageMethods = inject(LocalStorageMethods);
-  private readonly apiUrl = '/api/billing/sale-returns';
-  private readonly invoicesUrl = '/api/billing/sale-invoices';
+  private readonly registry = inject(BillingDocumentKindRegistry);
 
   private getEnterpriseId(): string {
     return this.localStorageMethods.getIdEnterprise();
   }
 
-  private fetchAvailability(invoiceId: string): Observable<AvailabilityLineDto[]> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
+  private params(): HttpParams {
+    return new HttpParams().set('enterpriseId', this.getEnterpriseId());
+  }
+
+  // Un id de otro tipo responde 404 (el back lo trata como inexistente), por eso se prueba venta y luego compra
+  private onKind<T>(id: string, call: (kind: DocumentKind) => Observable<T>): Observable<T> {
+    const attempt = (kind: DocumentKind): Observable<T> =>
+      call(kind).pipe(tap(() => this.registry.remember(id, kind)));
+    const known = this.registry.kindOf(id);
+    if (known) {
+      return attempt(known);
+    }
+    return attempt('SALE').pipe(
+      catchError((err: unknown) =>
+        err instanceof HttpErrorResponse && err.status === 404 ? attempt('PURCHASE') : throwError(() => err),
+      ),
+    );
+  }
+
+  private resolveReturnKind(returnId: string): Observable<DocumentKind> {
+    const known = this.registry.kindOf(returnId);
+    return known ? of(known) : this.getById(returnId).pipe(map(() => this.registry.kindOf(returnId) ?? 'SALE'));
+  }
+
+  private fetchAvailability(kind: DocumentKind, invoiceId: string): Observable<AvailabilityLineDto[]> {
     return this.http
-      .get<{ lines: AvailabilityLineDto[] }>(`${this.invoicesUrl}/${invoiceId}/return-availability`, { params })
+      .get<{ lines: AvailabilityLineDto[] }>(`${INVOICE_BASE[kind]}/${invoiceId}/return-availability`, {
+        params: this.params(),
+      })
       .pipe(map((res) => res.lines));
   }
 
+  private fetchReturn(kind: DocumentKind, id: string): Observable<SaleReturn> {
+    return this.http.get<ReturnDto>(`${RETURN_BASE[kind]}/${id}`, { params: this.params() }).pipe(
+      tap((r) => this.registry.remember(r.id, kind)),
+      map(toSaleReturn),
+    );
+  }
+
   getAvailability(invoiceId: string): Observable<ReturnAvailabilityLine[]> {
-    return this.fetchAvailability(invoiceId).pipe(
+    return this.onKind(invoiceId, (kind) => this.fetchAvailability(kind, invoiceId)).pipe(
       map((lines) =>
         lines.map((l) => ({
           productId: l.productId,
@@ -131,20 +165,28 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
   }
 
   listByInvoice(invoiceId: string): Observable<SaleReturn[]> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
     // El listado del back es un resumen sin líneas; las pantallas necesitan la devolución completa
-    return this.http.get<{ id: string }[]>(`${this.invoicesUrl}/${invoiceId}/returns`, { params }).pipe(
-      switchMap((summaries) =>
-        summaries.length ? forkJoin(summaries.map((s) => this.getById(s.id))) : of<SaleReturn[]>([]),
+    return this.onKind(invoiceId, (kind) =>
+      this.http
+        .get<{ id: string }[]>(`${INVOICE_BASE[kind]}/${invoiceId}/returns`, { params: this.params() })
+        .pipe(map((summaries) => ({ kind, summaries }))),
+    ).pipe(
+      switchMap(({ kind, summaries }) =>
+        summaries.length ? forkJoin(summaries.map((s) => this.fetchReturn(kind, s.id))) : of<SaleReturn[]>([]),
       ),
     );
   }
 
   listInvoicesWithReturns(): Observable<InvoiceWithReturnsSummary[]> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
-    return this.http.get<InvoiceWithReturnsDto[]>(`${this.invoicesUrl}/with-returns`, { params }).pipe(
-      map((rows) =>
-        rows.map((r) => ({
+    return forkJoin(
+      KINDS.map((kind) =>
+        this.http
+          .get<InvoiceWithReturnsDto[]>(`${INVOICE_BASE[kind]}/with-returns`, { params: this.params() })
+          .pipe(tap((rows) => rows.forEach((r) => this.registry.remember(r.invoiceId, kind)))),
+      ),
+    ).pipe(
+      map((groups) =>
+        groups.flat().map((r) => ({
           invoiceId: r.invoiceId,
           invoiceNumber: r.invoiceNumber,
           kind: r.kind,
@@ -161,15 +203,16 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
   }
 
   getById(id: string): Observable<SaleReturn> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
-    return this.http.get<ReturnDto>(`${this.apiUrl}/${id}`, { params }).pipe(map(toSaleReturn));
+    return this.onKind(id, (kind) => this.fetchReturn(kind, id));
   }
 
   saveDraft(input: SaleReturnDraftInput): Observable<SaleReturn> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
+    const params = this.params();
     // El back identifica las líneas por el lineNo de la factura original, no por productId
-    return this.fetchAvailability(input.invoiceId).pipe(
-      switchMap((availability) => {
+    return this.onKind(input.invoiceId, (kind) =>
+      this.fetchAvailability(kind, input.invoiceId).pipe(map((availability) => ({ kind, availability }))),
+    ).pipe(
+      switchMap(({ kind, availability }) => {
         const body = {
           invoiceId: input.invoiceId,
           date: input.date,
@@ -179,26 +222,34 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
             cantidad: l.cantidad,
           })),
         };
-        return input.id
-          ? this.http.put<ReturnDto>(`${this.apiUrl}/${input.id}`, body, { params })
-          : this.http.post<ReturnDto>(this.apiUrl, body, { params });
+        const request = input.id
+          ? this.http.put<ReturnDto>(`${RETURN_BASE[kind]}/${input.id}`, body, { params })
+          : this.http.post<ReturnDto>(RETURN_BASE[kind], body, { params });
+        return request.pipe(tap((r) => this.registry.remember(r.id, kind)));
       }),
       map(toSaleReturn),
     );
   }
 
   deleteDraft(id: string): Observable<void> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
-    return this.http.delete<void>(`${this.apiUrl}/${id}`, { params });
+    return this.resolveReturnKind(id).pipe(
+      switchMap((kind) => this.http.delete<void>(`${RETURN_BASE[kind]}/${id}`, { params: this.params() })),
+    );
   }
 
   emit(id: string): Observable<SaleReturn> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
-    return this.http.post<ReturnDto>(`${this.apiUrl}/${id}/emit`, {}, { params }).pipe(map(toSaleReturn));
+    return this.resolveReturnKind(id).pipe(
+      switchMap((kind) => this.http.post<ReturnDto>(`${RETURN_BASE[kind]}/${id}/emit`, {}, { params: this.params() })),
+      map(toSaleReturn),
+    );
   }
 
   annul(id: string, reason: string): Observable<SaleReturn> {
-    const params = new HttpParams().set('enterpriseId', this.getEnterpriseId());
-    return this.http.post<ReturnDto>(`${this.apiUrl}/${id}/annul`, { reason }, { params }).pipe(map(toSaleReturn));
+    return this.resolveReturnKind(id).pipe(
+      switchMap((kind) =>
+        this.http.post<ReturnDto>(`${RETURN_BASE[kind]}/${id}/annul`, { reason }, { params: this.params() }),
+      ),
+      map(toSaleReturn),
+    );
   }
 }

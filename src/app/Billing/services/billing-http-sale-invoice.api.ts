@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, forkJoin, of, switchMap } from 'rxjs';
 import { InvoiceStatus, SaleInvoice, SaleInvoiceDraftInput } from '../models/billing-sale-invoice.model';
 import { BillingSaleInvoiceApi } from './billing-sale-invoice.api';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
@@ -21,7 +21,12 @@ export class BillingHttpSaleInvoiceApi extends BillingSaleInvoiceApi {
     if (status) {
       params = params.set('status', status);
     }
-    return this.http.get<SaleInvoice[]>(this.apiUrl, { params });
+    // El listado del back es un resumen sin líneas; las pantallas necesitan la factura completa
+    return this.http.get<{ id: string }[]>(this.apiUrl, { params }).pipe(
+      switchMap((summaries) =>
+        summaries.length ? forkJoin(summaries.map((s) => this.getById(s.id))) : of<SaleInvoice[]>([]),
+      ),
+    );
   }
 
   getById(id: string): Observable<SaleInvoice> {

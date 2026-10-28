@@ -110,9 +110,26 @@ export const navbarData: INavbarData[] = [
         ],
       },
       {
-        routeLink: 'TO DO',
+        routeLink: '/financial/accounting-notes',
         icon: 'format_list_numbered',
         label: 'Notas Contables',
+        items: [
+          {
+            routeLink: '/financial/accounting-notes/create',
+            icon: 'add_circle',
+            label: 'Registrar nota',
+          },
+          {
+            routeLink: '/financial/accounting-notes/list',
+            icon: 'list_alt',
+            label: 'Consultar notas',
+          },
+          {
+            routeLink: '/financial/accounting-notes/movements',
+            icon: 'analytics',
+            label: 'Movimientos contables',
+          },
+        ],
       },
       {
         routeLink: '/financial/reports',

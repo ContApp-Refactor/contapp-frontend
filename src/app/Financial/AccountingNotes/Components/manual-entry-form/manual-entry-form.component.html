@@ -1,0 +1,137 @@
+<p-toast></p-toast>
+
+<div class="h-full w-full rounded-2xl p-4 md:p-6">
+  <div class="mb-6">
+    <h1 class="text-xl md:text-3xl font-bold text-primary underline decoration-secondary-light underline-offset-4">
+      Registro Contable Manual
+    </h1>
+    <p class="text-gray-600 text-sm md:text-base mt-2">
+      {{ editingNoteId === null ? 'Registra una nota contable como borrador aplicando la validación de partida doble.' : 'Edita el borrador sin cambiar su número consecutivo.' }}
+    </p>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="label-title label-required">Fecha</label>
+          <p-datepicker formControlName="date" dateFormat="yy-mm-dd" [showIcon]="true" appendTo="body" styleClass="w-full"></p-datepicker>
+        </div>
+        <div>
+          <label class="label-title label-required">Tipo de documento</label>
+          <p-select [options]="documentTypes" optionLabel="label" optionValue="value" formControlName="documentTypeCode" placeholder="Seleccione" appendTo="body" styleClass="w-full"></p-select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="label-title label-required">Concepto</label>
+          <input pInputText formControlName="concept" class="input-base w-full" placeholder="Ingrese el concepto de la nota" />
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+      <h2 class="section-title mb-0">Líneas de Registro</h2>
+      <div class="flex gap-3">
+        <p-button type="button" label="Agregar línea" severity="secondary" (onClick)="addDetail()"></p-button>
+        <p-button type="submit" [label]="editingNoteId === null ? 'Guardar borrador' : 'Guardar cambios'" [loading]="saving"></p-button>
+      </div>
+    </div>
+
+    <div formArrayName="details" class="space-y-4">
+      <article
+        *ngFor="let detail of details.controls; let i = index"
+        [formGroupName]="i"
+        class="rounded-xl border border-surface-200 bg-white p-4 shadow-sm md:p-5"
+      >
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <h3 class="text-base font-semibold text-primary md:text-lg">
+            Línea {{ i + 1 }}
+          </h3>
+
+          <p-button
+            type="button"
+            label="Eliminar"
+            severity="danger"
+            [text]="true"
+            (onClick)="removeDetail(i)"
+          ></p-button>
+        </div>
+
+        <div class="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="min-w-0 md:col-span-2">
+            <label class="label-title label-required">Cuenta contable</label>
+            <p-select
+              [options]="accounts"
+              optionLabel="name"
+              formControlName="account"
+              placeholder="Seleccione una cuenta"
+              appendTo="body"
+              styleClass="w-full"
+            ></p-select>
+          </div>
+
+          <div class="min-w-0">
+            <label class="label-title">Tercero</label>
+            <p-select
+              [options]="thirdParties"
+              optionLabel="name"
+              formControlName="thirdParty"
+              placeholder="Opcional"
+              appendTo="body"
+              styleClass="w-full"
+            ></p-select>
+          </div>
+
+          <div class="min-w-0">
+            <label class="label-title">Centro de costo</label>
+            <p-select
+              [options]="costCenters"
+              optionLabel="name"
+              formControlName="costCenter"
+              placeholder="Opcional"
+              appendTo="body"
+              styleClass="w-full"
+            ></p-select>
+          </div>
+
+          <div class="min-w-0">
+            <label class="label-title">Débito</label>
+            <p-inputnumber
+              formControlName="debit"
+              mode="currency"
+              currency="COP"
+              locale="es-CO"
+              styleClass="w-full"
+            ></p-inputnumber>
+          </div>
+
+          <div class="min-w-0">
+            <label class="label-title">Crédito</label>
+            <p-inputnumber
+              formControlName="credit"
+              mode="currency"
+              currency="COP"
+              locale="es-CO"
+              styleClass="w-full"
+            ></p-inputnumber>
+          </div>
+
+          <div class="min-w-0 md:col-span-2">
+            <label class="label-title">Descripción</label>
+            <input
+              pInputText
+              formControlName="description"
+              class="input-base w-full"
+              placeholder="Descripción de la línea contable"
+            />
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="flex flex-wrap justify-end gap-6 mt-5 text-sm font-semibold text-primary">
+      <span>Total débito: {{ totalDebit | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+      <span>Total crédito: {{ totalCredit | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+      <span [class.text-green-700]="balanced" [class.text-error]="!balanced">Diferencia: {{ difference | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+    </div>
+  </form>
+</div>

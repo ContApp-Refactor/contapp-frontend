@@ -846,6 +846,14 @@ export const routes: Routes = [
         },
         children: [
           {
+            path: 'accounting-notes',
+            data: { breadcrumb: 'Notas Contables' },
+            loadChildren: () =>
+              import('./routes/modules/accounting-notes.routes').then(
+                (m) => m.ACCOUNTING_NOTES_ROUTES,
+              ),
+          },
+          {
             path: 'reports',
             data: {
               breadcrumb: 'Reportes',

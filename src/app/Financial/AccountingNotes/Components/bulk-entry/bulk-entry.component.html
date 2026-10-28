@@ -1,0 +1,68 @@
+<p-toast></p-toast>
+<div class="h-full w-full rounded-2xl p-4 md:p-6">
+  <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-xl font-bold text-primary underline decoration-secondary-light underline-offset-4 md:text-3xl">Registro Contable Masivo</h1>
+      <p class="mt-2 text-sm text-gray-600 md:text-base">Diligencia o importa hasta 999 líneas, revísalas y guarda la nota como borrador.</p>
+    </div>
+    <p-button label="Volver a notas" severity="secondary" [outlined]="true" routerLink="/financial/accounting-notes/list"></p-button>
+  </div>
+
+  <section class="mb-6 rounded-lg bg-white p-4 shadow-sm">
+    <div class="mb-4 flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
+      <p-button label="Descargar plantilla Excel" icon="pi pi-download" severity="secondary" [outlined]="true" styleClass="shrink-0" (onClick)="downloadTemplate()"></p-button>
+      <p-button label="Importar CSV o Excel" icon="pi pi-upload" severity="secondary" [outlined]="true" styleClass="shrink-0" ariaLabel="Importar archivo CSV o Excel" (onClick)="fileInput.click()"></p-button>
+      <input #fileInput class="hidden" type="file" accept=".csv,.xlsx,.xls" (change)="readFile($event)" />
+      <span *ngIf="fileName" class="max-w-64 shrink-0 truncate text-sm text-gray-600" [title]="fileName">{{ fileName }} · {{ lines.length }} líneas</span>
+    </div>
+    <p class="mb-4 text-xs text-gray-500">Columnas: accountCode, thirdPartyDocument, costCenterCode, debit, credit, description. Tercero, centro de costo y descripción son opcionales según la cuenta.</p>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div>
+        <label class="label-title label-required">Fecha</label>
+        <input pInputText type="date" [(ngModel)]="date" class="input-base w-full" />
+      </div>
+      <div>
+        <label class="label-title label-required">Tipo de documento</label>
+        <p-select [options]="documentTypes" optionLabel="label" optionValue="value" [(ngModel)]="documentTypeCode" placeholder="Seleccione" appendTo="body" styleClass="w-full"></p-select>
+      </div>
+      <div>
+        <label class="label-title label-required">Concepto</label>
+        <input pInputText [(ngModel)]="concept" maxlength="255" class="input-base w-full" placeholder="Concepto de la nota" />
+      </div>
+    </div>
+  </section>
+
+  <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <h2 class="section-title mb-0">Líneas de registro ({{ lines.length }}/{{ maxLines }})</h2>
+    <div class="flex gap-2">
+      <p-button label="Agregar línea" severity="secondary" [disabled]="lines.length >= maxLines" (onClick)="addLine()"></p-button>
+      <p-button label="Guardar borrador" [loading]="saving" [disabled]="loading || saving" (onClick)="save()"></p-button>
+    </div>
+  </div>
+
+  <div class="overflow-x-auto rounded-lg bg-white shadow-sm">
+    <p-table [value]="lines" [scrollable]="true" scrollHeight="60vh" [virtualScroll]="true" [virtualScrollItemSize]="58" [tableStyle]="{ 'min-width': '94rem' }" styleClass="p-datatable-striped">
+      <ng-template pTemplate="header">
+        <tr><th style="min-width: 19rem">Cuenta contable</th><th style="min-width: 15rem">Tercero</th><th style="min-width: 15rem">Centro de costo</th><th style="min-width: 12rem">Débito</th><th style="min-width: 12rem">Crédito</th><th style="min-width: 16rem">Descripción</th><th style="width: 6rem"></th></tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-line let-rowIndex="rowIndex">
+        <tr>
+          <td style="min-width: 19rem"><p-select [options]="accounts" optionLabel="name" optionValue="code" [(ngModel)]="line.accountCode" [ngModelOptions]="{standalone:true}" placeholder="Seleccione cuenta" appendTo="body" styleClass="w-full"></p-select></td>
+          <td style="min-width: 15rem"><p-select [options]="thirds" optionLabel="name" optionValue="identification" [(ngModel)]="line.thirdPartyDocument" [ngModelOptions]="{standalone:true}" placeholder="Opcional" appendTo="body" styleClass="w-full"></p-select></td>
+          <td style="min-width: 15rem"><p-select [options]="costCenters" optionLabel="name" optionValue="code" [(ngModel)]="line.costCenterCode" [ngModelOptions]="{standalone:true}" placeholder="Opcional" appendTo="body" styleClass="w-full"></p-select></td>
+          <td style="min-width: 12rem"><p-inputnumber [(ngModel)]="line.debit" [ngModelOptions]="{standalone:true}" mode="currency" currency="COP" locale="es-CO" styleClass="w-full"></p-inputnumber></td>
+          <td style="min-width: 12rem"><p-inputnumber [(ngModel)]="line.credit" [ngModelOptions]="{standalone:true}" mode="currency" currency="COP" locale="es-CO" styleClass="w-full"></p-inputnumber></td>
+          <td style="min-width: 16rem"><input pInputText [(ngModel)]="line.description" [ngModelOptions]="{standalone:true}" class="input-base w-full" /></td>
+          <td><p-button icon="pi pi-trash" severity="danger" [text]="true" [disabled]="lines.length <= 2" ariaLabel="Eliminar línea" (onClick)="removeLine(rowIndex)"></p-button></td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage"><tr><td colspan="7" class="py-6 text-center text-gray-500">Agrega líneas o importa un archivo.</td></tr></ng-template>
+    </p-table>
+  </div>
+
+  <div class="mt-4 flex flex-wrap justify-end gap-6 text-sm font-semibold text-primary">
+    <span>Total débito: {{ totalDebit | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+    <span>Total crédito: {{ totalCredit | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+    <span [class.text-green-700]="isBalanced" [class.text-error]="!isBalanced">Diferencia: {{ (totalDebit - totalCredit) | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+  </div>
+</div>

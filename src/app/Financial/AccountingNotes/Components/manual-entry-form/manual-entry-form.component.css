@@ -1,0 +1,6 @@
+:host ::ng-deep .p-select,
+:host ::ng-deep .p-datepicker,
+:host ::ng-deep .p-inputnumber,
+:host ::ng-deep .p-inputtext {
+  width: 100%;
+}

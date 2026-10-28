@@ -1,0 +1,37 @@
+<p-toast></p-toast>
+<div class="h-full w-full rounded-2xl p-4 md:p-6">
+  <div class="mb-6">
+    <h1 class="text-xl md:text-3xl font-bold text-primary underline decoration-secondary-light underline-offset-4">
+      Notas Contables
+    </h1>
+    <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+      <p class="text-gray-600 text-sm md:text-base">Consulta las notas contables registradas.</p>
+      <div class="flex flex-wrap gap-2">
+        <p-button label="Nota pequeña" severity="secondary" [outlined]="true" routerLink="/financial/accounting-notes/create"></p-button>
+        <p-button label="Registro masivo" routerLink="/financial/accounting-notes/bulk"></p-button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow-sm">
+    <p-table [value]="(notes$ | async) ?? []" [paginator]="true" [rows]="10" [rowsPerPageOptions]="[5, 10, 20]" responsiveLayout="scroll" styleClass="p-datatable-striped">
+      <ng-template pTemplate="header"><tr><th>ID</th><th>Número</th><th>Fecha</th><th>Concepto</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></ng-template>
+      <ng-template pTemplate="body" let-note>
+        <tr>
+          <td>{{ note.id }}</td>
+          <td class="font-semibold">{{ note.number }}</td>
+          <td>{{ note.date | date:'dd/MM/yyyy' }}</td>
+          <td>{{ note.concept }}</td>
+          <td>{{ note.totalAmount | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+          <td><p-tag [value]="note.status" [severity]="severity(note.status)" [attr.title]="note.annulmentReason || null"></p-tag></td>
+          <td class="flex gap-2">
+            <p-button *ngIf="note.status === 'DRAFT' && note.originModule === 'contapp-frontend'" label="Editar" severity="secondary" [outlined]="true" (onClick)="edit(note.id)"></p-button>
+            <p-button *ngIf="note.status === 'DRAFT' && note.originModule === 'contapp-frontend'" label="Descartar borrador" severity="danger" [outlined]="true" (onClick)="annulDraft(note)"></p-button>
+            <p-button *ngIf="note.status === 'DRAFT'" label="Contabilizar" (onClick)="post(note.id)"></p-button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage"><tr><td colspan="7" class="text-center py-8 text-gray-600">No hay notas contables registradas.</td></tr></ng-template>
+    </p-table>
+  </div>
+</div>

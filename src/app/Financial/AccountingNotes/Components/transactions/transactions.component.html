@@ -1,0 +1,34 @@
+<p-toast></p-toast>
+
+<div class="h-full w-full rounded-2xl p-4 md:p-6">
+  <div class="mb-6">
+    <h1 class="text-xl md:text-3xl font-bold text-primary underline decoration-secondary-light underline-offset-4">Libro Auxiliar</h1>
+    <p class="text-gray-600 text-sm md:text-base mt-2">Consulta los movimientos manuales y los registros contables integrados para una cuenta. Los saldos se presentan como débitos menos créditos.</p>
+  </div>
+
+  <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
+      <div><label class="label-title label-required">Cuenta contable</label><input pInputText [(ngModel)]="accountCode" class="input-base w-full" placeholder="Código de cuenta" /></div>
+      <div><label class="label-title label-required">Fecha inicial</label><p-datepicker [(ngModel)]="startDate" dateFormat="yy-mm-dd" [showIcon]="true" styleClass="w-full"></p-datepicker></div>
+      <div><label class="label-title label-required">Fecha final</label><p-datepicker [(ngModel)]="endDate" dateFormat="yy-mm-dd" [showIcon]="true" styleClass="w-full"></p-datepicker></div>
+      <div><label class="label-title">Tercero</label><input pInputText [(ngModel)]="thirdPartyId" class="input-base w-full" placeholder="Opcional" /></div>
+      <div><label class="label-title">Centro de costo</label><input pInputText [(ngModel)]="costCenterCode" class="input-base w-full" placeholder="Código o ID" /></div>
+      <div><label class="label-title">Origen</label><p-select [options]="sources" [(ngModel)]="originModule" placeholder="Todos" [showClear]="true" styleClass="w-full"></p-select></div>
+    </div>
+    <div class="flex justify-end mt-5"><p-button label="Consultar" [loading]="loading" (onClick)="search()"></p-button></div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4 text-sm font-semibold text-primary">
+    <div class="rounded-lg bg-white p-3 shadow-sm">Saldo anterior: {{ previousBalance | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
+    <div class="rounded-lg bg-white p-3 shadow-sm">Débitos del periodo: {{ totalDebit | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
+    <div class="rounded-lg bg-white p-3 shadow-sm">Créditos del periodo: {{ totalCredit | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
+    <div class="rounded-lg bg-white p-3 shadow-sm">Saldo final: {{ closingBalance | currency:'COP':'symbol-narrow':'1.0-0' }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow-sm">
+    <p-table [value]="movements" [paginator]="true" [rows]="10" responsiveLayout="scroll" styleClass="p-datatable-striped">
+      <ng-template pTemplate="header"><tr><th>Fecha</th><th>Tipo</th><th>Documento</th><th>Origen</th><th>Cuenta</th><th>Tercero</th><th>Centro costo</th><th>Descripción</th><th>Estado</th><th>Débito</th><th>Crédito</th></tr></ng-template>
+      <ng-template pTemplate="body" let-movement><tr><td>{{ movement.date | date:'dd/MM/yyyy' }}</td><td>{{ movement.documentTypeCode }}</td><td>{{ movement.noteNumber }}</td><td>{{ movement.originModule }}<small class="block text-gray-500">{{ movement.originId }}</small></td><td>{{ movement.accountCode }}</td><td>{{ movement.thirdPartyId || '—' }}</td><td>{{ movement.costCenterCode || '—' }}</td><td>{{ movement.description || movement.concept }}</td><td>{{ movement.status }}</td><td>{{ movement.debit | currency:'COP':'symbol-narrow':'1.0-0' }}</td><td>{{ movement.credit | currency:'COP':'symbol-narrow':'1.0-0' }}</td></tr></ng-template>
+      <ng-template pTemplate="emptymessage"><tr><td colspan="11" class="text-center py-8 text-gray-600">No hay movimientos para los filtros seleccionados.</td></tr></ng-template>
+    </p-table>
+  </div>
+</div>

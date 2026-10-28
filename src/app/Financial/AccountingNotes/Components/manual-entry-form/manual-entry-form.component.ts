@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -13,6 +13,7 @@ import { LocalStorageMethods } from '../../../../Shared/Methods/local-storage.me
 import { AccountingNoteService } from '../../Services/accounting-note.service';
 import { ManualEntryEventsService } from '../../Services/manual-entry-events.service';
 import { AccountingCatalogFacade } from '../../Services/accounting-catalog.facade';
+import { accountingErrorMessage } from '../../Services/accounting-error-message';
 import {
   AccountOption,
   AccountingNoteRequest,
@@ -25,7 +26,7 @@ import {
   selector: 'app-manual-entry-form',
   standalone: true,
   imports: [
-    CommonModule, ReactiveFormsModule, DatePickerModule, InputNumberModule,
+    CommonModule, RouterLink, ReactiveFormsModule, DatePickerModule, InputNumberModule,
     InputTextModule, SelectModule, ButtonModule, ToastModule,
   ],
   templateUrl: './manual-entry-form.component.html',
@@ -93,12 +94,12 @@ export class ManualEntryFormComponent implements OnInit {
           this.loadDraft(this.editingNoteId);
         }
       },
-      error: () => {
+      error: (error) => {
         this.loadingCatalogs = false;
         this.messages.add({
           severity: 'error',
           summary: 'No se pudieron cargar los catálogos',
-          detail: 'Verifica la empresa activa y la disponibilidad de los servicios de configuración.',
+          detail: accountingErrorMessage(error, 'Verifica la empresa activa y vuelve a intentarlo.'),
         });
       },
     });
@@ -193,7 +194,11 @@ export class ManualEntryFormComponent implements OnInit {
       },
       error: (error) => {
         this.saving = false;
-        this.messages.add({ severity: 'error', summary: 'No fue posible registrar', detail: error.error?.error ?? error.error?.message ?? 'Error en el servicio.' });
+        this.messages.add({
+          severity: 'error',
+          summary: this.editingNoteId === null ? 'No fue posible crear la nota' : 'No fue posible actualizar el borrador',
+          detail: accountingErrorMessage(error, 'Revisa los datos de la nota e inténtalo de nuevo.'),
+        });
       },
     });
   }
@@ -233,8 +238,12 @@ export class ManualEntryFormComponent implements OnInit {
           this.details.push(detail);
         });
       },
-      error: () => {
-        this.messages.add({ severity: 'error', summary: 'No se pudo cargar', detail: 'No fue posible obtener el borrador.' });
+      error: (error) => {
+        this.messages.add({
+          severity: 'error',
+          summary: 'No se pudo cargar el borrador',
+          detail: accountingErrorMessage(error, 'Verifica que el borrador pertenezca a la empresa activa.'),
+        });
         void this.router.navigate(['/financial/accounting-notes/list']);
       },
     });

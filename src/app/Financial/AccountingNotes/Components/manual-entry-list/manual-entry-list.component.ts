@@ -1,7 +1,7 @@
 import { AsyncPipe, CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { catchError, Observable, of } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -11,6 +11,7 @@ import { AccountingNoteResponse } from '../../Models/accounting-note.models';
 import { LocalStorageMethods } from '../../../../Shared/Methods/local-storage.method';
 import { AccountingNoteService } from '../../Services/accounting-note.service';
 import { ManualEntryEventsService } from '../../Services/manual-entry-events.service';
+import { accountingErrorMessage } from '../../Services/accounting-error-message';
 
 @Component({
   selector: 'app-manual-entry-list',
@@ -37,7 +38,18 @@ export class ManualEntryListComponent implements OnInit {
 
   load(): void {
     const enterpriseId = this.localStorage.getIdEnterprise();
-    this.notes$ = enterpriseId ? this.noteService.getAll(enterpriseId) : of([]);
+    if (!enterpriseId) {
+      this.notes$ = of([]);
+      return;
+    }
+    this.notes$ = this.noteService.getAll(enterpriseId).pipe(catchError(error => {
+      this.messages.add({
+        severity: 'error',
+        summary: 'No se pudieron cargar las notas',
+        detail: accountingErrorMessage(error, 'Actualiza la pantalla e inténtalo de nuevo.'),
+      });
+      return of([]);
+    }));
   }
 
   edit(noteId: number): void { void this.router.navigate(['/financial/accounting-notes/edit', noteId]); }
@@ -53,7 +65,11 @@ export class ManualEntryListComponent implements OnInit {
         this.events.refresh();
         this.messages.add({ severity: 'success', summary: 'Nota contabilizada', detail: 'El borrador ahora forma parte de los movimientos contables.' });
       },
-      error: (error) => this.messages.add({ severity: 'error', summary: 'No fue posible contabilizar', detail: error.error?.error ?? 'Verifica el estado y la empresa de la nota.' }),
+      error: error => this.messages.add({
+        severity: 'error',
+        summary: 'No fue posible contabilizar la nota',
+        detail: accountingErrorMessage(error, 'Verifica que la nota siga como borrador y pertenezca a la empresa activa.'),
+      }),
     });
   }
 
@@ -70,7 +86,7 @@ export class ManualEntryListComponent implements OnInit {
       error: (error) => this.messages.add({
         severity: 'error',
         summary: 'No fue posible anular',
-        detail: error.error?.error ?? 'Verifica el estado y la empresa de la nota.',
+        detail: accountingErrorMessage(error, 'Verifica que la nota sea un borrador manual de la empresa activa.'),
       }),
     });
   }

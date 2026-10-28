@@ -11,6 +11,7 @@ import { ToastModule } from 'primeng/toast';
 import { AccountingNoteService } from '../../Services/accounting-note.service';
 import { MovementItem } from '../../Models/accounting-note.models';
 import { LocalStorageMethods } from '../../../../Shared/Methods/local-storage.method';
+import { accountingErrorMessage } from '../../Services/accounting-error-message';
 
 @Component({
   selector: 'app-accounting-transactions',
@@ -62,7 +63,14 @@ export class TransactionsComponent {
         this.movements = response.movements;
         this.loading = false;
       },
-      error: () => { this.loading = false; this.messages.add({ severity: 'error', summary: 'Error', detail: 'No fue posible consultar los movimientos.' }); },
+      error: error => {
+        this.loading = false;
+        this.messages.add({
+          severity: 'error',
+          summary: 'No fue posible consultar los movimientos',
+          detail: accountingErrorMessage(error, 'Revisa la cuenta, el periodo y los filtros e inténtalo de nuevo.'),
+        });
+      },
     });
   }
 

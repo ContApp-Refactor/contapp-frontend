@@ -1,13 +1,30 @@
 <p-toast></p-toast>
 
 <div class="h-full w-full rounded-2xl p-4 md:p-6">
-  <div class="mb-6">
-    <h1 class="text-xl md:text-3xl font-bold text-primary underline decoration-secondary-light underline-offset-4">
-      Registro Contable Manual
-    </h1>
-    <p class="text-gray-600 text-sm md:text-base mt-2">
-      {{ editingNoteId === null ? 'Registra una nota contable como borrador aplicando la validación de partida doble.' : 'Edita el borrador sin cambiar su número consecutivo.' }}
-    </p>
+  <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 class="text-xl md:text-3xl font-bold text-primary underline decoration-secondary-light underline-offset-4">
+        Registro Contable Manual
+      </h1>
+      <p class="text-gray-600 text-sm md:text-base mt-2">
+        {{ editingNoteId === null ? 'Registra una nota contable como borrador aplicando la validación de partida doble.' : 'Edita el borrador sin cambiar su número consecutivo.' }}
+      </p>
+    </div>
+    <div *ngIf="editingNoteId === null" class="ml-auto flex flex-wrap justify-end gap-2">
+      <p-button
+        type="button"
+        label="Consulta de notas"
+        severity="secondary"
+        [outlined]="true"
+        routerLink="/financial/accounting-notes/list"
+      ></p-button>
+      <p-button
+        type="button"
+        label="Registro masivo"
+        icon="pi pi-table"
+        routerLink="/financial/accounting-notes/bulk"
+      ></p-button>
+    </div>
   </div>
 
   <form [formGroup]="form" (ngSubmit)="save()">

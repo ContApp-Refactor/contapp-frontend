@@ -14,6 +14,7 @@ import { LocalStorageMethods } from '../../../../Shared/Methods/local-storage.me
 import { AccountingCatalogFacade } from '../../Services/accounting-catalog.facade';
 import { AccountingNoteService } from '../../Services/accounting-note.service';
 import { ManualEntryEventsService } from '../../Services/manual-entry-events.service';
+import { accountingErrorMessage } from '../../Services/accounting-error-message';
 import {
   AccountOption,
   AccountingNoteDetailRequest,
@@ -69,9 +70,13 @@ export class BulkEntryComponent implements OnInit {
         this.documentTypeCode = this.documentTypes[0]?.value ?? '';
         this.loading = false;
       },
-      error: () => {
+      error: error => {
         this.loading = false;
-        this.messages.add({ severity: 'error', summary: 'No se pudieron cargar los catálogos', detail: 'Verifica la empresa activa y la disponibilidad de los servicios.' });
+        this.messages.add({
+          severity: 'error',
+          summary: 'No se pudieron cargar los catálogos',
+          detail: accountingErrorMessage(error, 'Verifica la empresa activa y vuelve a intentarlo.'),
+        });
       },
     });
   }
@@ -189,7 +194,11 @@ export class BulkEntryComponent implements OnInit {
       },
       error: error => {
         this.saving = false;
-        this.messages.add({ severity: 'error', summary: 'No se pudo crear la nota', detail: error.error?.message ?? error.error?.error ?? 'Revisa las líneas y los catálogos.' });
+        this.messages.add({
+          severity: 'error',
+          summary: 'No se pudo crear la nota',
+          detail: accountingErrorMessage(error, 'Revisa el encabezado, las líneas y los catálogos e inténtalo de nuevo.'),
+        });
       },
     });
   }

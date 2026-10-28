@@ -5,15 +5,20 @@
       <h1 class="text-xl font-bold text-primary underline decoration-secondary-light underline-offset-4 md:text-3xl">Registro Contable Masivo</h1>
       <p class="mt-2 text-sm text-gray-600 md:text-base">Diligencia o importa hasta 999 líneas, revísalas y guarda la nota como borrador.</p>
     </div>
-    <p-button label="Volver a notas" severity="secondary" [outlined]="true" routerLink="/financial/accounting-notes/list"></p-button>
   </div>
 
   <section class="mb-6 rounded-lg bg-white p-4 shadow-sm">
-    <div class="mb-4 flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
-      <p-button label="Descargar plantilla Excel" icon="pi pi-download" severity="secondary" [outlined]="true" styleClass="shrink-0" (onClick)="downloadTemplate()"></p-button>
-      <p-button label="Importar CSV o Excel" icon="pi pi-upload" severity="secondary" [outlined]="true" styleClass="shrink-0" ariaLabel="Importar archivo CSV o Excel" (onClick)="fileInput.click()"></p-button>
-      <input #fileInput class="hidden" type="file" accept=".csv,.xlsx,.xls" (change)="readFile($event)" />
-      <span *ngIf="fileName" class="max-w-64 shrink-0 truncate text-sm text-gray-600" [title]="fileName">{{ fileName }} · {{ lines.length }} líneas</span>
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1">
+        <p-button label="Descargar plantilla Excel" icon="pi pi-download" severity="secondary" [outlined]="true" styleClass="shrink-0" (onClick)="downloadTemplate()"></p-button>
+        <p-button label="Importar CSV o Excel" icon="pi pi-upload" severity="secondary" [outlined]="true" styleClass="shrink-0" ariaLabel="Importar archivo CSV o Excel" (onClick)="fileInput.click()"></p-button>
+        <input #fileInput class="hidden" type="file" accept=".csv,.xlsx,.xls" (change)="readFile($event)" />
+        <span *ngIf="fileName" class="max-w-64 shrink-0 truncate text-sm text-gray-600" [title]="fileName">{{ fileName }} · {{ lines.length }} líneas</span>
+      </div>
+      <div class="ml-auto flex flex-wrap justify-end gap-2">
+        <p-button label="Nota pequeña" severity="secondary" [outlined]="true" routerLink="/financial/accounting-notes/create"></p-button>
+        <p-button label="Consulta de notas" routerLink="/financial/accounting-notes/list"></p-button>
+      </div>
     </div>
     <p class="mb-4 text-xs text-gray-500">Columnas: accountCode, thirdPartyDocument, costCenterCode, debit, credit, description. Tercero, centro de costo y descripción son opcionales según la cuenta.</p>
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -40,8 +45,8 @@
     </div>
   </div>
 
-  <div class="overflow-x-auto rounded-lg bg-white shadow-sm">
-    <p-table [value]="lines" [scrollable]="true" scrollHeight="60vh" [virtualScroll]="true" [virtualScrollItemSize]="58" [tableStyle]="{ 'min-width': '94rem' }" styleClass="p-datatable-striped">
+  <div class="rounded-lg bg-white shadow-sm">
+    <p-table [value]="lines" responsiveLayout="scroll" [tableStyle]="{ 'min-width': '94rem' }" styleClass="p-datatable-striped">
       <ng-template pTemplate="header">
         <tr><th style="min-width: 19rem">Cuenta contable</th><th style="min-width: 15rem">Tercero</th><th style="min-width: 15rem">Centro de costo</th><th style="min-width: 12rem">Débito</th><th style="min-width: 12rem">Crédito</th><th style="min-width: 16rem">Descripción</th><th style="width: 6rem"></th></tr>
       </ng-template>

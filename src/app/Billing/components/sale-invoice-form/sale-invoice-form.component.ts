@@ -244,6 +244,23 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Atajo a Clientes/Proveedores: asegura el borrador guardado y deja el rastro para volver. */
+  async createClient(): Promise<void> {
+    if (!this.editable()) return;
+    this.busy.set(true);
+    try {
+      await this.persist();
+      const returnTo = `${this.cfg().basePath}/${this.invoiceId() ?? 'new'}`;
+      await this.router.navigate(['/gen-masters/third-parties/list'], {
+        queryParams: buildReturnQuery(returnTo),
+      });
+    } catch (e) {
+      this.toast('error', 'No se pudo guardar el borrador', this.errorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   // --- edición de cabecera y líneas ---
 
   onClientChange(id: string | null): void {

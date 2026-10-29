@@ -1,7 +1,8 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
+import { safeReturnTo } from '../../../../Billing/utils/return-trail';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -99,6 +100,9 @@ export class ThirdListComponent implements OnInit {
 
   bulkStateToggle = true; // Default to active
 
+  // Ruta segura para "Volver a factura" (solo si llegó con ?returnTo=/billing/...)
+  returnTo: string | null = null;
+
   isImporting = false;
   isExporting = false;
 
@@ -154,6 +158,7 @@ export class ThirdListComponent implements OnInit {
     private readonly messageService: MessageService,
     private readonly confirmationService: ConfirmationService,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly localStorageMethods: LocalStorageMethods,
     public readonly thirdValidationMessagesService: ThirdValidationMessagesService,
     private readonly helpCenterService: HelpCenterService
@@ -163,6 +168,7 @@ export class ThirdListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.returnTo = safeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'));
     this.loadThirds();
     this.getThirdTypes();
     this.getTypesID();
@@ -170,6 +176,10 @@ export class ThirdListComponent implements OnInit {
     if (savedBulkState !== null) {
       this.bulkStateToggle = JSON.parse(savedBulkState);
     }
+  }
+
+  goBackToInvoice(): void {
+    if (this.returnTo) this.router.navigateByUrl(this.returnTo);
   }
 
   /**

@@ -1,12 +1,14 @@
 import { Routes } from '@angular/router';
 import { BillingCounterpartyCatalog } from '../Billing/services/billing-counterparty-catalog';
-import { MockBillingCounterpartyCatalog } from '../Billing/services/mock-billing-counterparty-catalog';
+import { InventoryBillingCounterpartyCatalog } from '../Billing/services/inventory-billing-counterparty-catalog.service';
 import { BillingProductCatalog } from '../Billing/services/billing-product-catalog';
-import { MockBillingProductCatalog } from '../Billing/services/mock-billing-product-catalog';
+import { InventoryBillingProductCatalog } from '../Billing/services/inventory-billing-product-catalog.service';
 import { BillingSaleInvoiceApi } from '../Billing/services/billing-sale-invoice.api';
 import { MockBillingSaleInvoiceApi } from '../Billing/services/mock-billing-sale-invoice.api';
+import { BillingHttpSaleInvoiceApi } from '../Billing/services/billing-http-sale-invoice.api';
 import { BillingSaleReturnApi } from '../Billing/services/billing-sale-return.api';
 import { MockBillingSaleReturnApi } from '../Billing/services/mock-billing-sale-return.api';
+import { BillingHttpSaleReturnApi } from '../Billing/services/billing-http-sale-return.api';
 
 export const BILLING_ROUTES: Routes = [
   {
@@ -15,12 +17,10 @@ export const BILLING_ROUTES: Routes = [
     data: { breadcrumb: null },
     // Para pasar a HTTP: cambiar `useClass` por la implementación real (única línea a tocar)
     providers: [
-      { provide: BillingSaleInvoiceApi, useClass: MockBillingSaleInvoiceApi },
-      { provide: BillingSaleReturnApi, useClass: MockBillingSaleReturnApi },
-      // Catálogo con datos quemados. Para usar los productos reales: InventoryBillingProductCatalog
-      { provide: BillingProductCatalog, useClass: MockBillingProductCatalog },
-      // Clientes (venta) y proveedores (compra) con datos quemados
-      { provide: BillingCounterpartyCatalog, useClass: MockBillingCounterpartyCatalog },
+      { provide: BillingSaleInvoiceApi, useClass: BillingHttpSaleInvoiceApi },
+      { provide: BillingSaleReturnApi, useClass: BillingHttpSaleReturnApi },
+      { provide: BillingProductCatalog, useClass: InventoryBillingProductCatalog },
+      { provide: BillingCounterpartyCatalog, useClass: InventoryBillingCounterpartyCatalog },
     ],
     children: [
       {

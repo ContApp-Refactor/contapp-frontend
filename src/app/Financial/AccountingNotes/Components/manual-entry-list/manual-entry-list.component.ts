@@ -22,6 +22,7 @@ import { accountingErrorMessage } from '../../Services/accounting-error-message'
 })
 export class ManualEntryListComponent implements OnInit {
   notes$!: Observable<AccountingNoteResponse[]>;
+  readonly postingNoteIds = new Set<number>();
 
   constructor(
     private readonly noteService: AccountingNoteService,
@@ -60,16 +61,46 @@ export class ManualEntryListComponent implements OnInit {
       this.messages.add({ severity: 'warn', summary: 'Empresa no seleccionada', detail: 'Selecciona una empresa para contabilizar la nota.' });
       return;
     }
+    if (this.postingNoteIds.has(noteId)) return;
+
+    this.postingNoteIds.add(noteId);
     this.noteService.postDraft(noteId, enterpriseId).subscribe({
       next: () => {
         this.events.refresh();
+        this.postingNoteIds.delete(noteId);
         this.messages.add({ severity: 'success', summary: 'Nota contabilizada', detail: 'El borrador ahora forma parte de los movimientos contables.' });
       },
-      error: error => this.messages.add({
-        severity: 'error',
-        summary: 'No fue posible contabilizar la nota',
-        detail: accountingErrorMessage(error, 'Verifica que la nota siga como borrador y pertenezca a la empresa activa.'),
-      }),
+      error: error => {
+        // Si se cortó la respuesta después del commit, una nueva consulta permite
+        // distinguir ese caso de un fallo real y evita dejar la fila como DRAFT.
+        this.noteService.getById(noteId, enterpriseId).subscribe({
+          next: currentNote => {
+            this.events.refresh();
+            this.postingNoteIds.delete(noteId);
+            if (currentNote.status === 'POSTED') {
+              this.messages.add({
+                severity: 'success',
+                summary: 'Nota contabilizada',
+                detail: 'El servidor confirmó la contabilización; se actualizó el estado de la nota.',
+              });
+              return;
+            }
+            this.messages.add({
+              severity: 'error',
+              summary: 'No fue posible contabilizar la nota',
+              detail: accountingErrorMessage(error, 'La nota continúa como borrador. Verifica los datos e inténtalo de nuevo.'),
+            });
+          },
+          error: () => {
+            this.postingNoteIds.delete(noteId);
+            this.messages.add({
+              severity: 'error',
+              summary: 'No se pudo confirmar el estado de la nota',
+              detail: accountingErrorMessage(error, 'Actualiza la lista antes de volver a intentar contabilizarla.'),
+            });
+          },
+        });
+      },
     });
   }
 

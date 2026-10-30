@@ -27,7 +27,13 @@
           <td class="flex gap-2">
             <p-button *ngIf="note.status === 'DRAFT' && note.originModule === 'contapp-frontend'" label="Editar" severity="secondary" [outlined]="true" (onClick)="edit(note.id)"></p-button>
             <p-button *ngIf="note.status === 'DRAFT' && note.originModule === 'contapp-frontend'" label="Descartar borrador" severity="danger" [outlined]="true" (onClick)="annulDraft(note)"></p-button>
-            <p-button *ngIf="note.status === 'DRAFT'" label="Contabilizar" (onClick)="post(note.id)"></p-button>
+            <p-button
+              *ngIf="note.status === 'DRAFT'"
+              label="Contabilizar"
+              [loading]="postingNoteIds.has(note.id)"
+              [disabled]="postingNoteIds.has(note.id)"
+              (onClick)="post(note.id)">
+            </p-button>
           </td>
         </tr>
       </ng-template>

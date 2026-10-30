@@ -9,7 +9,7 @@ import { AuthService } from '../../auth/services/auth.service';
 import { InvoicePortfolioService } from '../../../Financial/Wallet/PortfolioManagement/Service/invoice-portfolio.service';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
 import { HelpCenterService } from '../../../Shared/services/help-center.service';
-import { filter, Subscription } from 'rxjs';
+import { filter, Subscription, Subject, debounceTime } from 'rxjs';
 import {
   ExternalNotification,
   NotificationBellComponent,
@@ -51,6 +51,7 @@ export class HeaderComponent implements OnInit {
   showNotifications: boolean = false;
   externalNotifications: ExternalNotification[] = [];
   private routerSubscription: Subscription | undefined;
+  private navigationEndSubject = new Subject<void>();
 
   constructor(
     private router: Router,
@@ -68,8 +69,12 @@ export class HeaderComponent implements OnInit {
         )
       )
       .subscribe(() => {
-        this.checkEnterpriseStatus();
+        this.navigationEndSubject.next();
       });
+
+    this.navigationEndSubject
+      .pipe(debounceTime(1000))
+      .subscribe(() => this.checkEnterpriseStatus());
   }
 
   ngOnInit(): void {

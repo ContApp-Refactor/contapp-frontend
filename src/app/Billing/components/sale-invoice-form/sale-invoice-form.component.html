@@ -152,26 +152,39 @@
         <div class="flex flex-col">
           <label for="billingClient" class="font-normal text-primary mb-4">{{ cfg().counterparty }}:</label>
           @if (editable()) {
-            <p-dropdown
-              inputId="billingClient"
-              [options]="clients()"
-              optionLabel="name"
-              optionValue="id"
-              [ngModel]="clientId()"
-              (ngModelChange)="onClientChange($event)"
-              [placeholder]="'Selecciona un ' + cfg().counterpartyLower + '...'"
-              [filter]="true"
-              filterBy="name,document"
-              styleClass="w-full md:w-1/2"
-              size="small"
-            >
-              <ng-template let-client pTemplate="item">
-                <div class="flex flex-col">
-                  <span class="font-semibold">{{ client.name }}</span>
-                  <small>{{ client.document }}</small>
-                </div>
-              </ng-template>
-            </p-dropdown>
+            <div class="flex flex-col gap-4">
+              <p-dropdown
+                inputId="billingClient"
+                [options]="clients()"
+                optionLabel="name"
+                optionValue="id"
+                [ngModel]="clientId()"
+                (ngModelChange)="onClientChange($event)"
+                [placeholder]="'Selecciona un ' + cfg().counterpartyLower + '...'"
+                [filter]="true"
+                filterBy="name,document"
+                styleClass="w-full md:w-1/2"
+                size="small"
+              >
+                <ng-template let-client pTemplate="item">
+                  <div class="flex flex-col">
+                    <span class="font-semibold">{{ client.name }}</span>
+                    <small>{{ client.document }}</small>
+                  </div>
+                </ng-template>
+              </p-dropdown>
+              <span class="text-xs text-gray-500 font-family-sans">
+                ¿No está el {{ cfg().counterpartyLower }}?
+                <button
+                  type="button"
+                  class="text-primary underline font-semibold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
+                  [disabled]="busy()"
+                  (click)="createClient()"
+                >
+                  Crear {{ cfg().counterpartyLower }}
+                </button>
+              </span>
+            </div>
           } @else {
             <span class="font-semibold">{{ clientName() }}</span>
           }

@@ -21,6 +21,8 @@ import { ChartAccountService } from '../../../../../GeneralMasters/AccountCatalo
 import { Account } from '../../../../../GeneralMasters/AccountCatalogue/models/ChartAccount';
 import { TaxList } from '../../../../Taxes/models/Tax';
 import { TaxService } from '../../../../Taxes/services/tax.service';
+import { ProductTypeService } from '../../../ProductTypes/Services/product-type.service';
+import { ProductType } from '../../../ProductTypes/Models/ProductType';
 
 @Component({
   selector: 'app-category-edit',
@@ -58,6 +60,7 @@ export class CategoryEditComponent implements OnInit {
   sale: any[] = [];
   return: any[] = [];
   taxes: TaxList[] = [];
+  productTypes: ProductType[] = [];
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -66,6 +69,7 @@ export class CategoryEditComponent implements OnInit {
     private readonly router: Router,
     private readonly chartAccountService: ChartAccountService,
     private readonly taxService: TaxService,
+    private readonly productTypeService: ProductTypeService,
     private readonly messageService: MessageService,
     public readonly categoryValidationMessagesService: CategoryValidationMessagesService
   ) {
@@ -74,10 +78,12 @@ export class CategoryEditComponent implements OnInit {
       name: ['', [Validators.required, Validators.maxLength(100)]],
       description: ['', [Validators.required, Validators.maxLength(255)]],
       taxes: [[], Validators.required],
+      productType: [null, Validators.required],
       inventory: [null, Validators.required],
       cost: [null, Validators.required],
       sale: [null, Validators.required],
-      return: [null, Validators.required]
+      return: [null, Validators.required],
+      returnPurchase: [null, Validators.required]
     });
   }
   ngOnInit(): void {
@@ -100,17 +106,21 @@ export class CategoryEditComponent implements OnInit {
   loadInitialData(): void {
     const enterpriseId = this.entData?.id || this.localStorageMethods.getIdEnterprise();
 
-    // Cargar cuentas y taxes en paralelo, luego cargar detalles de categoría
+    // Cargar cuentas, taxes y tipos de producto en paralelo, luego cargar detalles de categoría
     forkJoin([
       this.chartAccountService.getListAuxiliaryAccounts(enterpriseId),
-      this.taxService.getActiveTaxes(this.entData)
-    ]).subscribe(([accountsResult, taxesResult]) => {
+      this.taxService.getActiveTaxes(this.entData),
+      this.productTypeService.findActivate(enterpriseId)
+    ]).subscribe(([accountsResult, taxesResult, productTypesResult]) => {
       // Procesar cuentas
       this.accounts = this.mapAccountToList(accountsResult);
       this.cost = this.accounts;
       this.inventory = this.accounts;
       this.sale = this.accounts;
       this.return = this.accounts;
+
+      // Tipos de producto (PP7 HU2)
+      this.productTypes = productTypesResult;
 
       // Procesar taxes
       this.taxes = taxesResult.map(tax => ({
@@ -137,6 +147,8 @@ export class CategoryEditComponent implements OnInit {
         const costAccount = this.accounts.find(acc => acc.id === category.costId || acc.id === Number(category.costId));
         const saleAccount = this.accounts.find(acc => acc.id === category.saleId || acc.id === Number(category.saleId));
         const returnAccount = this.accounts.find(acc => acc.id === category.returnId || acc.id === Number(category.returnId));
+        const returnPurchaseAccount = this.accounts.find(acc => acc.id === category.returnPurchaseId || acc.id === Number(category.returnPurchaseId));
+        const selectedProductType = this.productTypes.find(t => t.id === category.productTypeId || t.id === Number(category.productTypeId));
 
         // Buscar los taxes correspondientes por ID
         const selectedTaxes = Array.isArray(category.taxes)
@@ -149,10 +161,12 @@ export class CategoryEditComponent implements OnInit {
             name: category.name,
             description: category.description,
             taxes: category.taxes || [], // Usar directamente los IDs, PrimeNG hará el matching
+            productType: selectedProductType || null,
             inventory: inventoryAccount || null,
             cost: costAccount || null,
             sale: saleAccount || null,
-            return: returnAccount || null
+            return: returnAccount || null,
+            returnPurchase: returnPurchaseAccount || null
           });
         }, 100);
       },
@@ -271,10 +285,12 @@ return item.code.toLowerCase().includes(term) || item.description.toLowerCase().
       name: formData.name,
       description: formData.description,
       taxes: Array.isArray(formData.taxes) ? formData.taxes : [],
+      productTypeId: formData.productType?.id || null,
       inventoryId: formData.inventory?.id || null,
       costId: formData.cost?.id || null,
       saleId: formData.sale?.id || null,
       returnId: formData.return?.id || null,
+      returnPurchaseId: formData.returnPurchase?.id || null,
       enterpriseId: this.entData?.id || this.localStorageMethods.getIdEnterprise(),
       state: this.category.state
     };
@@ -340,7 +356,9 @@ return item.code.toLowerCase().includes(term) || item.description.toLowerCase().
       formData.inventory?.id !== this.originalCategoryData.inventoryId ||
       formData.cost?.id !== this.originalCategoryData.costId ||
       formData.sale?.id !== this.originalCategoryData.saleId ||
-      formData.return?.id !== this.originalCategoryData.returnId
+      formData.return?.id !== this.originalCategoryData.returnId ||
+      (formData.productType?.id ?? null) !== (this.originalCategoryData.productTypeId ?? null) ||
+      (formData.returnPurchase?.id ?? null) !== (this.originalCategoryData.returnPurchaseId ?? null)
     );
   }
 

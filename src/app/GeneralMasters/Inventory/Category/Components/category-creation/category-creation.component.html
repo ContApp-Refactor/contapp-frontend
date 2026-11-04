@@ -79,6 +79,25 @@
           }
         </div>
 
+        <!-- Tipo de Producto o Servicio (PP7 HU2) -->
+        <div class="flex flex-col gap-2">
+          <label for="productType" class="label-required font-semibold text-primary">Tipo de Producto o Servicio</label>
+          <p-select
+            id="productType"
+            formControlName="productType"
+            [options]="productTypes"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Seleccione un tipo de producto"
+            [filter]="true"
+            [showClear]="true"
+            class="w-full md:w-2/3"
+          ></p-select>
+          @if (categoryValidationMessagesService.hasFieldError(categoryForm.get('productType'))) {
+          <div class="error-message">{{ categoryValidationMessagesService.getFieldErrorMessage(categoryForm.get('productType'), 'productType') }}</div>
+          }
+        </div>
+
         <!-- Cuenta de Inventario -->
         <div class="flex flex-col gap-2">
           <label for="inventory" class="label-required font-semibold text-primary">Cuenta de Inventario</label>
@@ -166,9 +185,9 @@
           }
         </div>
 
-        <!-- Cuenta de Devolución -->
+        <!-- Cuenta de Devolución en Venta (antes "Devolución"; PP7 HU2 aclara que returnId es venta) -->
         <div class="flex flex-col gap-2">
-          <label for="return" class="label-required font-semibold text-primary">Cuenta de Devolución</label>
+          <label for="return" class="label-required font-semibold text-primary">Cuenta de Devolución en Venta</label>
           <p-select
             id="return"
             formControlName="return"
@@ -192,6 +211,35 @@
           </p-select>
           @if (categoryValidationMessagesService.hasFieldError(categoryForm.get('return'))) {
           <div class="error-message">{{ categoryValidationMessagesService.getFieldErrorMessage(categoryForm.get('return'), 'return') }}</div>
+          }
+        </div>
+
+        <!-- Cuenta de Devolución en Compra (PP7 HU2) -->
+        <div class="flex flex-col gap-2">
+          <label for="returnPurchase" class="label-required font-semibold text-primary">Cuenta de Devolución en Compra</label>
+          <p-select
+            id="returnPurchase"
+            formControlName="returnPurchase"
+            [options]="return"
+            optionLabel="description"
+            optionValue="id"
+            placeholder="Seleccione una cuenta"
+            [filter]="true"
+            filterBy="code,description"
+            [showClear]="true"
+            class="w-full md:w-2/3"
+          >
+            <ng-template pTemplate="selectedItem" let-selectedOption>
+              <div *ngIf="selectedOption">
+                {{ selectedOption.code }} - {{ selectedOption.description }}
+              </div>
+            </ng-template>
+            <ng-template pTemplate="item" let-option>
+              <div>{{ option.code }} - {{ option.description }}</div>
+            </ng-template>
+          </p-select>
+          @if (categoryValidationMessagesService.hasFieldError(categoryForm.get('returnPurchase'))) {
+          <div class="error-message">{{ categoryValidationMessagesService.getFieldErrorMessage(categoryForm.get('returnPurchase'), 'returnPurchase') }}</div>
           }
         </div>
 

@@ -8,6 +8,7 @@ import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { TextareaModule } from 'primeng/textarea';
+import { CheckboxModule } from 'primeng/checkbox';
 
 import { ProductType } from '../../Models/ProductType';
 import { ProductTypeService } from '../../Services/product-type.service';
@@ -22,6 +23,7 @@ import { ProductTypeValidationMessagesService } from '../../Services/product-typ
     CardModule,
     InputTextModule,
     TextareaModule,
+    CheckboxModule,
     ButtonModule,
     ReactiveFormsModule,
     ToastModule
@@ -48,7 +50,11 @@ export class ProductTypeEditComponent implements OnInit {
   ngOnInit(): void {
     this.productTypeForm = this.formBuilder.group({
       name: ['', [Validators.required, Validators.maxLength(100)]],
-      description: ['', [Validators.required, Validators.maxLength(255)]]
+      description: ['', [Validators.required, Validators.maxLength(255)]],
+      // Clasificación HU1: los valores reales se cargan en patchValue al obtener el tipo
+      sellable: [true],
+      purchasable: [true],
+      inventoryable: [false]
     });
 
     this.entData = this.localStorageMethods.getIdEnterprise();
@@ -67,7 +73,10 @@ export class ProductTypeEditComponent implements OnInit {
           this.originalProductTypeData = { ...productType };
           this.productTypeForm.patchValue({
             name: productType.name,
-            description: productType.description
+            description: productType.description,
+            sellable: productType.sellable,
+            purchasable: productType.purchasable,
+            inventoryable: productType.inventoryable
           });
         },
         error: (error: any) => {
@@ -100,6 +109,9 @@ export class ProductTypeEditComponent implements OnInit {
         ...this.currentProductType,
         name: this.productTypeForm.value.name,
         description: this.productTypeForm.value.description,
+        sellable: this.productTypeForm.value.sellable,
+        purchasable: this.productTypeForm.value.purchasable,
+        inventoryable: this.productTypeForm.value.inventoryable,
         enterpriseId: this.entData
       };
 
@@ -169,7 +181,10 @@ export class ProductTypeEditComponent implements OnInit {
     
     return (
       formData.name !== this.originalProductTypeData.name ||
-      formData.description !== this.originalProductTypeData.description
+      formData.description !== this.originalProductTypeData.description ||
+      formData.sellable !== this.originalProductTypeData.sellable ||
+      formData.purchasable !== this.originalProductTypeData.purchasable ||
+      formData.inventoryable !== this.originalProductTypeData.inventoryable
     );
   }
 

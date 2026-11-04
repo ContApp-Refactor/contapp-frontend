@@ -2,7 +2,7 @@ import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { safeReturnTo } from '../../../../Billing/utils/return-trail';
+import { buildReturnQuery, safeReturnTo } from '../../../../Billing/utils/return-trail';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -297,7 +297,10 @@ export class ThirdListComponent implements OnInit {
    * Navega a la página de creación de terceros
    */
   navigateToCreate(): void {
-    this.router.navigate(['/gen-masters/third-parties/create']);
+    // Conserva el rastro "Volver a factura" hacia el formulario de crear tercero
+    this.router.navigate(['/gen-masters/third-parties/create'], {
+      queryParams: this.returnTo ? buildReturnQuery(this.returnTo) : undefined,
+    });
   }
 
   /**

@@ -7,7 +7,9 @@ import {
   SaleReturn,
   SaleReturnDraftInput,
 } from '../models/billing-sale-return.model';
-import { calcTotals } from '../utils/money';
+import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
+import { concurrentModificationError } from '../utils/billing-error';
+import { calcTotals, roundQty } from '../utils/money';
 import { buildAvailability, calcReturnTotals, deriveReturnState } from '../utils/sale-return';
 import { BillingSaleInvoiceApi } from './billing-sale-invoice.api';
 import { BillingSaleReturnApi } from './billing-sale-return.api';
@@ -19,9 +21,13 @@ const LATENCY_MS = 200;
 // factura original se leen por BillingSaleInvoiceApi; la factura nunca se modifica desde aquí.
 // Sirve a devoluciones de venta y de compra: las reglas son idénticas, solo cambia el `kind` heredado
 // de la factura original (que define la numeración).
+// Reglas alineadas con el back: las líneas se identifican por lineNo de la original, la cantidad es > 0 (hasta 3
+// decimales, no necesariamente entera), emitir dos veces devuelve el documento y `version` se verifica solo si llega.
+// No es fiel en: los `totals` y el `ordinal` se calculan aquí con las líneas; no hay transacciones ni concurrencia real.
 @Injectable()
 export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
   private readonly invoices = inject(BillingSaleInvoiceApi);
+  private readonly storage = inject(LocalStorageMethods);
 
   getAvailability(invoiceId: string): Observable<ReturnAvailabilityLine[]> {
     return this.invoices.getById(invoiceId).pipe(
@@ -85,6 +91,7 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
       if (input.id) {
         saleReturn = this.findOrThrow(all, input.id);
         this.assertDraft(saleReturn);
+        this.assertVersion(saleReturn, input.version);
       } else {
         saleReturn = {
           id: crypto.randomUUID(),
@@ -96,36 +103,37 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
           originalDate: invoice.date,
           clientId: invoice.clientId,
           clientName: invoice.clientName,
+          clientDocument: invoice.clientDocument ?? null,
           supplierInvoiceNumber: invoice.supplierInvoiceNumber,
           date: input.date,
           reason: '',
           lines: [],
           createdAt: now,
           updatedAt: now,
+          version: 0,
         };
         all.push(saleReturn);
       }
 
-      // Las líneas salen SIEMPRE de la factura original: precio e IVA congelados, el front solo envía cantidades
-      const availability = buildAvailability(invoice.lines, all.filter((r) => r.invoiceId === invoice.id));
-      for (const l of input.lines) {
-        if (!availability.some((a) => a.productId === l.productId)) {
-          throw new Error('El producto no pertenece a la factura original.');
-        }
-      }
-      saleReturn.lines = availability.map((a) => {
-        const cantidad = input.lines.find((l) => l.productId === a.productId)?.cantidad ?? 0;
-        if (!Number.isInteger(cantidad) || cantidad < 0) {
-          throw new Error(`La cantidad a devolver de ${a.productName} debe ser un entero mayor o igual a cero.`);
-        }
-        if (cantidad > a.available) {
+      // Las líneas salen SIEMPRE de la factura original: precio e IVA congelados, el front solo envía lineNo y cantidad
+      const availability = buildAvailability(invoice.lines, all.filter((r) => r.invoiceId === invoice.id && r.id !== saleReturn.id));
+      const seen = new Set<number>();
+      saleReturn.lines = input.lines.map((l) => {
+        const a = availability.find((x) => x.lineNo === l.lineNo);
+        if (!a) throw new Error(`La factura no tiene la línea ${l.lineNo}.`);
+        if (!seen.add(l.lineNo)) throw new Error(`La línea ${l.lineNo} de la factura original está repetida.`);
+        // Igual que el back (Quantity / @Positive): estrictamente positiva y con máximo 3 decimales
+        if (!(l.cantidad > 0)) throw new Error('La cantidad a devolver debe ser mayor que cero.');
+        if (roundQty(l.cantidad) !== l.cantidad) throw new Error('La cantidad admite máximo 3 decimales.');
+        if (l.cantidad > a.available) {
           throw new Error(`No puedes devolver más de lo disponible de ${a.productName} (${a.available}).`);
         }
         return {
+          sourceLineNo: a.lineNo,
           productId: a.productId,
           productName: a.productName,
           cantidadVendida: a.sold,
-          cantidadDevuelta: cantidad,
+          cantidadDevuelta: l.cantidad,
           precioUnitarioCents: a.precioUnitarioCents,
           ivaPct: a.ivaPct,
         };
@@ -133,34 +141,40 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
       saleReturn.date = input.date;
       saleReturn.reason = input.reason ?? '';
       saleReturn.updatedAt = now;
+      saleReturn.version = (saleReturn.version ?? 0) + 1;
 
       writeSaleReturns(all);
       return of(structuredClone(saleReturn)).pipe(delay(LATENCY_MS));
     });
   }
 
-  deleteDraft(id: string): Observable<void> {
+  deleteDraft(id: string, version?: number | null): Observable<void> {
     return defer(() => {
       const all = readSaleReturns();
-      this.assertDraft(this.findOrThrow(all, id));
+      const draft = this.findOrThrow(all, id);
+      this.assertDraft(draft);
+      this.assertVersion(draft, version);
       writeSaleReturns(all.filter((r) => r.id !== id));
       return of(void 0).pipe(delay(LATENCY_MS));
     });
   }
 
-  emit(id: string): Observable<SaleReturn> {
+  emit(id: string, version?: number | null): Observable<SaleReturn> {
     // La factura original debe seguir EMITIDA (pudo anularse mientras la devolución era borrador)
     return defer(() => {
       const draft = this.findOrThrow(readSaleReturns(), id);
-      return this.invoices.getById(draft.invoiceId).pipe(switchMap((invoice) => this.writeEmit(id, invoice)));
+      // Como el back: emitir dos veces es idempotente y devuelve el documento ya emitido
+      if (draft.status === 'EMITIDA') return of(structuredClone(draft)).pipe(delay(LATENCY_MS));
+      return this.invoices.getById(draft.invoiceId).pipe(switchMap((invoice) => this.writeEmit(id, invoice, version)));
     });
   }
 
-  private writeEmit(id: string, invoice: SaleInvoice): Observable<SaleReturn> {
+  private writeEmit(id: string, invoice: SaleInvoice, version?: number | null): Observable<SaleReturn> {
     return defer(() => {
       const all = readSaleReturns();
       const saleReturn = this.findOrThrow(all, id);
       this.assertDraft(saleReturn);
+      this.assertVersion(saleReturn, version);
 
       // Las mismas reglas que validará el backend real
       if (invoice.status !== 'EMITIDA') throw new Error('La factura original ya no está emitida.');
@@ -182,16 +196,30 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
       saleReturn.status = 'EMITIDA';
       saleReturn.emittedAt = now;
       saleReturn.updatedAt = now;
+      // RN-06: el emisor se congela al emitir (igual que la factura)
+      const enterprise = this.storage.loadEnterpriseData();
+      saleReturn.issuer = {
+        enterpriseId: enterprise?.id ?? '',
+        name: enterprise?.name || 'Empresa',
+        nit: enterprise?.nit ?? '',
+        dv: null,
+        active: true,
+      };
+      saleReturn.totals = calcReturnTotals(saleReturn.lines);
+      saleReturn.version = (saleReturn.version ?? 0) + 1;
 
       writeSaleReturns(all);
       return of(structuredClone(saleReturn)).pipe(delay(LATENCY_MS));
     });
   }
 
-  annul(id: string, reason: string): Observable<SaleReturn> {
+  annul(id: string, reason: string, version?: number | null): Observable<SaleReturn> {
     return defer(() => {
       const all = readSaleReturns();
       const saleReturn = this.findOrThrow(all, id);
+      // Como el back: anular una devolución ya ANULADA es idempotente (devuelve el documento, sin verificar la versión)
+      if (saleReturn.status === 'ANULADA') return of(structuredClone(saleReturn)).pipe(delay(LATENCY_MS));
+      this.assertVersion(saleReturn, version);
       if (saleReturn.status !== 'EMITIDA') throw new Error('Solo se pueden anular devoluciones emitidas.');
       if (!reason?.trim()) throw new Error('El motivo de anulación es obligatorio.');
 
@@ -201,6 +229,7 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
       saleReturn.annulReason = reason.trim();
       saleReturn.annulledAt = now;
       saleReturn.updatedAt = now;
+      saleReturn.version = (saleReturn.version ?? 0) + 1;
 
       writeSaleReturns(all);
       return of(structuredClone(saleReturn)).pipe(delay(LATENCY_MS));
@@ -217,6 +246,11 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
     const saleReturn = all.find((r) => r.id === id);
     if (!saleReturn) throw new Error('La devolución no existe.');
     return saleReturn;
+  }
+
+  // Bloqueo optimista: solo se verifica si llega una versión (como el back)
+  private assertVersion(saleReturn: SaleReturn, version?: number | null): void {
+    if (version != null && version !== (saleReturn.version ?? 0)) throw concurrentModificationError();
   }
 
   private assertDraft(saleReturn: SaleReturn): void {

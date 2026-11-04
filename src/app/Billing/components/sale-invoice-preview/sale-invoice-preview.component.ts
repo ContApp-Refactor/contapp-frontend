@@ -1,9 +1,9 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
-import { BillingClient, InvoiceStatus, SaleInvoiceLine } from '../../models/billing-sale-invoice.model';
+import { BillingClient, BillingIssuer, InvoiceStatus, InvoiceTotals, SaleInvoiceLine } from '../../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
-import { calcTotals, lineSubtotalCents } from '../../utils/money';
+import { calcTotals, lineSubtotalOf } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 
 // Vista previa de la factura tal como se vería impresa. Solo lectura: recibe el estado
@@ -34,9 +34,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
         <!-- Encabezado: empresa + datos del documento -->
         <div class="flex justify-between items-start gap-16 pb-16 border-b-2 border-gray-300">
           <div>
-            <p class="font-bold text-xl text-primary">{{ companyName }}</p>
-            @if (companyNit) {
-              <p class="text-gray-600 mt-4">NIT: {{ companyNit }}</p>
+            <p class="font-bold text-xl text-primary">{{ companyName() }}</p>
+            @if (companyNit()) {
+              <p class="text-gray-600 mt-4">NIT: {{ companyNit() }}</p>
             }
           </div>
           <div class="text-right">
@@ -75,7 +75,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
               <th class="text-left p-8">Descripción</th>
               <th class="text-right p-8">Cant.</th>
               <th class="text-right p-8">Vr. unitario</th>
-              <th class="text-right p-8">IVA %</th>
+              <th class="text-right p-8 whitespace-nowrap">Impuesto %</th>
               <th class="text-right p-8">Subtotal</th>
             </tr>
           </thead>
@@ -86,7 +86,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
                 <td class="p-8">{{ line.productName }}</td>
                 <td class="p-8 text-right">{{ line.cantidad }}</td>
                 <td class="p-8 text-right">{{ line.precioUnitarioCents | copCents }}</td>
-                <td class="p-8 text-right">{{ line.ivaPct }}%</td>
+                <td class="p-8 text-right">{{ line.ivaPct != null ? line.ivaPct + '%' : '—' }}</td>
                 <td class="p-8 text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
               </tr>
             } @empty {
@@ -105,15 +105,15 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
           <div class="w-full flex flex-col gap-8" style="max-width: 280px">
             <div class="flex justify-between">
               <span class="text-gray-600">Subtotal:</span>
-              <span class="font-semibold">{{ totals().subtotalCents | copCents }}</span>
+              <span class="font-semibold">{{ shownTotals().subtotalCents | copCents }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-600">IVA:</span>
-              <span class="font-semibold">{{ totals().ivaCents | copCents }}</span>
+              <span class="text-gray-600">Impuesto:</span>
+              <span class="font-semibold">{{ shownTotals().ivaCents | copCents }}</span>
             </div>
             <div class="flex justify-between items-center p-8 rounded-md bg-gray-100 text-lg">
               <span class="font-bold text-primary">TOTAL:</span>
-              <span class="font-extrabold text-primary">{{ totals().totalCents | copCents }}</span>
+              <span class="font-extrabold text-primary">{{ shownTotals().totalCents | copCents }}</span>
             </div>
           </div>
         </div>
@@ -144,18 +144,29 @@ export class SaleInvoicePreviewComponent {
   client = input<BillingClient | null>(null); // contraparte: cliente o proveedor
   supplierInvoiceNumber = input<string | null>(null); // solo compras
   lines = input.required<SaleInvoiceLine[]>();
+  totals = input<InvoiceTotals | null>(null); // los del back; solo mandan si el documento no es borrador
+  issuer = input<BillingIssuer | null>(null); // emisor congelado al emitir (RN-06); null en borrador
 
+  // El emisor del documento emitido es el congelado por el back; los datos de la empresa en localStorage
+  // quedan solo como respaldo (borradores y documentos sin emisor)
   private readonly storage = inject(LocalStorageMethods);
   private readonly enterprise = this.storage.loadEnterpriseData();
-  readonly companyName = this.enterprise?.name || 'Empresa';
-  readonly companyNit = this.enterprise?.nit || '';
+  readonly companyName = computed(() => this.issuer()?.name || this.enterprise?.name || 'Empresa');
+  readonly companyNit = computed(() => {
+    const issuer = this.issuer();
+    if (!issuer) return this.enterprise?.nit || '';
+    return issuer.nit ? (issuer.dv ? `${issuer.nit}-${issuer.dv}` : issuer.nit) : '';
+  });
 
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.kind()]);
-  totals = computed(() => calcTotals(this.lines()));
+  shownTotals = computed(() => {
+    const server = this.totals();
+    return this.status() !== 'BORRADOR' && server ? server : calcTotals(this.lines());
+  });
   watermark = computed(() => {
     const s = this.status();
     return s === 'BORRADOR' ? 'Borrador' : s === 'ANULADA' ? 'Anulada' : null;
   });
 
-  lineSubtotal = lineSubtotalCents;
+  lineSubtotal = (line: SaleInvoiceLine): number => lineSubtotalOf(line, this.status() === 'BORRADOR');
 }

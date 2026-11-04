@@ -42,7 +42,7 @@ export const BILLING_ROUTES: Routes = [
       // Compra y venta usan los mismos componentes; `data.kind` define el tipo de documento
       {
         path: 'purchase/new',
-        data: { breadcrumb: 'Nueva Factura Compra', title: 'Nueva Factura Compra', kind: 'PURCHASE' },
+        data: { breadcrumb: 'Nueva factura de compra', title: 'Nueva factura de compra', kind: 'PURCHASE' },
         loadComponent: () =>
           import('../Billing/components/sale-invoice-form/sale-invoice-form.component').then(
             (m) => m.SaleInvoiceFormComponent,
@@ -50,7 +50,7 @@ export const BILLING_ROUTES: Routes = [
       },
       {
         path: 'purchase/:id',
-        data: { breadcrumb: 'Factura Compra', title: 'Factura Compra', kind: 'PURCHASE' },
+        data: { breadcrumb: 'Factura de compra', title: 'Factura de compra', kind: 'PURCHASE' },
         loadComponent: () =>
           import('../Billing/components/sale-invoice-form/sale-invoice-form.component').then(
             (m) => m.SaleInvoiceFormComponent,
@@ -66,7 +66,7 @@ export const BILLING_ROUTES: Routes = [
       },
       {
         path: 'sale/new',
-        data: { breadcrumb: 'Nueva Factura Venta', title: 'Nueva Factura Venta', kind: 'SALE' },
+        data: { breadcrumb: 'Nueva factura de venta', title: 'Nueva factura de venta', kind: 'SALE' },
         loadComponent: () =>
           import('../Billing/components/sale-invoice-form/sale-invoice-form.component').then(
             (m) => m.SaleInvoiceFormComponent,
@@ -74,7 +74,7 @@ export const BILLING_ROUTES: Routes = [
       },
       {
         path: 'sale/:id',
-        data: { breadcrumb: 'Factura Venta', title: 'Factura Venta', kind: 'SALE' },
+        data: { breadcrumb: 'Factura de venta', title: 'Factura de venta', kind: 'SALE' },
         loadComponent: () =>
           import('../Billing/components/sale-invoice-form/sale-invoice-form.component').then(
             (m) => m.SaleInvoiceFormComponent,

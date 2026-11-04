@@ -1,4 +1,5 @@
 import { DatePipe, Location } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -6,23 +7,29 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ConfirmationService, MessageService, SharedModule } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { DialogModule } from 'primeng/dialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { TableModule } from 'primeng/table';
 import { Subject, debounceTime, firstValueFrom, forkJoin } from 'rxjs';
-import { InvoiceStatus } from '../../models/billing-sale-invoice.model';
+import { InvoiceStatus, InvoiceTotals } from '../../models/billing-sale-invoice.model';
 import { ReturnAvailabilityLine, SaleReturn } from '../../models/billing-sale-return.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
-import { calcReturnTotals, returnLineSubtotalCents } from '../../utils/sale-return';
+import { billingErrorMessage, isConcurrentModification } from '../../utils/billing-error';
+import { roundQty } from '../../utils/money';
+import { calcReturnTotals, returnLineSubtotalOf } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 
-type SaveState = 'idle' | 'pending' | 'saving' | 'saved';
+type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
-// Fila de la tabla: disponibilidad de la línea original + lo que el usuario devuelve
-type ReturnRow = ReturnAvailabilityLine & { cantidadDevuelta: number };
+// Fila de la tabla: disponibilidad de la línea original (por lineNo) + lo que el usuario devuelve.
+// `sold` es null en una devolución emitida cuando el back no trae lo vendido (se muestra "—", no 0).
+type ReturnRow = Omit<ReturnAvailabilityLine, 'sold'> & {
+  sold: number | null;
+  cantidadDevuelta: number;
+  subtotalCents?: number; // subtotal del back (solo en devoluciones no editables)
+};
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -43,7 +50,6 @@ const todayIso = (): string => {
     ButtonModule,
     ConfirmDialogModule,
     SharedModule,
-    DialogModule,
     InputNumberModule,
     TableModule,
     CopCentsPipe,
@@ -76,6 +82,8 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
   date = signal<string>(todayIso());
   reason = signal<string>('');
   rows = signal<ReturnRow[]>([]);
+  // Totales del back (solo mandan en documentos no editables; en borrador se calcula con las filas)
+  serverTotals = signal<InvoiceTotals | null>(null);
   annulReason = signal<string | null>(null);
 
   // UI
@@ -83,16 +91,16 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
   busy = signal(false);
   saveState = signal<SaveState>('idle');
 
-  // Diálogo de anulación
-  annulVisible = signal(false);
-  annulReasonText = '';
-  annulling = signal(false);
-
   // Solo el borrador es editable; EMITIDA/ANULADA son de solo lectura total
   editable = computed(() => this.status() === 'BORRADOR');
-  totals = computed(() => calcReturnTotals(this.rows()));
+  totals = computed(() => (this.editable() ? calcReturnTotals(this.rows()) : (this.serverTotals() ?? calcReturnTotals(this.rows()))));
+  // "Devolver todo" tiene sentido si queda algo por devolver que aún no esté en las casillas
+  canReturnAll = computed(() => this.rows().some((r) => r.available > r.cantidadDevuelta));
 
   private dirty = false;
+  private version: number | null = null; // versión del borrador según la última respuesta del back (bloqueo optimista)
+  private destroyed = false;
+  private autosaveFailing = false; // racha de fallos del autosave: se avisa una sola vez
   private readonly autosave$ = new Subject<void>();
   // Cadena de guardados: serializa las escrituras para no crear borradores duplicados
   private saveChain: Promise<unknown> = Promise.resolve();
@@ -103,8 +111,13 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
       .pipe(debounceTime(AUTOSAVE_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))
       .subscribe(() =>
         this.persist().catch((e) => {
-          this.saveState.set('idle');
-          this.toast('error', 'No se pudo guardar', this.errorMessage(e));
+          this.saveState.set('error');
+          // Un aviso por racha de fallos (salvo conflicto de versión, que además recarga el documento)
+          if (isConcurrentModification(e)) this.fail('No se pudo guardar', e);
+          else if (!this.autosaveFailing) {
+            this.autosaveFailing = true;
+            this.toast('error', 'No se pudo guardar', this.errorMessage(e));
+          }
         }),
       );
 
@@ -114,8 +127,11 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true; // el guardado pendiente no debe tocar la URL (location.replaceState) de otra pantalla
     // Al salir de la pantalla se persiste lo pendiente (el mock escribe de forma síncrona)
-    if (this.dirty && this.editable()) this.persist().catch(() => undefined);
+    if (this.dirty && this.editable()) {
+      this.persist().catch((e) => this.toast('error', 'No se pudo guardar el borrador al salir', this.errorMessage(e)));
+    }
   }
 
   // --- carga ---
@@ -147,7 +163,8 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadExisting(id: string): void {
+  // `reload`: recarga tras un conflicto de versión; si falla solo avisa (no saca al usuario de la pantalla)
+  private loadExisting(id: string, reload = false): void {
     this.api
       .getById(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -166,7 +183,11 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
               next: (availability) => {
                 this.rows.set(
                   availability.map((a) => {
-                    const saved = saleReturn.lines.find((l) => l.productId === a.productId)?.cantidadDevuelta ?? 0;
+                    // Se enlaza por lineNo de la factura original (sourceLineNo); sin él (datos antiguos) por producto
+                    const saved =
+                      saleReturn.lines.find((l) =>
+                        l.sourceLineNo != null ? l.sourceLineNo === a.lineNo : l.productId === a.productId,
+                      )?.cantidadDevuelta ?? 0;
                     return { ...a, cantidadDevuelta: Math.min(saved, a.available) };
                   }),
                 );
@@ -174,13 +195,13 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
               },
               error: (e) => {
                 this.toast('error', 'No se pudo cargar la disponibilidad', this.errorMessage(e));
-                this.router.navigate([this.cfg().basePath, saleReturn.invoiceId]);
+                if (!reload) this.router.navigate([this.cfg().basePath, saleReturn.invoiceId]);
               },
             });
         },
         error: () => {
           this.toast('error', 'Devolución no encontrada', 'No existe la devolución solicitada.');
-          this.router.navigate(['/billing/returns']);
+          if (!reload) this.router.navigate(['/billing/returns']);
         },
       });
   }
@@ -197,19 +218,27 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
     this.markDirty();
   }
 
-  // La cantidad se limita a [0, disponible]
+  // La cantidad se limita a [0, disponible] y admite hasta 3 decimales; 0 = no se devuelve esa línea (no se envía al back)
   setQuantity(index: number, value: number | null): void {
     this.rows.update((rows) =>
       rows.map((r, i) =>
-        i === index ? { ...r, cantidadDevuelta: Math.min(r.available, Math.max(0, Math.trunc(value ?? 0))) } : r,
+        i === index ? { ...r, cantidadDevuelta: Math.min(r.available, Math.max(0, roundQty(value ?? 0))) } : r,
       ),
     );
+    this.markDirty();
+  }
+
+  // Una sola acción: llena todas las casillas con lo disponible. Después se puede ajustar cada cantidad a mano.
+  returnAll(): void {
+    if (!this.editable() || !this.canReturnAll()) return;
+    this.rows.update((rows) => rows.map((r) => ({ ...r, cantidadDevuelta: r.available })));
     this.markDirty();
   }
 
   // --- acciones ---
 
   confirmEmit(): void {
+    if (this.busy()) return;
     const error = this.validateForEmit();
     if (error) {
       this.toast('warn', 'No se puede emitir', error);
@@ -219,13 +248,14 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
       header: 'Emitir devolución',
       icon: 'pi pi-exclamation-triangle',
       message: `Al emitir se asignará el número de la ${this.cfg().noteShort} y la devolución ya no podrá modificarse ni eliminarse. ¿Continuar?`,
-      acceptLabel: 'Emitir',
+      acceptLabel: 'Emitir devolución',
       rejectLabel: 'Cancelar',
       accept: () => this.emit(),
     });
   }
 
   confirmDelete(): void {
+    if (this.busy()) return;
     this.confirmation.confirm({
       header: 'Eliminar borrador',
       icon: 'pi pi-exclamation-triangle',
@@ -236,70 +266,48 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
     });
   }
 
-  openAnnul(): void {
-    this.annulReasonText = '';
-    this.annulVisible.set(true);
-  }
+  // Una devolución emitida no se anula (decisión de negocio): no hay botón ni diálogo de anulación.
+  // El endpoint de anular devolución sigue en el back y en BillingSaleReturnApi.annul, sin uso desde la UI.
 
-  closeAnnul(): void {
-    this.annulVisible.set(false);
-  }
-
-  async confirmAnnul(): Promise<void> {
-    if (!this.annulReasonText.trim()) {
-      this.toast('warn', 'Motivo requerido', 'Indica el motivo de la anulación.');
-      return;
-    }
-    this.annulling.set(true);
-    try {
-      const annulled = await firstValueFrom(this.api.annul(this.returnId()!, this.annulReasonText));
-      this.applyReturn(annulled);
-      this.closeAnnul();
-      this.toast('success', 'Devolución anulada', `${annulled.number} fue anulada.`);
-    } catch (e) {
-      this.toast('error', 'No se pudo anular', this.errorMessage(e));
-    } finally {
-      this.annulling.set(false);
-    }
-  }
-
-  // Vuelve a la pantalla anterior de la app; si no hay (F5, link directo) cae a la factura original.
-  // Angular guarda `navigationId` en history.state: > 1 significa que hubo una navegación previa.
+  // La devolución siempre vuelve a su factura original (única pantalla desde la que se llega a ella)
   goBack(): void {
-    const hasAppHistory = (window.history.state?.navigationId ?? 0) > 1;
-    if (hasAppHistory) {
-      this.location.back();
-    } else {
-      this.router.navigate([this.cfg().basePath, this.invoiceId()]);
-    }
+    this.router.navigate([this.cfg().basePath, this.invoiceId()]);
   }
 
   // --- internos ---
 
   private async emit(): Promise<void> {
+    if (this.busy()) return; // bandera de reentrada: N clics => una sola emisión
     this.busy.set(true);
     try {
       await this.persist(true); // asegura que lo último editado quede guardado antes de emitir
-      const emitted = await firstValueFrom(this.api.emit(this.returnId()!));
+      const emitted = await firstValueFrom(this.api.emit(this.returnId()!, this.version));
       this.applyReturn(emitted);
       this.toast('success', 'Devolución emitida', `Se asignó el número ${emitted.number}.`);
     } catch (e) {
-      this.toast('error', 'No se pudo emitir', this.errorMessage(e));
+      this.fail('No se pudo emitir', e);
+      // Sin respuesta (timeout / 5xx) el back pudo haber emitido igual: se recarga para mostrar el estado real
+      if (e instanceof HttpErrorResponse && (e.status === 0 || e.status >= 500)) this.reloadDocument();
     } finally {
       this.busy.set(false);
     }
   }
 
   private async deleteDraft(): Promise<void> {
-    const id = this.returnId();
+    if (this.busy()) return;
     this.dirty = false; // evita que ngOnDestroy vuelva a guardar lo que se acaba de borrar
     this.busy.set(true);
     try {
-      if (id) await firstValueFrom(this.api.deleteDraft(id));
+      // Espera el guardado en curso: si es el que crea el borrador, el id solo se conoce al terminar
+      // (sin esto se borraría "nada" y quedaría un borrador huérfano)
+      await this.saveChain;
+      this.dirty = false; // un guardado fallido durante la espera lo vuelve a marcar
+      const id = this.returnId();
+      if (id) await firstValueFrom(this.api.deleteDraft(id, this.version));
       this.toast('success', 'Borrador eliminado', 'El borrador fue eliminado.');
       this.router.navigate([this.cfg().basePath, this.invoiceId()]);
     } catch (e) {
-      this.toast('error', 'No se pudo eliminar', this.errorMessage(e));
+      this.fail('No se pudo eliminar', e);
     } finally {
       this.busy.set(false);
     }
@@ -337,13 +345,20 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
             invoiceId: this.invoiceId(),
             date: this.date(),
             reason: this.reason(),
-            lines: this.rows().map((r) => ({ productId: r.productId, cantidad: r.cantidadDevuelta })),
+            // Por lineNo de la factura original y solo las que se devuelven (el back exige cantidad > 0)
+            lines: this.rows()
+              .filter((r) => r.cantidadDevuelta > 0)
+              .map((r) => ({ lineNo: r.lineNo, cantidad: r.cantidadDevuelta })),
+            version: this.version, // la de la respuesta anterior (la cadena serializa los guardados)
           }),
         );
+        this.version = saved.version ?? null;
+        this.autosaveFailing = false;
         if (!this.returnId()) {
           this.returnId.set(saved.id);
           // Cambia la URL a /return/:id sin recrear el componente
-          this.location.replaceState(`/billing/return/${saved.id}`);
+          // Si el componente ya se destruyó (guardado de ngOnDestroy) no se toca la URL de la pantalla actual
+          if (!this.destroyed) this.location.replaceState(`/billing/return/${saved.id}`);
         }
         // Si el usuario siguió editando durante el guardado, queda pendiente
         this.saveState.set(this.dirty ? 'pending' : 'saved');
@@ -374,17 +389,22 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
     this.date.set(saleReturn.date);
     this.reason.set(saleReturn.reason);
     this.annulReason.set(saleReturn.annulReason ?? null);
+    this.serverTotals.set(saleReturn.totals ?? null);
+    this.version = saleReturn.version ?? null;
     if (saleReturn.status !== 'BORRADOR') {
       this.rows.set(
-        saleReturn.lines.map((l) => ({
+        saleReturn.lines.map((l, index) => ({
+          lineNo: l.sourceLineNo ?? index + 1,
           productId: l.productId,
           productName: l.productName,
-          sold: l.cantidadVendida ?? 0,
+          sold: l.cantidadVendida ?? null, // el back no trae lo vendido en la devolución: se muestra "—"
+
           returned: 0,
           available: 0,
           cantidadDevuelta: l.cantidadDevuelta,
           precioUnitarioCents: l.precioUnitarioCents,
           ivaPct: l.ivaPct,
+          ...(l.subtotalCents != null ? { subtotalCents: l.subtotalCents } : {}),
         })),
       );
     }
@@ -397,9 +417,20 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
   }
 
   private errorMessage(e: unknown): string {
-    return e instanceof Error ? e.message : 'Ocurrió un error inesperado.';
+    return billingErrorMessage(e); // incluye BILLING_IDEMPOTENCY_CONFLICT y BILLING_CONCURRENT_MODIFICATION (409)
+  }
+
+  // Toast de error; ante un 409 por bloqueo optimista además se recarga la versión vigente del documento
+  private fail(summary: string, e: unknown): void {
+    this.toast('error', summary, this.errorMessage(e));
+    if (isConcurrentModification(e)) this.reloadDocument();
+  }
+
+  private reloadDocument(): void {
+    const id = this.returnId();
+    if (id) this.loadExisting(id, true);
   }
 
   // Helper expuesto a la plantilla
-  rowSubtotal = returnLineSubtotalCents;
+  rowSubtotal = (row: ReturnRow): number => returnLineSubtotalOf(row, this.editable());
 }

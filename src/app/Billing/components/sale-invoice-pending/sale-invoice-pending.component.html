@@ -31,12 +31,13 @@
         [client]="previewClient()"
         [supplierInvoiceNumber]="inv.supplierInvoiceNumber ?? null"
         [lines]="inv.lines"
+        [totals]="inv.totals ?? null"
       />
     }
   </p-dialog>
 
   <div [class]="embedded() ? 'w-full font-medium' : 'm-10 w-full font-medium bg-white rounded-3xl p-10'">
-    <div class="flex items-start justify-between gap-16" [class.mb-12]="embedded()">
+    <div class="flex flex-wrap items-start justify-between gap-16" [class.mb-12]="embedded()">
       <div>
         @if (embedded()) {
           <h2 class="font-family-titillium font-bold text-xl text-primary m-0">Facturas pendientes</h2>
@@ -50,66 +51,92 @@
           </p>
         }
       </div>
-      <div class="flex items-center gap-8">
-        <p-dropdown
-          [options]="kindOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="kindFilter()"
-          (ngModelChange)="kindFilter.set($event)"
-          styleClass="w-150"
-          size="small"
-        ></p-dropdown>
-        <!-- Volver al menú de Facturación (no aplica cuando la tabla va dentro del propio menú) -->
-        @if (!embedded()) {
-          <p-button
-            icon="pi pi-arrow-left"
-            [rounded]="true"
-            [outlined]="true"
-            ariaLabel="Volver"
-            title="Volver"
-            (click)="goBack()"
-          ></p-button>
-        }
-      </div>
+      <!-- Volver al menú de Facturación (no aplica cuando la tabla va dentro del propio menú) -->
+      @if (!embedded()) {
+        <p-button
+          label="Volver"
+          icon="pi pi-arrow-left"
+          styleClass="p-button-outlined"
+          ariaLabel="Volver al menú de Facturación"
+          (click)="goBack()"
+        ></p-button>
+      }
+    </div>
+
+    <!-- Barra de filtros: buscador general, tipo y filtros por campo -->
+    <div class="flex flex-wrap items-center gap-8 mb-16">
+      <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
+        <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
+        <input
+          pInputText
+          type="text"
+          #search
+          (input)="dt.filterGlobal(search.value, 'contains')"
+          placeholder="Buscar en todas las columnas..."
+          class="w-full text-sm"
+        />
+      </p-iconfield>
+      <p-dropdown
+        [options]="kindOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="kindFilter()"
+        (ngModelChange)="kindFilter.set($event)"
+        styleClass="w-150"
+        size="small"
+        ariaLabel="Filtrar por tipo"
+      ></p-dropdown>
+      <!-- Filtros por campo: viven fuera de la tabla y filtran con dt.filter(valor, campo, modo) -->
+      <input pInputText type="text" #fName (input)="dt.filter(fName.value, 'counterparty', 'contains')" placeholder="Nombre" aria-label="Filtrar por nombre" class="w-150 text-sm" />
+      <input pInputText type="text" #fDate (input)="dt.filter(fDate.value, 'dateText', 'contains')" placeholder="Fecha dd/mm/aaaa" aria-label="Filtrar por fecha" class="w-150 text-sm" />
+      <input pInputText type="number" min="0" #fItems (input)="dt.filter(fItems.value === '' ? null : +fItems.value, 'itemsCount', 'equals')" placeholder="Ítems" aria-label="Filtrar por ítems" class="w-100 text-sm" />
+      <input pInputText type="number" min="0" #fTotal (input)="dt.filter(fTotal.value === '' ? null : +fTotal.value, 'totalPesos', 'equals')" placeholder="Total" aria-label="Filtrar por total" class="w-150 text-sm" />
+      <input pInputText type="text" #fUpd (input)="dt.filter(fUpd.value, 'updatedText', 'contains')" placeholder="Última edición" aria-label="Filtrar por última edición" class="w-150 text-sm" />
     </div>
 
     <div class="overflow-x-auto text-sm">
-      <p-table [value]="filtered()" [loading]="loading()" [tableStyle]="{ 'min-width': '50rem' }" styleClass="p-datatable-striped">
+      <p-table
+        #dt
+        [value]="rows()"
+        [loading]="loading()"
+        [globalFilterFields]="globalFilterFields"
+        [tableStyle]="{ 'min-width': '56rem' }"
+        styleClass="p-datatable-striped"
+      >
         <ng-template pTemplate="header">
           <tr>
             <th style="width: 7rem">Tipo</th>
             <th>Cliente / Proveedor</th>
             <th style="width: 9rem">Fecha</th>
-            <th style="width: 7rem" class="text-right">Líneas</th>
+            <th style="width: 7rem" class="text-right">Ítems</th>
             <th style="width: 11rem" class="text-right">Total</th>
             <th style="width: 12rem">Última edición</th>
-            <th style="width: 20rem"></th>
+            <th style="width: 20rem"><span class="sr-only">Acciones</span></th>
           </tr>
         </ng-template>
-        <ng-template pTemplate="body" let-draft>
+        <ng-template pTemplate="body" let-row>
           <tr>
-            <td><app-billing-kind-tag [kind]="draft.kind" /></td>
+            <td><app-billing-kind-tag [kind]="row.draft.kind" /></td>
             <td>
-              {{ counterpartyOf(draft) }}
-              @if (draft.supplierInvoiceNumber) {
-                <p class="text-xs text-gray-500">Fact. proveedor {{ draft.supplierInvoiceNumber }}</p>
+              {{ row.counterparty }}
+              @if (row.draft.supplierInvoiceNumber) {
+                <p class="text-xs text-gray-500">Fact. proveedor {{ row.draft.supplierInvoiceNumber }}</p>
               }
             </td>
-            <td>{{ draft.date | date: 'dd/MM/yyyy' }}</td>
-            <td class="text-right">{{ draft.lines.length }}</td>
-            <td class="text-right font-semibold">{{ totalOf(draft) | copCents }}</td>
-            <td>{{ draft.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td>{{ row.draft.date | date: 'dd/MM/yyyy' }}</td>
+            <td class="text-right">{{ row.itemsCount }}</td>
+            <td class="text-right font-semibold">{{ row.totalCents | copCents }}</td>
+            <td>{{ row.draft.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
             <td>
               <div class="flex items-center justify-center gap-8">
-                <p-button label="Continuar" icon="pi pi-pencil" (click)="continue(draft)"></p-button>
+                <p-button label="Continuar" icon="pi pi-pencil" (click)="continue(row.draft)"></p-button>
                 <p-button
                   icon="pi pi-eye"
                   [rounded]="true"
                   [outlined]="true"
                   ariaLabel="Vista factura"
                   title="Vista factura"
-                  (click)="openPreview(draft)"
+                  (click)="openPreview(row.draft)"
                 ></p-button>
                 <p-button
                   icon="pi pi-copy"
@@ -118,7 +145,7 @@
                   ariaLabel="Duplicar"
                   title="Duplicar"
                   [disabled]="busy()"
-                  (click)="confirmDuplicate(draft)"
+                  (click)="confirmDuplicate(row.draft)"
                 ></p-button>
                 <p-button
                   icon="pi pi-trash"
@@ -128,7 +155,7 @@
                   ariaLabel="Eliminar"
                   title="Eliminar"
                   [disabled]="busy()"
-                  (click)="confirmDelete(draft)"
+                  (click)="confirmDelete(row.draft)"
                 ></p-button>
               </div>
             </td>
@@ -136,7 +163,11 @@
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="7" class="text-center p-20">No tienes facturas pendientes.</td>
+            <td colspan="7" class="text-center p-20">
+              <i class="pi pi-file-edit text-primary text-2xl"></i>
+              <p class="mt-8">No tienes facturas pendientes.</p>
+              <p class="text-xs text-gray-500 mt-4">Los borradores se guardan solos al crear una factura.</p>
+            </td>
           </tr>
         </ng-template>
       </p-table>

@@ -4,7 +4,7 @@ import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.metho
 import { SaleReturn } from '../../models/billing-sale-return.model';
 import { DOCUMENT_KIND_CONFIG } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
-import { calcReturnTotals, returnLineSubtotalCents } from '../../utils/sale-return';
+import { returnLineSubtotalOf, returnTotals } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 
 // Vista previa de la devolución (nota crédito) tal como se vería impresa. Solo lectura.
@@ -33,9 +33,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
         <!-- Encabezado -->
         <div class="flex justify-between items-start gap-16 pb-16 border-b-2 border-gray-300">
           <div>
-            <p class="font-bold text-xl text-primary">{{ companyName }}</p>
-            @if (companyNit) {
-              <p class="text-gray-600 mt-4">NIT: {{ companyNit }}</p>
+            <p class="font-bold text-xl text-primary">{{ companyName() }}</p>
+            @if (companyNit()) {
+              <p class="text-gray-600 mt-4">NIT: {{ companyNit() }}</p>
             }
           </div>
           <div class="text-right">
@@ -63,6 +63,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
           }
           <p class="text-gray-600">Fecha: {{ saleReturn().originalDate | date: 'dd/MM/yyyy' }}</p>
           <p class="text-gray-600">{{ cfg().counterparty }}: {{ saleReturn().clientName || '—' }}</p>
+          @if (saleReturn().clientDocument) {
+            <p class="text-gray-600">Documento: {{ saleReturn().clientDocument }}</p>
+          }
         </div>
 
         <!-- Motivo -->
@@ -79,7 +82,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
               <th class="text-left p-8">Descripción</th>
               <th class="text-right p-8">Cant. devuelta</th>
               <th class="text-right p-8">Vr. unitario</th>
-              <th class="text-right p-8">IVA %</th>
+              <th class="text-right p-8 whitespace-nowrap">Impuesto %</th>
               <th class="text-right p-8">Subtotal</th>
             </tr>
           </thead>
@@ -95,7 +98,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
               </tr>
             } @empty {
               <tr>
-                <td colspan="6" class="text-center text-gray-500 p-24">Esta devolución no tiene líneas.</td>
+                <td colspan="6" class="text-center text-gray-500 p-24">Esta devolución no tiene ítems.</td>
               </tr>
             }
           </tbody>
@@ -109,7 +112,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
               <span class="font-semibold">{{ totals().subtotalCents | copCents }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-600">IVA:</span>
+              <span class="text-gray-600">Impuesto:</span>
               <span class="font-semibold">{{ totals().ivaCents | copCents }}</span>
             </div>
             <div class="flex justify-between items-center p-8 rounded-md bg-gray-100 text-lg">
@@ -141,21 +144,28 @@ export class SaleReturnPreviewComponent {
   /** Ordinal dentro de la factura (null en borradores) */
   ordinal = input<number | null>(null);
 
+  // El emisor del documento emitido es el congelado por el back (`issuer`); los datos de la empresa en
+  // localStorage quedan solo como respaldo (borradores y documentos sin emisor)
   private readonly storage = inject(LocalStorageMethods);
   private readonly enterprise = this.storage.loadEnterpriseData();
-  readonly companyName = this.enterprise?.name || 'Empresa';
-  readonly companyNit = this.enterprise?.nit || '';
+  readonly companyName = computed(() => this.saleReturn().issuer?.name || this.enterprise?.name || 'Empresa');
+  readonly companyNit = computed(() => {
+    const issuer = this.saleReturn().issuer;
+    if (!issuer) return this.enterprise?.nit || '';
+    return issuer.nit ? (issuer.dv ? `${issuer.nit}-${issuer.dv}` : issuer.nit) : '';
+  });
 
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.saleReturn().kind]);
   noteShortCapitalized = computed(() => {
     const note = this.cfg().noteShort;
     return note.charAt(0).toUpperCase() + note.slice(1);
   });
-  totals = computed(() => calcReturnTotals(this.saleReturn().lines));
+  totals = computed(() => returnTotals(this.saleReturn())); // en no-borrador mandan los totales del back
   watermark = computed(() => {
     const s = this.saleReturn().status;
     return s === 'BORRADOR' ? 'Borrador' : s === 'ANULADA' ? 'Anulada' : null;
   });
 
-  lineSubtotal = returnLineSubtotalCents;
+  lineSubtotal = (line: SaleReturn['lines'][number]): number =>
+    returnLineSubtotalOf(line, this.saleReturn().status === 'BORRADOR');
 }

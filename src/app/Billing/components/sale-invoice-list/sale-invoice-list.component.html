@@ -1,81 +1,132 @@
 <div class="flex w-full h-full font-titillium">
   <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
-    <div class="flex flex-wrap items-center justify-between gap-16 mb-20">
+    <div class="flex flex-wrap items-start justify-between gap-16 mb-20">
       <div>
         <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
           <span class="border-b-4 border-secondary-light inline-block pb-1">Ver facturas</span>
         </h1>
-        <p class="font-family-sans font-normal text-sm mt-12">Consulta, filtra y anula tus facturas de venta y compra.</p>
+        <p class="font-family-sans font-normal text-sm mt-12">
+          Consulta y filtra tus facturas de venta y compra. Para deshacer una factura emitida, devuélvela por completo.
+        </p>
       </div>
-      <div class="flex items-center gap-8">
-        <p-dropdown
-          [options]="kindOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="kindFilter()"
-          (ngModelChange)="kindFilter.set($event)"
-          styleClass="w-150"
-          size="small"
-        ></p-dropdown>
-        <p-dropdown
-          [options]="statusOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="statusFilter()"
-          (ngModelChange)="statusFilter.set($event)"
-          styleClass="w-200"
-          size="small"
-        ></p-dropdown>
-        <!-- Volver al menú de Facturación -->
-        <p-button
-          icon="pi pi-arrow-left"
-          [rounded]="true"
-          [outlined]="true"
-          ariaLabel="Volver"
-          title="Volver"
-          (click)="goBack()"
-        ></p-button>
-      </div>
+      <!-- Volver al menú de Facturación -->
+      <p-button
+        label="Volver"
+        icon="pi pi-arrow-left"
+        styleClass="p-button-outlined"
+        ariaLabel="Volver al menú de Facturación"
+        (click)="goBack()"
+      ></p-button>
+    </div>
+
+    <!-- Barra de filtros: buscador general + tipo + estado (cada columna también se filtra en su cabecera) -->
+    <div class="flex flex-wrap items-center gap-8 mb-16">
+      <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
+        <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
+        <input
+          pInputText
+          type="text"
+          #search
+          (input)="dt.filterGlobal(search.value, 'contains')"
+          placeholder="Buscar en todas las columnas..."
+          class="w-full text-sm"
+        />
+      </p-iconfield>
+      <p-dropdown
+        [options]="kindOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="kindFilter()"
+        (ngModelChange)="kindFilter.set($event)"
+        styleClass="w-150"
+        size="small"
+        ariaLabel="Filtrar por tipo"
+      ></p-dropdown>
+      <p-dropdown
+        [options]="statusOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="statusFilter()"
+        (ngModelChange)="statusFilter.set($event)"
+        styleClass="w-200"
+        size="small"
+        ariaLabel="Filtrar por estado"
+      ></p-dropdown>
+      <!-- Filtros por campo: viven fuera de la tabla y filtran con dt.filter(valor, campo, modo) -->
+      <p-dropdown
+        [options]="returnOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="returnFilter()"
+        (ngModelChange)="returnFilter.set($event); dt.filter($event, 'returnLabel', 'equals')"
+        styleClass="w-200"
+        size="small"
+        ariaLabel="Filtrar por estado de devolución"
+      ></p-dropdown>
+      <input pInputText type="text" #fNum (input)="dt.filter(fNum.value, 'numberText', 'contains')" placeholder="Número" aria-label="Filtrar por número" class="w-150 text-sm" />
+      <input pInputText type="text" #fName (input)="dt.filter(fName.value, 'counterparty', 'contains')" placeholder="Nombre" aria-label="Filtrar por nombre" class="w-150 text-sm" />
+      <input pInputText type="text" #fDate (input)="dt.filter(fDate.value, 'dateText', 'contains')" placeholder="Fecha dd/mm/aaaa" aria-label="Filtrar por fecha" class="w-150 text-sm" />
+      <input pInputText type="number" min="0" #fTotal (input)="dt.filter(fTotal.value === '' ? null : +fTotal.value, 'totalPesos', 'equals')" placeholder="Total" aria-label="Filtrar por total" class="w-150 text-sm" />
     </div>
 
     <div class="overflow-x-auto text-sm">
-      <p-table [value]="filtered()" [loading]="loading()" [tableStyle]="{ 'min-width': '60rem' }" styleClass="p-datatable-striped">
+      <p-table
+        #dt
+        [value]="rows()"
+        [loading]="loading()"
+        [globalFilterFields]="globalFilterFields"
+        [tableStyle]="{ 'min-width': '64rem' }"
+        styleClass="p-datatable-striped"
+      >
         <ng-template pTemplate="header">
           <tr>
             <th scope="col" style="width: 7rem">Tipo</th>
-            <th scope="col" style="width: 9rem">Número</th>
+            <th scope="col" style="width: 11rem">Número</th>
             <th scope="col">Cliente / Proveedor</th>
             <th scope="col" style="width: 9rem">Fecha</th>
-            <th scope="col" style="width: 9rem">Estado</th>
-            <th scope="col" style="width: 11rem" class="text-right">Total</th>
-            <th scope="col" style="width: 10rem"></th>
+            <th scope="col" style="width: 11rem">Estado</th>
+            <th scope="col" style="width: 12rem" class="text-right">Total</th>
+            <th scope="col" style="width: 8rem"><span class="sr-only">Acciones</span></th>
           </tr>
         </ng-template>
-        <ng-template pTemplate="body" let-invoice>
+        <ng-template pTemplate="body" let-row>
           <tr>
-            <td><app-billing-kind-tag [kind]="invoice.kind" /></td>
+            <td><app-billing-kind-tag [kind]="row.invoice.kind" /></td>
             <td>
-              <p class="font-semibold">{{ invoice.number ?? '—' }}</p>
-              @if (invoice.supplierInvoiceNumber) {
-                <p class="text-xs text-gray-500">Fact. proveedor {{ invoice.supplierInvoiceNumber }}</p>
+              <p class="font-semibold">{{ row.invoice.number ?? '—' }}</p>
+              @if (row.invoice.supplierInvoiceNumber) {
+                <p class="text-xs text-gray-500">Fact. proveedor {{ row.invoice.supplierInvoiceNumber }}</p>
               }
             </td>
-            <td>{{ counterpartyOf(invoice) }}</td>
-            <td>{{ invoice.date | date: 'dd/MM/yyyy' }}</td>
-            <td><app-billing-status-badge [status]="invoice.status" /></td>
-            <td class="text-right font-semibold">{{ totalOf(invoice) | copCents }}</td>
+            <td>{{ row.counterparty }}</td>
+            <td>{{ row.invoice.date | date: 'dd/MM/yyyy' }}</td>
+            <td>
+              <app-billing-status-badge [status]="row.invoice.status" />
+              @if (row.returnLabel) {
+                <span
+                  class="inline-block mt-4 px-12 py-4 rounded-full text-xs font-semibold font-family-sans"
+                  [class]="row.invoice.returnStatus === 'TOTAL' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'"
+                  >{{ row.returnLabel }}</span
+                >
+              }
+            </td>
+            <td class="text-right font-semibold">{{ row.totalCents | copCents }}</td>
             <td>
               <div class="flex justify-end gap-4">
                 <p-button
                   icon="pi pi-eye"
                   styleClass="p-button-text"
-                  (click)="view(invoice)"
+                  ariaLabel="Ver factura"
+                  title="Ver factura"
+                  (click)="view(row.invoice)"
                 ></p-button>
-                @if (invoice.status === 'EMITIDA') {
+                @if (row.invoice.status === 'EMITIDA' && row.invoice.returnStatus !== 'TOTAL') {
                   <p-button
-                    icon="pi pi-ban"
+                    icon="pi pi-replay"
                     styleClass="p-button-danger p-button-text"
-                    (click)="openAnnul(invoice)"
+                    ariaLabel="Devolver factura completa"
+                    title="Devolver factura completa"
+                    (click)="openReturn(row.invoice)"
                   ></p-button>
                 }
               </div>
@@ -84,40 +135,49 @@
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="7" class="text-center p-20">No hay facturas para mostrar.</td>
+            <td colspan="7" class="text-center p-20">
+              <i class="pi pi-inbox text-primary text-2xl"></i>
+              <p class="mt-8">No hay facturas para mostrar.</p>
+              <p class="text-xs text-gray-500 mt-4">Prueba quitando algún filtro.</p>
+            </td>
           </tr>
         </ng-template>
       </p-table>
     </div>
 
-    <!-- Anulación: solo facturas EMITIDA, motivo obligatorio -->
+    <!-- Devolver factura completa: solo facturas EMITIDA, motivo obligatorio.
+         Crea y emite una devolución por todo lo que aún esté disponible. -->
     <p-dialog
-      header="Anular factura"
+      header="Devolver factura completa"
       [modal]="true"
-      [visible]="!!annulTarget()"
-      (visibleChange)="!$event && closeAnnul()"
-      [style]="{ width: '28rem' }"
+      [visible]="!!returnTarget()"
+      (visibleChange)="!$event && closeReturn()"
+      [style]="{ width: '30rem', 'max-width': '95vw' }"
     >
-      <p class="text-sm mb-12">
-        Vas a anular la factura <strong>{{ annulTarget()?.number }}</strong
-        >. Esta acción no se puede deshacer.
-      </p>
-      <label for="annulReason" class="text-sm text-primary block mb-4">Motivo de anulación *</label>
+      @if (returnTarget(); as target) {
+        <p class="text-sm mb-12">
+          Vas a devolver por completo la factura <strong>{{ target.number }}</strong
+          >. Se creará y emitirá una devolución ({{ noteNameOf(target) }}) por todas las cantidades que aún no se hayan
+          devuelto. Esta acción no se puede deshacer.
+        </p>
+      }
+      <label for="returnReason" class="text-sm text-primary block mb-4">Motivo de la devolución *</label>
       <textarea
-        id="annulReason"
+        id="returnReason"
         rows="4"
         class="w-full border border-gray-300 rounded-md p-8 text-sm"
-        [(ngModel)]="annulReason"
+        [(ngModel)]="returnReason"
         placeholder="Describe el motivo..."
       ></textarea>
       <div class="flex justify-end gap-8 mt-16">
-        <p-button label="Cancelar" styleClass="p-button-outlined" (click)="closeAnnul()"></p-button>
+        <p-button label="Cancelar" styleClass="p-button-outlined" (click)="closeReturn()"></p-button>
         <p-button
-          label="Anular factura"
-          icon="pi pi-ban"
+          label="Devolver factura completa"
+          icon="pi pi-replay"
           styleClass="p-button-danger"
-          [loading]="annulling()"
-          (click)="confirmAnnul()"
+          [loading]="returning()"
+          [disabled]="returning()"
+          (click)="confirmReturn()"
         ></p-button>
       </div>
     </p-dialog>

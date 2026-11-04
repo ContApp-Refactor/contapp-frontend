@@ -9,38 +9,6 @@
     </ng-template>
   </p-confirmDialog>
 
-  <!-- Anulación: solo devoluciones EMITIDA, motivo obligatorio -->
-  <p-dialog
-    header="Anular devolución"
-    [modal]="true"
-    [visible]="annulVisible()"
-    (visibleChange)="!$event && closeAnnul()"
-    [style]="{ width: '28rem' }"
-  >
-    <p class="text-sm mb-12">
-      Vas a anular la devolución <strong>{{ number() }}</strong
-      >. Las cantidades quedarán disponibles para devolver de nuevo. Esta acción no se puede deshacer.
-    </p>
-    <label for="returnAnnulReason" class="text-sm text-primary block mb-4">Motivo de anulación *</label>
-    <textarea
-      id="returnAnnulReason"
-      rows="4"
-      class="w-full border border-gray-300 rounded-md p-8 text-sm"
-      [(ngModel)]="annulReasonText"
-      placeholder="Describe el motivo..."
-    ></textarea>
-    <div class="flex justify-end gap-8 mt-16">
-      <p-button label="Cancelar" styleClass="p-button-outlined" (click)="closeAnnul()"></p-button>
-      <p-button
-        label="Anular devolución"
-        icon="pi pi-ban"
-        styleClass="p-button-danger"
-        [loading]="annulling()"
-        (click)="confirmAnnul()"
-      ></p-button>
-    </div>
-  </p-dialog>
-
   <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
     <!-- Título + acciones -->
     <div class="flex flex-wrap items-center justify-between gap-16 mb-12">
@@ -52,7 +20,7 @@
         </h1>
         <p class="font-family-sans font-normal text-sm mt-12">
           @if (editable()) {
-            Indica las cantidades a devolver y el motivo. El borrador se guarda automáticamente.
+            Usa «Devolver todo» o ajusta la cantidad de cada producto, e indica el motivo.
           } @else {
             Esta devolución es de solo lectura.
           }
@@ -60,17 +28,16 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-8">
-        <!-- Volver a la pantalla de donde se vino (factura original) -->
+        <!-- Volver a la factura original -->
         <p-button
+          label="Volver a la factura"
           icon="pi pi-arrow-left"
-          [rounded]="true"
-          [outlined]="true"
-          ariaLabel="Volver"
-          title="Volver"
+          styleClass="p-button-outlined"
+          ariaLabel="Volver a la factura"
           (click)="goBack()"
         ></p-button>
         @if (editable()) {
-          <p-button label="Emitir" icon="pi pi-check" [disabled]="busy() || loading()" (click)="confirmEmit()"></p-button>
+          <p-button label="Emitir devolución" icon="pi pi-check" [disabled]="busy() || loading()" (click)="confirmEmit()"></p-button>
           @if (returnId()) {
             <p-button
               label="Eliminar borrador"
@@ -80,13 +47,6 @@
               (click)="confirmDelete()"
             ></p-button>
           }
-        } @else if (status() === 'EMITIDA') {
-          <p-button
-            label="Anular"
-            icon="pi pi-ban"
-            styleClass="p-button-danger p-button-outlined"
-            (click)="openAnnul()"
-          ></p-button>
         }
       </div>
     </div>
@@ -105,24 +65,6 @@
           <span class="font-normal text-primary mb-4">Estado:</span>
           <div class="flex items-center gap-12">
             <app-billing-status-badge [status]="status()" />
-            @if (editable()) {
-              <span class="text-xs text-gray-500 font-family-sans flex items-center gap-4">
-                @switch (saveState()) {
-                  @case ('pending') {
-                    <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
-                  }
-                  @case ('saving') {
-                    <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
-                  }
-                  @case ('saved') {
-                    <i class="pi pi-check text-xs"></i> Guardado automático
-                  }
-                  @default {
-                    <i class="pi pi-cloud text-xs"></i> Se guarda automáticamente
-                  }
-                }
-              </span>
-            }
           </div>
         </div>
 
@@ -168,7 +110,19 @@
 
       <!-- Detalle: líneas de la factura original; precio e IVA congelados -->
       <div class="text-sm">
-        <h3 class="font-bold text-lg text-primary mb-12">Detalle de la Devolución</h3>
+        <div class="flex flex-wrap items-center justify-between gap-12 mb-12">
+          <h3 class="font-bold text-lg text-primary">Detalle de la devolución</h3>
+          @if (editable()) {
+            <!-- Por defecto se devuelve todo con un clic; si no, se edita cada casilla de "A devolver" -->
+            <p-button
+              label="Devolver todo"
+              icon="pi pi-replay"
+              styleClass="p-button-outlined"
+              [disabled]="!canReturnAll() || loading()"
+              (click)="returnAll()"
+            ></p-button>
+          }
+        </div>
 
         <div class="overflow-x-auto">
           <p-table [value]="rows()" [tableStyle]="{ 'min-width': '60rem' }" styleClass="p-datatable-striped">
@@ -185,7 +139,7 @@
                   {{ editable() ? 'A devolver' : 'Devuelto' }}
                 </th>
                 <th style="width: 10rem" class="text-right">Vr. unitario</th>
-                <th style="width: 6rem" class="text-right">IVA %</th>
+                <th style="width: 8rem" class="text-right whitespace-nowrap">Impuesto %</th>
                 <th style="width: 10rem" class="text-right">Subtotal</th>
               </tr>
             </ng-template>
@@ -193,7 +147,7 @@
               <tr>
                 <td class="text-center">{{ i + 1 }}</td>
                 <td class="font-semibold">{{ row.productName }}</td>
-                <td class="text-right">{{ row.sold }}</td>
+                <td class="text-right">{{ row.sold ?? '—' }}</td>
                 @if (editable()) {
                   <td class="text-right">{{ row.returned }}</td>
                   <td class="text-right">{{ row.available }}</td>
@@ -208,6 +162,8 @@
                       [showButtons]="true"
                       [min]="0"
                       [max]="row.available"
+                      [minFractionDigits]="0"
+                      [maxFractionDigits]="3"
                       [disabled]="row.available === 0"
                       inputStyleClass="w-full"
                     ></p-inputNumber>
@@ -257,7 +213,7 @@
               <span class="font-semibold">{{ totals().subtotalCents | copCents }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-700">IVA:</span>
+              <span class="text-gray-700">Impuesto:</span>
               <span class="font-semibold">{{ totals().ivaCents | copCents }}</span>
             </div>
             <hr />

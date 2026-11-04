@@ -21,8 +21,12 @@ interface ThirdApiPage {
   content: ThirdApiItem[];
 }
 
-const normalize = (s: string): string =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+// Categorías (tipos) del tercero unidas con "/": "Cliente/Proveedor"
+const categoryOf = (p: ThirdApiItem): string =>
+  (p.thirdTypes ?? [])
+    .map(t => (t.thirdTypeName ?? '').trim())
+    .filter(Boolean)
+    .join('/');
 
 @Injectable()
 export class InventoryBillingCounterpartyCatalog extends BillingCounterpartyCatalog {
@@ -42,16 +46,14 @@ export class InventoryBillingCounterpartyCatalog extends BillingCounterpartyCata
       .set('sortOrder', 'asc');
     return this.http.get<ThirdApiPage>(this.apiUrl, { params }).pipe(
       map(page =>
+        // Venta y compra listan TODOS los terceros activos (sin filtrar por tipo); `kind` se conserva por el contrato
         page.content
-          .filter(
-            p =>
-              p.state &&
-              (kind !== 'SALE' || (p.thirdTypes ?? []).some(t => /cliente/.test(normalize(t.thirdTypeName ?? ''))))
-          )
+          .filter(p => p.state)
           .map(p => ({
             id: String(p.thId),
             name: p.socialReason?.trim() ? p.socialReason : `${p.names ?? ''} ${p.lastNames ?? ''}`.trim(),
             document: String(p.idNumber ?? ''),
+            category: categoryOf(p),
           }))
       )
     );

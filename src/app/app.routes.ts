@@ -513,7 +513,6 @@ export const routes: Routes = [
                       import(
                         './GeneralMasters/Inventory/Products/Components/product-creation/product-creation.component'
                       ).then((m) => m.ProductCreationComponent),
-                    canActivate: [hasPermissionGuard(['P'])],
                   },
                   {
                     path: 'edit/:id',
@@ -545,7 +544,6 @@ export const routes: Routes = [
                       import(
                         './GeneralMasters/Inventory/ProductTypes/Components/product-type-creation/product-type-creation.component'
                       ).then((m) => m.ProductTypeCreationComponent),
-                    canActivate: [hasPermissionGuard(['PT'])],
                   },
                   {
                     path: 'edit/:id',
@@ -577,7 +575,6 @@ export const routes: Routes = [
                       import(
                         './GeneralMasters/Inventory/Category/Components/category-creation/category-creation.component'
                       ).then((m) => m.CategoryCreationComponent),
-                    canActivate: [hasPermissionGuard(['C'])],
                   },
                   {
                     path: 'edit/:id',
@@ -609,7 +606,6 @@ export const routes: Routes = [
                       import(
                         './GeneralMasters/Inventory/MeasurementUnits/Components/unit-of-measure-creation/unit-of-measure-creation.component'
                       ).then((m) => m.UnitOfMeasureCreationComponent),
-                    canActivate: [hasPermissionGuard(['UM'])],
                   },
                   {
                     path: 'edit/:id',

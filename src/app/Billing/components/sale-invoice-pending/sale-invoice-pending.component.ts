@@ -7,6 +7,9 @@ import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 import { DropdownModule } from 'primeng/dropdown';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { InputTextModule } from 'primeng/inputtext';
 import { TableModule } from 'primeng/table';
 import { firstValueFrom } from 'rxjs';
 import { BillingClient, SaleInvoice, SaleInvoiceLineInput } from '../../models/billing-sale-invoice.model';
@@ -14,7 +17,9 @@ import { DOCUMENT_KIND_CONFIG, DocumentKind, KIND_FILTER_OPTIONS } from '../../m
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
-import { calcTotals } from '../../utils/money';
+import { billingErrorMessage, isConcurrentModification, skippedToast } from '../../utils/billing-error';
+import { isoDateText, isoDateTimeText } from '../../utils/format';
+import { centsToPesos, invoiceTotals } from '../../utils/money';
 import { BillingKindTagComponent } from '../billing-kind-tag/billing-kind-tag.component';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
@@ -23,6 +28,19 @@ const todayIso = (): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+
+// Fila de la tabla de pendientes: campos planos para el buscador y los filtros de columna
+interface PendingRow {
+  draft: SaleInvoice;
+  counterparty: string;
+  supplierInvoiceNumber: string;
+  dateText: string;
+  kindLabel: string;
+  itemsCount: number; // "Ítems": cantidad de productos distintos del borrador
+  totalPesos: number;
+  totalCents: number;
+  updatedText: string;
+}
 
 // Lista los borradores de venta y de compra para retomarlos, duplicarlos o eliminarlos
 @Component({
@@ -33,6 +51,9 @@ const todayIso = (): string => {
     ButtonModule,
     DialogModule,
     DropdownModule,
+    IconFieldModule,
+    InputIconModule,
+    InputTextModule,
     TableModule,
     ConfirmDialogModule,
     SharedModule,
@@ -62,25 +83,59 @@ export class SaleInvoicePendingComponent implements OnInit {
   busy = signal(false);
   kindFilter = signal<DocumentKind | null>(null);
   readonly kindOptions = KIND_FILTER_OPTIONS;
+  readonly globalFilterFields = [
+    'counterparty',
+    'supplierInvoiceNumber',
+    'dateText',
+    'kindLabel',
+    'itemsCount',
+    'totalPesos',
+    'updatedText',
+  ];
 
   filtered = computed(() => {
     const kind = this.kindFilter();
     return kind ? this.drafts().filter((d) => d.kind === kind) : this.drafts();
   });
 
+  // Filas con campos planos para el buscador y los filtros de columna (p-columnFilter)
+  rows = computed<PendingRow[]>(() =>
+    this.filtered().map((draft) => {
+      const totalCents = this.totalOf(draft);
+      return {
+        draft,
+        counterparty: this.counterpartyOf(draft),
+        supplierInvoiceNumber: draft.supplierInvoiceNumber ?? '',
+        dateText: isoDateText(draft.date),
+        kindLabel: DOCUMENT_KIND_CONFIG[draft.kind].tag,
+        itemsCount: draft.lines.length,
+        totalPesos: centsToPesos(totalCents),
+        totalCents,
+        updatedText: isoDateTimeText(draft.updatedAt),
+      };
+    }),
+  );
+
   ngOnInit(): void {
     this.load();
   }
 
   private load(): void {
-    this.api.list('BORRADOR').subscribe((drafts) => {
-      this.drafts.set(drafts);
-      this.loading.set(false);
+    this.api.listWithSkipped('BORRADOR').subscribe({
+      next: ({ items, skipped }) => {
+        this.drafts.set(items);
+        this.loading.set(false);
+        if (skipped > 0) this.messages.add(skippedToast(skipped));
+      },
+      error: (e) => {
+        this.loading.set(false);
+        this.toast('error', 'No se pudieron cargar los borradores', this.errorMessage(e));
+      },
     });
   }
 
   totalOf(invoice: SaleInvoice): number {
-    return calcTotals(invoice.lines).totalCents;
+    return invoiceTotals(invoice).totalCents;
   }
 
   counterpartyOf(invoice: SaleInvoice): string {
@@ -104,14 +159,18 @@ export class SaleInvoicePendingComponent implements OnInit {
     this.previewInvoice.set(null);
   }
 
+  // `from` deja a la factura saber a qué pantalla volver (el menú o esta misma pantalla)
   continue(invoice: SaleInvoice): void {
-    this.router.navigate([DOCUMENT_KIND_CONFIG[invoice.kind].basePath, invoice.id]);
+    this.router.navigate([DOCUMENT_KIND_CONFIG[invoice.kind].basePath, invoice.id], {
+      state: { from: this.embedded() ? '/billing' : '/billing/pending' },
+    });
   }
 
   confirmDuplicate(invoice: SaleInvoice): void {
+    if (this.busy()) return;
     this.confirmation.confirm({
       header: 'Duplicar borrador',
-      message: `Se creará un nuevo borrador con el mismo ${DOCUMENT_KIND_CONFIG[invoice.kind].counterpartyLower} y las mismas líneas. ¿Continuar?`,
+      message: `Se creará un nuevo borrador con el mismo ${DOCUMENT_KIND_CONFIG[invoice.kind].counterpartyLower} y los mismos ítems. ¿Continuar?`,
       acceptLabel: 'Duplicar',
       rejectLabel: 'Cancelar',
       accept: () => this.duplicate(invoice),
@@ -119,6 +178,7 @@ export class SaleInvoicePendingComponent implements OnInit {
   }
 
   confirmDelete(invoice: SaleInvoice): void {
+    if (this.busy()) return;
     this.confirmation.confirm({
       header: 'Eliminar borrador',
       icon: 'pi pi-exclamation-triangle',
@@ -134,14 +194,15 @@ export class SaleInvoicePendingComponent implements OnInit {
   }
 
   // El duplicado es un borrador nuevo (sin id ni número) con fecha de hoy; conserva los valores
-  // efectivos de cada línea (precio e IVA editados). Las referencias de catálogo las vuelve a fijar la API.
+  // efectivos de cada línea (precio e IVA editados). Las referencias de catálogo se conservan: así una línea
+  // con el precio o el IVA sin editar (`precioEditado` / `ivaEditado` del back) sigue al catálogo en el duplicado
+  // (la API vuelve a fijar las referencias).
   // No copia el N.º de factura del proveedor: cada factura de compra tiene el suyo.
   private async duplicate(invoice: SaleInvoice): Promise<void> {
+    if (this.busy()) return; // reentrada: N clics => un solo duplicado
     this.busy.set(true);
     try {
-      const lines: SaleInvoiceLineInput[] = invoice.lines.map(
-        ({ precioCatalogoCents, ivaCatalogoPct, ...line }) => line,
-      );
+      const lines: SaleInvoiceLineInput[] = invoice.lines;
       await firstValueFrom(
         this.api.saveDraft({ kind: invoice.kind, clientId: invoice.clientId, date: todayIso(), lines }),
       );
@@ -155,13 +216,15 @@ export class SaleInvoicePendingComponent implements OnInit {
   }
 
   private async remove(invoice: SaleInvoice): Promise<void> {
+    if (this.busy()) return;
     this.busy.set(true);
     try {
-      await firstValueFrom(this.api.deleteDraft(invoice.id));
+      await firstValueFrom(this.api.deleteDraft(invoice.id, invoice.version)); // la versión de la lista: detecta ediciones ajenas
       this.drafts.update((list) => list.filter((d) => d.id !== invoice.id));
       this.toast('success', 'Borrador eliminado', 'El borrador se eliminó correctamente.');
     } catch (e) {
       this.toast('error', 'No se pudo eliminar', this.errorMessage(e));
+      if (isConcurrentModification(e)) this.load(); // otro lo modificó: se recarga la lista con las versiones vigentes
     } finally {
       this.busy.set(false);
     }
@@ -172,6 +235,6 @@ export class SaleInvoicePendingComponent implements OnInit {
   }
 
   private errorMessage(e: unknown): string {
-    return e instanceof Error ? e.message : 'Ocurrió un error inesperado.';
+    return billingErrorMessage(e); // incluye BILLING_IDEMPOTENCY_CONFLICT (409)
   }
 }

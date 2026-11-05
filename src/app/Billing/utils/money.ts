@@ -14,7 +14,7 @@ const divHalfUp = (n: number, d: number): number => {
   return n < 0 ? -q : q;
 };
 
-// Aritmética SIN flotantes: la cantidad (hasta 3 decimales) se escala a milésimas enteras y el IVA (hasta 2 decimales)
+// Aritmética SIN flotantes: la cantidad (entera hoy; hasta 3 decimales en documentos históricos) se escala a milésimas enteras y el IVA (hasta 2 decimales)
 // a centésimas enteras, así 1.005 × 100 = 101 como en el back y no 100 (por 1.005 × 100 = 100.49999...).
 /** cantidad × precio (centavos), redondeado HALF_UP a centavos enteros. */
 export const mulQtyCents = (cantidad: number, cents: number): number =>
@@ -50,8 +50,15 @@ export function invoiceTotals(invoice: Pick<SaleInvoice, 'status' | 'lines' | 't
   return invoice.status !== 'BORRADOR' && invoice.totals ? invoice.totals : calcTotals(invoice.lines);
 }
 
-// Las cantidades admiten hasta 3 decimales (igual que el back)
+// Redondeo a 3 decimales: SOLO para aritmética/visualización de documentos históricos (antes de la integración con
+// Inventario se admitían hasta 3 decimales) y para evitar errores de flotante (p. ej. 2.9999999 -> 3) al sumar/restar.
 export const roundQty = (value: number): number => Math.round(value * 1000) / 1000;
+
+// Inventario solo admite cantidades ENTERAS: es la regla para todo lo que se captura o se envía (facturas y devoluciones)
+export const MIN_QUANTITY = 1;
+export const isWholeQty = (value: number): boolean => Number.isInteger(roundQty(value));
+/** Parte entera (hacia abajo) de una cantidad; nunca supera el valor original (p. ej. disponible 2.5 -> 2). */
+export const wholeQty = (value: number): number => Math.floor(roundQty(value));
 
 const copFormatter = new Intl.NumberFormat('es-CO', {
   style: 'currency',

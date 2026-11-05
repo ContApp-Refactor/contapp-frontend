@@ -161,10 +161,11 @@
                       size="small"
                       [showButtons]="true"
                       [min]="0"
-                      [max]="row.available"
+                      [max]="maxReturnable(row)"
+                      [step]="1"
                       [minFractionDigits]="0"
-                      [maxFractionDigits]="3"
-                      [disabled]="row.available === 0"
+                      [maxFractionDigits]="qtyFractionDigits(row.cantidadDevuelta)"
+                      [disabled]="maxReturnable(row) === 0"
                       inputStyleClass="w-full"
                     ></p-inputNumber>
                   } @else {

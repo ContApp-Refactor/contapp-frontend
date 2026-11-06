@@ -678,11 +678,27 @@ export class SaleInvoiceCreationComponent {
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'Ha ocurrido un error al crear la factura.',
+          detail: this.saveInvoiceErrorDetail(error),
           life: 5000
         });
       }
     );
+  }
+
+  /**
+   * Devuelve el mensaje exacto que devolvió la API (p. ej. "Insufficient stock.
+   * Requested:40, Available:0."); solo usa un texto genérico si la respuesta
+   * no trae mensaje.
+   */
+  private saveInvoiceErrorDetail(
+    error: unknown,
+    fallback = 'Ha ocurrido un error al crear la factura.',
+  ): string {
+    const apiMessage = (error as { error?: { message?: string } })?.error?.message;
+    if (apiMessage?.trim()) {
+      return apiMessage.trim();
+    }
+    return fallback;
   }
 
   /**
@@ -778,7 +794,10 @@ export class SaleInvoiceCreationComponent {
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'Ha ocurrido un error al generar la vista previa de la factura.',
+          detail: this.saveInvoiceErrorDetail(
+            error,
+            'Ha ocurrido un error al generar la vista previa de la factura.',
+          ),
           life: 5000
         });
       }

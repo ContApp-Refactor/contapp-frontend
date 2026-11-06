@@ -277,24 +277,37 @@ export class CreateInvoiceComponent implements OnInit {
           // Limpiar el formulario después de guardar exitosamente
           this.clearForm();
         },
-        error: (error: any) => {
-          console.error('Error al crear factura', error);
-          this.messageService.add({
-            severity: 'error',
-            summary: 'Error',
-            detail: 'No se pudo crear la factura'
-          });
-        }
+          error: (error: any) => {
+            console.error('Error al crear factura', error);
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: this.saleSaveErrorDetail(error),
+            });
+          }
       });
     } else {
       this.markFormGroupTouched();
     }
   }
 
-  /**
-   * Marca todos los campos del formulario como tocados para mostrar errores
-   */
-  private markFormGroupTouched(): void {
+    /**
+     * Devuelve el mensaje exacto que devolvió la API (p. ej. "Insufficient stock.
+     * Requested: 9,999, Available: 7."); solo se usa un texto genérico si la
+     * respuesta no trae mensaje.
+     */
+    private saleSaveErrorDetail(error: unknown): string {
+        const apiMessage = (error as { error?: { message?: string } })?.error?.message;
+        if (apiMessage?.trim()) {
+            return apiMessage.trim();
+        }
+        return 'No se pudo crear la factura';
+    }
+
+    /**
+     * Marca todos los campos del formulario como touched para mostrar errores.
+     */
+    private markFormGroupTouched(): void {
     Object.keys(this.invoiceForm.controls).forEach(key => {
       const control = this.invoiceForm.get(key);
       control?.markAsTouched();

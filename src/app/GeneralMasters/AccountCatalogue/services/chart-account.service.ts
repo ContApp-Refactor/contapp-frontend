@@ -75,7 +75,7 @@ export class ChartAccountService {
    * @returns Un observable que emite un array de cuentas auxiliares.
    */
   getListAuxiliaryAccounts(entId: string): Observable<Account[]> {
-    return this.http.get<AuxiliaryAccountsApiResponse>(this.apiURL + 'trees/' + entId).pipe(
+    return this.http.get<AuxiliaryAccountsApiResponse>(this.apiURL + 'auxiliary/' + entId).pipe(
       map(response => {
         if (response && Array.isArray(response.auxiliaryAccounts)) {
           return this.convertAccountCatalogueListResToAccount(response.auxiliaryAccounts, entId);

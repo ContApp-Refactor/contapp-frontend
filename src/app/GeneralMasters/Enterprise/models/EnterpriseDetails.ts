@@ -20,6 +20,8 @@ export interface EnterpriseDetails {
   location: any;
   state?: string;
   inventoryMethods?: string;
+  /** Valor real que usa el backend y los módulos de inventario: PEPS | WEIGHTED_AVERAGE */
+  inventoryConfigurationType?: string;
   dv: string;
   mainActivity?: number;
   secondaryActivity?: number;

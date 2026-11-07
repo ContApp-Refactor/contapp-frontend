@@ -76,10 +76,8 @@ export class CreateEnterpriseComponent implements OnInit {
   ];
 
   inventoryMethods = [
-    { name: 'PEPS / FIFO', value: 'FIFO' },
-    { name: 'UEPS / LIFO', value: 'LIFO' },
-    { name: 'Costo Promedio Ponderado', value: 'CPP' },
-    { name: 'Identificación Específica', value: 'SPECIFIC' },
+    { name: 'PEPS (FIFO)', value: 'PEPS' },
+    { name: 'Costo Promedio Ponderado', value: 'WEIGHTED_AVERAGE' },
   ];
 
   subjects: any[] = [];
@@ -327,7 +325,7 @@ export class CreateEnterpriseComponent implements OnInit {
       taxLiabilities: f.taxLiabilities.map((t: any) => t.id ?? t),
       state: 'ACTIVE',
       taxPayerType: f.taxPayerType.id ?? f.taxPayerType,
-      inventoryMethods: f.inventoryMethod,
+      inventoryConfigurationType: f.inventoryMethod,
       enterpriseType: f.enterpriseType.id ?? f.enterpriseType,
 
       personType:

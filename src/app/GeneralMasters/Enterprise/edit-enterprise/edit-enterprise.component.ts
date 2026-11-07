@@ -65,10 +65,8 @@ export class EditEnterpriseComponent implements OnInit {
   ];
 
   inventoryMethodsOptions = [
-    { name: 'PEPS / FIFO', value: 'FIFO' },
-    { name: 'UEPS / LIFO', value: 'LIFO' },
-    { name: 'Costo Promedio Ponderado', value: 'CPP' },
-    { name: 'Identificación Específica', value: 'SPECIFIC' },
+    { name: 'PEPS (FIFO)', value: 'PEPS' },
+    { name: 'Costo Promedio Ponderado', value: 'WEIGHTED_AVERAGE' },
   ];
 
   taxLiabilities: any[] = [];
@@ -159,7 +157,7 @@ export class EditEnterpriseComponent implements OnInit {
       taxPayerType: [this.getEntityId(this.enterpriseData?.taxPayerType) || null],
       mainActivity: [this.enterpriseData?.mainActivity || ''],
       secondaryActivity: [this.enterpriseData?.secondaryActivity || ''],
-      inventoryMethods: [this.enterpriseData?.inventoryMethods || null],
+        inventoryMethods: [this.enterpriseData?.inventoryConfigurationType || null],
       branch: [this.enterpriseData?.branch || ''],
       country: [this.getEntityId(this.enterpriseData?.location?.country) || null],
       department: [this.getEntityId(this.enterpriseData?.location?.department) || null],
@@ -270,8 +268,8 @@ export class EditEnterpriseComponent implements OnInit {
         f.mainActivity || this.enterpriseData?.mainActivity || undefined,
       secondaryActivity:
         f.secondaryActivity || this.enterpriseData?.secondaryActivity || undefined,
-      inventoryMethods:
-        f.inventoryMethods || this.enterpriseData?.inventoryMethods || undefined,
+      inventoryConfigurationType:
+        f.inventoryMethods || this.enterpriseData?.inventoryConfigurationType || undefined,
       taxLiabilities:
         f.taxLiabilities?.length > 0
           ? f.taxLiabilities.map((id: any) => Number(id))

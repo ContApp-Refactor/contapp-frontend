@@ -214,10 +214,15 @@ export class CreateInvoiceComponent implements OnInit {
     if (this.invoiceForm.valid) {
       const formValue = this.invoiceForm.getRawValue();
 
-      // Formatear fecha
-      const expirationDate = formValue.expirationDate instanceof Date
-        ? formValue.expirationDate.toISOString().split('T')[0]
-        : formValue.expirationDate;
+      // Formatear fecha usando los componentes LOCALES. toISOString() convierte a
+      // UTC: en una zona horaria adelantada el8 de noviembre a medianoche viaja
+      // como7 de noviembre, y entonces el backend lo rechaza porque la fecha de
+      // vencimiento no queda posterior a la de emisión.
+      const d = formValue.expirationDate;
+      const expirationDate =
+        d instanceof Date
+          ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          : d;
 
       // Preparar productos
       const products: Product2[] = formValue.factProducts.map((product: any) => ({

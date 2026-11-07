@@ -306,6 +306,15 @@ export class EditEnterpriseComponent implements OnInit {
       .subscribe({
         next: () => {
           this.loading = false;
+          // El front no lee la BD, lee el localStorage: sin sincronizarlo, el
+          // método recién guardado no se usa hasta re-seleccionar la empresa y
+          // las compras siguen saliendo con el método anterior (el módulo de
+          // inventario equivocado rechazaba el producto con "Product ID not found").
+          if (updatedData.inventoryConfigurationType) {
+            this.localStorageMethods.updateInventoryConfigType(
+              updatedData.inventoryConfigurationType as 'PEPS' | 'WEIGHTED_AVERAGE',
+            );
+          }
           this.messageService.add({
             severity: 'success',
             summary: 'Actualización exitosa',

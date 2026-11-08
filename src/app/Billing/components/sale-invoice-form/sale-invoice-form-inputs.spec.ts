@@ -70,7 +70,8 @@ describe('Formulario de factura: edición con teclado de cantidad, precio e IVA'
     fixture.detectChanges();
   };
 
-  it('se puede teclear "0,5" en la cantidad: el "0" intermedio no se revierte y la fila no se recrea', () => {
+  // Antes se tecleaba "0,5": hoy Inventario solo admite cantidades enteras (mínimo 1)
+  it('se puede teclear una cantidad entera: el "0" intermedio no se revierte y la fila no se recrea', () => {
     const input = cell(3);
     expect(input.value).toBe('2');
     clear(input);
@@ -78,12 +79,32 @@ describe('Formulario de factura: edición con teclado de cantidad, precio e IVA'
     expect(component.lines()[0].cantidad).toBe(2); // el 0 intermedio se ignora (no pisa ni revierte)
     expect(cell(3)).toBe(input); // mismo nodo: la fila/input no se recreó (conserva el foco)
     expect(input.value).toBe('0'); // sigue mostrando lo tecleado
-    type(input, decimalChar() + '5');
-    expect(component.lines()[0].cantidad).toBe(0.5);
+    clear(input);
+    type(input, '7');
+    expect(component.lines()[0].cantidad).toBe(7);
     expect(cell(3)).toBe(input);
     blur(input);
-    expect(component.lines()[0].cantidad).toBe(0.5);
-    expect(cell(3).value).toMatch(/^0[.,]5$/);
+    expect(component.lines()[0].cantidad).toBe(7);
+    expect(cell(3).value).toBe('7');
+  });
+
+  it('no se pueden teclear decimales en la cantidad: queda un entero', () => {
+    const input = cell(3);
+    clear(input);
+    // Con maxFractionDigits=0 el input no tiene separador decimal (_decimalChar vacío): "3,5" / "3.5" no producen fracción
+    expect(decimalChar()).toBe('');
+    type(input, '3.5');
+    blur(input);
+    let cantidad = component.lines()[0].cantidad;
+    expect(Number.isInteger(cantidad)).toBeTrue();
+    expect(cantidad).toBeGreaterThanOrEqual(1);
+    expect(cell(3).value).toBe(field(3).formatValue(cantidad));
+
+    clear(input);
+    type(input, '3,5');
+    blur(input);
+    cantidad = component.lines()[0].cantidad;
+    expect(Number.isInteger(cantidad)).toBeTrue();
   });
 
   it('al salir del campo, una cantidad vacía o 0 vuelve al último valor válido', () => {

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, catchError, forkJoin, map, of, switchMap, tap, throwError } from 'rxjs';
 import { BillingIssuer, InvoiceStatus, InvoiceTotals } from '../models/billing-sale-invoice.model';
+import { toLineTaxes } from '../utils/tax-breakdown';
 import { DocumentKind } from '../models/document-kind';
 import {
   InvoiceReturnState,
@@ -24,6 +25,12 @@ interface ReturnLineDto {
   precioUnitarioCents: number;
   ivaPct: number;
   subtotalCents?: number | null;
+  taxes?: TaxDto[] | null; // desglose heredado de la línea original (ausente en back/documentos viejos)
+}
+
+interface TaxDto {
+  name: string;
+  rate: number | string;
 }
 
 interface ReturnDto {
@@ -59,6 +66,7 @@ interface AvailabilityLineDto {
   available: number;
   precioUnitarioCents: number;
   ivaPct: number;
+  taxes?: TaxDto[] | null;
 }
 
 interface InvoiceWithReturnsDto {
@@ -87,6 +95,7 @@ const toReturnLine = (l: ReturnLineDto): SaleReturnLine => ({
   precioUnitarioCents: l.precioUnitarioCents,
   ivaPct: Number(l.ivaPct),
   ...(l.subtotalCents != null ? { subtotalCents: l.subtotalCents } : {}),
+  ...(l.taxes?.length ? { taxes: toLineTaxes(l.taxes) } : {}),
 });
 
 const toSaleReturn = (r: ReturnDto): SaleReturn => ({
@@ -175,6 +184,7 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
           available: Number(l.available),
           precioUnitarioCents: l.precioUnitarioCents,
           ivaPct: Number(l.ivaPct),
+          ...(l.taxes?.length ? { taxes: toLineTaxes(l.taxes) } : {}),
         })),
       ),
     );

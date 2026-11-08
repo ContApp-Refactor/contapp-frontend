@@ -1,5 +1,15 @@
 import { SaleInvoiceLine } from '../models/billing-sale-invoice.model';
-import { calcTotals, lineIvaCents, lineSubtotalCents, lineSubtotalOf, mulQtyCents, pctOfCents } from './money';
+import {
+  MIN_QUANTITY,
+  calcTotals,
+  isWholeQty,
+  lineIvaCents,
+  lineSubtotalCents,
+  lineSubtotalOf,
+  mulQtyCents,
+  pctOfCents,
+  wholeQty,
+} from './money';
 import { calcReturnTotals, returnLineIvaCents, returnLineSubtotalCents, returnLineSubtotalOf } from './sale-return';
 
 const line = (over: Partial<SaleInvoiceLine> = {}): SaleInvoiceLine => ({
@@ -55,6 +65,27 @@ describe('money (redondeo HALF_UP con enteros)', () => {
     expect(lineSubtotalOf(l, false)).toBe(999);
     expect(lineSubtotalOf(l, true)).toBe(200); // borrador: el dato del back puede estar viejo tras editar
     expect(lineSubtotalOf(line({ cantidad: 2, precioUnitarioCents: 100 }), false)).toBe(200); // sin dato del back: se calcula
+  });
+});
+
+// Las cantidades nuevas son enteras (Inventario); los cálculos con decimales de arriba siguen cubriendo documentos históricos
+describe('cantidades enteras (Inventario)', () => {
+  it('el mínimo es 1', () => {
+    expect(MIN_QUANTITY).toBe(1);
+  });
+
+  it('isWholeQty tolera errores de flotante pero rechaza decimales reales', () => {
+    expect(isWholeQty(3)).toBeTrue();
+    expect(isWholeQty(0.1 + 0.2 + 2.7)).toBeTrue(); // 3.0000000000000004
+    expect(isWholeQty(2.5)).toBeFalse();
+    expect(isWholeQty(1.001)).toBeFalse();
+  });
+
+  it('wholeQty toma la parte entera hacia abajo (nunca supera el valor)', () => {
+    expect(wholeQty(2.5)).toBe(2);
+    expect(wholeQty(0.75)).toBe(0);
+    expect(wholeQty(4)).toBe(4);
+    expect(wholeQty(2.9999999)).toBe(3); // ruido de flotante, no un decimal real
   });
 });
 

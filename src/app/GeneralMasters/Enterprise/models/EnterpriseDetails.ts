@@ -1,3 +1,5 @@
+import { InventoryConfigurationType } from './InventoryValuation';
+
 export interface EnterpriseDetails {
   id?: string;
   name: string;
@@ -19,7 +21,7 @@ export interface EnterpriseDetails {
   personType: any;
   location: any;
   state?: string;
-  inventoryMethods?: string;
+  inventoryConfigurationType?: InventoryConfigurationType | null;
   dv: string;
   mainActivity?: number;
   secondaryActivity?: number;

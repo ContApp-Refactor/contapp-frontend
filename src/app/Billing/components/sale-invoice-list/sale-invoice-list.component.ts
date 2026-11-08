@@ -17,7 +17,7 @@ import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { billingErrorMessage, skippedToast } from '../../utils/billing-error';
 import { isoDateText } from '../../utils/format';
-import { NothingToReturnError, returnWholeInvoice } from '../../utils/full-return';
+import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from '../../utils/full-return';
 import { centsToPesos, invoiceTotals } from '../../utils/money';
 import { RETURNED_INVOICE_LABEL } from '../../utils/sale-return';
 import { BillingKindTagComponent } from '../billing-kind-tag/billing-kind-tag.component';
@@ -182,7 +182,7 @@ export class SaleInvoiceListComponent implements OnInit {
         this.load(); // la lista refleja lo que ya devolvió otro (oculta "Devolver factura completa")
         return;
       }
-      this.messages.add({ severity: 'error', summary: 'No se pudo devolver', detail: billingErrorMessage(e) });
+      this.messages.add({ severity: 'error', summary: 'No se pudo devolver', detail: fullReturnErrorMessage(e) });
       // El servidor pudo confirmar la devolución aunque la respuesta falló: se recarga el estado real
       this.load();
     } finally {

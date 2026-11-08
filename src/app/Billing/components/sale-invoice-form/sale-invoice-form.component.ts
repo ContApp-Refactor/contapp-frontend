@@ -34,10 +34,12 @@ import { SaleReturnPreviewComponent } from '../sale-return-preview/sale-return-p
 import { RETURNED_INVOICE_LABEL, deriveReturnState, returnOrdinals, returnTotals } from '../../utils/sale-return';
 import { billingErrorMessage, isConcurrentModification } from '../../utils/billing-error';
 import { isoDateText } from '../../utils/format';
-import { NothingToReturnError, returnWholeInvoice } from '../../utils/full-return';
+import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from '../../utils/full-return';
 import { buildReturnQuery } from '../../utils/return-trail';
-import { calcTotals, centsToPesos, lineSubtotalOf, pesosToCents, roundQty } from '../../utils/money';
+import { MIN_QUANTITY, calcTotals, centsToPesos, isWholeQty, lineSubtotalOf, pesosToCents, wholeQty } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
+import { hasTaxBreakdown, sameTaxes } from '../../utils/tax-breakdown';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
@@ -55,8 +57,8 @@ interface ReturnRow {
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
-// Cantidad mínima de una línea: el back exige cantidad > 0 (hasta 3 decimales) también en borrador (si no, el autosave falla)
-const MIN_QUANTITY = 0.001;
+// Cantidad mínima de una línea: MIN_QUANTITY (1). Inventario solo admite cantidades ENTERAS y el back exige cantidad > 0
+// también en borrador (si no, el autosave falla).
 
 const todayIso = (): string => {
   const d = new Date();
@@ -82,6 +84,7 @@ const todayIso = (): string => {
     TableModule,
     CopCentsPipe,
     BillingStatusBadgeComponent,
+    BillingTaxBreakdownComponent,
     SaleInvoicePreviewComponent,
     SaleReturnPreviewComponent,
   ],
@@ -175,7 +178,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     }),
   );
   // El botón "Devolución" solo aparece en una EMITIDA con algo aún devolvible
-  canReturn = computed(() => this.status() === 'EMITIDA' && this.availability().some((a) => a.available > 0));
+  // (al menos una unidad ENTERA: en una factura histórica con decimales una fracción < 1 ya no se puede devolver)
+  canReturn = computed(() => this.status() === 'EMITIDA' && this.availability().some((a) => wholeQty(a.available) >= MIN_QUANTITY));
   returnOrdinalMap = computed(() => returnOrdinals(this.returns()));
   previewReturn = signal<SaleReturn | null>(null);
   returnState = computed(() => deriveReturnState(this.lines(), this.returns()));
@@ -347,7 +351,9 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         this.loadReturns(id, this.status()); // la tabla y la disponibilidad reflejan lo que ya devolvió otro
         return;
       }
-      this.toast('error', 'No se pudo devolver', this.errorMessage(e));
+      // Si Inventario rechazó la emisión no quedó ninguna devolución emitida (el borrador de esta operación se descarta):
+      // el diálogo sigue abierto para reintentar
+      this.toast('error', 'No se pudo devolver', fullReturnErrorMessage(e));
       // El servidor pudo confirmar la devolución aunque la respuesta falló (p. ej. timeout): se recarga el estado real
       this.loadReturns(id, this.status());
     } finally {
@@ -497,6 +503,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
           ivaCatalogoPct: product.ivaPct,
           ivaPct: product.ivaPct,
           ivaEditado: false,
+          // Desglose de vista previa (impuestos de la categoría): con elementos la celda es de solo lectura
+          taxes: product.taxes ?? [],
         },
       ]);
       this.markDirty();
@@ -504,11 +512,11 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.selectedProductId = null;
   }
 
-  // El back exige cantidad > 0 (aun en borrador) y admite hasta 3 decimales: el mínimo es MIN_QUANTITY (0.001).
-  // Una cantidad vacía, ≤ 0 o que redondea a 0 vuelve al último valor válido (para quitar la línea está el tacho),
-  // así el autosave no falla por una línea en 0.
+  // Inventario solo admite cantidades ENTERAS y el back exige cantidad > 0 (aun en borrador): el mínimo es MIN_QUANTITY (1).
+  // Un valor con decimales se toma por su parte entera; uno vacío, ≤ 0 o menor a 1 vuelve al último valor válido (para
+  // quitar la línea está el tacho), así el autosave no falla por una línea en 0.
   setQuantity(index: number, value: number | null): void {
-    const rounded = value == null ? NaN : roundQty(value);
+    const rounded = value == null ? NaN : wholeQty(value);
     if (rounded >= MIN_QUANTITY) {
       this.updateLine(index, { cantidad: rounded });
       return;
@@ -541,17 +549,17 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // p-inputNumber emite el modelo en CADA tecla. Si se validara/revirtiera ahí, un valor intermedio ("0" camino a
   // "0,5", o el campo vacío) se pisaría y la fila se recrearía perdiendo el foco. Por eso mientras se teclea solo se
   // aplica un valor ya válido (un intermedio inválido se ignora y el campo conserva lo tecleado) y la normalización
-  // (mínimo 0.001, vacío -> último válido / catálogo) ocurre al salir del campo (onBlur).
+  // (entero, mínimo 1, vacío -> último válido / catálogo) ocurre al salir del campo (onBlur).
 
   onQuantityInput(index: number, value: number | null): void {
-    const rounded = value == null ? NaN : roundQty(value);
-    if (rounded >= MIN_QUANTITY) this.updateLine(index, { cantidad: rounded });
+    // Solo un entero ≥ 1 se aplica mientras se teclea
+    if (value != null && isWholeQty(value) && value >= MIN_QUANTITY) this.updateLine(index, { cantidad: wholeQty(value) });
   }
 
   commitQuantity(index: number, field: InputNumber): void {
     const current = this.lines()[index]?.cantidad;
     if (current === undefined) return;
-    const typed = field.value == null ? NaN : roundQty(field.value);
+    const typed = field.value == null ? NaN : wholeQty(field.value);
     if (typed >= MIN_QUANTITY) {
       if (typed !== current) this.updateLine(index, { cantidad: typed });
       this.showInputValue(field, typed);
@@ -586,6 +594,10 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     field.writeValue(value);
     field.input.nativeElement.value = value == null ? '' : field.formatValue(value);
   }
+
+  // Regla de presentación: con impuestos de categoría el desglose es de SOLO LECTURA; sin ellos (IVA por defecto, documento
+  // viejo o IVA editado a mano) queda la casilla editable de % como siempre
+  readonly hasTaxBreakdown = hasTaxBreakdown;
 
   // Las filas se identifican por producto (no por referencia del objeto): editar una línea no recrea su fila ni el input
   readonly trackLine = (_: number, line: SaleInvoiceLine): string => line.productId;
@@ -709,6 +721,10 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     }
     if (this.lines().length === 0) return 'Agrega al menos un ítem a la factura.';
     if (this.lines().some((l) => !(l.cantidad > 0))) return 'Todos los ítems deben tener cantidad mayor a cero.';
+    // Un borrador histórico puede traer decimales: Inventario los rechazaría al emitir
+    if (this.lines().some((l) => !isWholeQty(l.cantidad))) {
+      return 'Inventario solo admite cantidades enteras: corrige las cantidades con decimales antes de emitir.';
+    }
     return null;
   }
 
@@ -780,7 +796,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   }
 
   // El back es la fuente de verdad del IVA y de los precios sin editar: tras guardar, cada línea toma ivaPct /
-  // ivaCatalogoPct / ivaEditado y precioCatalogoCents / precioEditado de la respuesta, y el precio unitario solo si la
+  // ivaCatalogoPct / ivaEditado / taxes (desglose) y precioCatalogoCents / precioEditado de la respuesta, y el precio unitario solo si la
   // línea sigue al catálogo (`precioEditado` false; un override del usuario no se pisa). Todo salvo que el usuario haya
   // vuelto a editar mientras se guardaba (ese cambio queda pendiente y manda).
   private adoptSavedLine(saved: SaleInvoice): void {
@@ -799,6 +815,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         ivaPct: pick(s.ivaPct, l.ivaPct),
         ivaCatalogoPct: pick(s.ivaCatalogoPct, l.ivaCatalogoPct),
         ivaEditado: pick(s.ivaEditado, l.ivaEditado),
+        taxes: pick(s.taxes, l.taxes),
         precioCatalogoCents: pick(s.precioCatalogoCents, l.precioCatalogoCents),
         precioEditado,
         precioUnitarioCents:
@@ -808,6 +825,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         next.ivaPct !== l.ivaPct ||
         next.ivaCatalogoPct !== l.ivaCatalogoPct ||
         next.ivaEditado !== l.ivaEditado ||
+        !sameTaxes(next.taxes, l.taxes) ||
         next.lineNo !== l.lineNo ||
         next.precioCatalogoCents !== l.precioCatalogoCents ||
         next.precioEditado !== l.precioEditado ||
@@ -871,4 +889,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Helpers expuestos a la plantilla
   lineSubtotal = (line: SaleInvoiceLine): number => lineSubtotalOf(line, this.editable());
   toPesos = centsToPesos;
+  // Decimales a mostrar en el input de cantidad: 0 (enteros); una cantidad histórica con decimales se muestra tal cual
+  // (con maxFractionDigits=0 se vería redondeada) hasta que el usuario la corrija
+  qtyFractionDigits = (cantidad: number): number => (isWholeQty(cantidad) ? 0 : 3);
 }

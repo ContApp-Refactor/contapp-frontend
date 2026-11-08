@@ -13,12 +13,20 @@ export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
   ANULADA: 'Anulada',
 };
 
+// Un impuesto del desglose de una línea: nombre tal como está en Inventario ("Iva", "Ica") y tarifa en %.
+// Solo presentación: el impuesto de la línea se calcula con `ivaPct` (la SUMA de las tarifas).
+export interface BillingLineTax {
+  name: string;
+  rate: number;
+}
+
 export interface BillingProduct {
   id: string;
   code: string;
   name: string;
   priceCents: number; // precio de referencia: de venta (SALE) o costo (PURCHASE), según getProducts(kind)
   ivaPct: number | null; // solo VISTA PREVIA del IVA de la categoría; null = sin dato (el back lo resuelve al guardar)
+  taxes?: BillingLineTax[]; // VISTA PREVIA del desglose (impuestos de la categoría); vacío = sin impuestos de categoría
 }
 
 // Emisor congelado por el back al emitir (RN-06); null en borrador
@@ -50,6 +58,9 @@ export interface SaleInvoiceLine {
   precioEditado?: boolean; // del back: true si el precio es un override del usuario (false = sigue al catálogo)
   ivaEditado?: boolean; // del back: true si el IVA es un override del usuario (false = sigue al catálogo)
   subtotalCents?: number; // del back: subtotal de la línea; en documentos no editables manda sobre el cálculo local
+  // Desglose congelado de impuestos (del back o vista previa del catálogo). Con elementos => solo lectura; vacío/ausente
+  // (documento viejo, IVA por defecto o editado a mano) => valor único `ivaPct`, editable en borrador
+  taxes?: BillingLineTax[];
 }
 
 export interface SaleInvoice {

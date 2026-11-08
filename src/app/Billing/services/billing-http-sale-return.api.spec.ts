@@ -209,4 +209,30 @@ describe('BillingHttpSaleReturnApi (idempotencia)', () => {
       .flush({ id: 'r10', kind: 'SALE', status: 'BORRADOR', invoiceId: 'inv-1', reason: '', lines: [], issuer: null });
     expect(draft?.issuer).toBeNull();
   });
+
+  it('mapea el desglose de impuestos de la línea (devolución y disponibilidad); sin desglose no agrega taxes', () => {
+    let result: SaleReturn | undefined;
+    api.getById('r9').subscribe((r) => (result = r));
+    httpMock
+      .expectOne((r) => r.method === 'GET' && r.url === '/api/billing/sale-returns/r9')
+      .flush({
+        id: 'r9', kind: 'SALE', status: 'EMITIDA', invoiceId: 'inv-1', reason: 'x',
+        lines: [
+          { sourceLineNo: 1, productId: 'p1', productName: 'P', cantidadDevuelta: 1, precioUnitarioCents: 100, ivaPct: 25,
+            taxes: [{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: '6.00' }] },
+          { sourceLineNo: 2, productId: 'p2', productName: 'Q', cantidadDevuelta: 1, precioUnitarioCents: 100, ivaPct: 19, taxes: [] },
+          { sourceLineNo: 3, productId: 'p3', productName: 'R', cantidadDevuelta: 1, precioUnitarioCents: 100, ivaPct: 19 },
+        ],
+      });
+    expect(result?.lines[0].taxes).toEqual([{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: 6 }]);
+    expect(result?.lines[1].taxes).toBeUndefined();
+    expect(result?.lines[2].taxes).toBeUndefined();
+
+    let lines: { taxes?: unknown }[] = [];
+    api.getAvailability('inv-1').subscribe((l) => (lines = l));
+    httpMock
+      .expectOne((r) => r.method === 'GET' && r.url.endsWith('/return-availability'))
+      .flush({ lines: [{ ...AVAILABILITY.lines[0], ivaPct: 25, taxes: [{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: 6 }] }] });
+    expect(lines[0].taxes).toEqual([{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: 6 }]);
+  });
 });

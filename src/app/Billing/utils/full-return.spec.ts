@@ -159,3 +159,13 @@ describe('returnWholeInvoice', () => {
     expect(api.saveDraft).toHaveBeenCalledTimes(1); // nada que restaurar
   });
 });
+
+describe('fullReturnLines con desglose de impuestos', () => {
+  it('el desglose de la línea original no viaja en el cuerpo: solo lineNo y cantidad (el back lo hereda)', () => {
+    const withTaxes = availability.map((a) => ({ ...a, ivaPct: 25, taxes: [{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: 6 }] }));
+    expect(fullReturnLines(withTaxes)).toEqual([
+      { lineNo: 1, cantidad: 2 },
+      { lineNo: 2, cantidad: 1 },
+    ]);
+  });
+});

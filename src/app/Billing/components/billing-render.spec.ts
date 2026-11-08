@@ -16,6 +16,7 @@ import { SaleInvoiceListComponent } from './sale-invoice-list/sale-invoice-list.
 import { SaleInvoicePendingComponent } from './sale-invoice-pending/sale-invoice-pending.component';
 import { SaleReturnFormComponent } from './sale-return-form/sale-return-form.component';
 import { SaleReturnListComponent } from './sale-return-list/sale-return-list.component';
+import { BillingTaxBreakdownComponent } from './billing-tax-breakdown/billing-tax-breakdown.component';
 
 const line = (p: string, q: number) => ({
   productId: p, productName: 'Prod ' + p, cantidad: q, precioCatalogoCents: 1000, precioUnitarioCents: 1200,
@@ -316,5 +317,141 @@ describe('Vistas previas: emisor congelado', () => {
   it('devolución en borrador (sin emisor): usa localStorage como respaldo', () => {
     const text = returnPreview('BORRADOR', false);
     expect(text).toContain('Empresa Viva (localStorage)');
+  });
+});
+
+// Desglose de impuestos por línea: "Nombre: n%" uno debajo del otro; sin desglose, valor único como siempre.
+// El cálculo NO cambia: el impuesto de la línea usa ivaPct (la suma de las tarifas).
+describe('Desglose de impuestos por línea', () => {
+  const IVA = { name: 'Iva', rate: 19 };
+  const ICA = { name: 'Ica', rate: 6 };
+  const SALD = { name: 'SalD', rate: 8 };
+  const items = (root: Element | null | undefined) =>
+    Array.from(root?.querySelectorAll('[data-testid="tax-item"]') ?? []).map((n) => n.textContent?.trim());
+  // Celdas: #, Producto, Cant., Ref., Precio unitario, Impuesto %, Subtotal
+  const taxCell = (el: HTMLElement, row = 0) =>
+    el.querySelectorAll('p-table tbody tr')[row]?.querySelectorAll('td')[5] as HTMLElement | undefined;
+
+  describe('componente', () => {
+    beforeEach(() => TestBed.configureTestingModule({}));
+    const breakdown = (taxes: unknown, rate: number | null) => {
+      const fixture = TestBed.createComponent(BillingTaxBreakdownComponent);
+      fixture.componentRef.setInput('taxes', taxes);
+      fixture.componentRef.setInput('rate', rate);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    };
+
+    it('1, 2 y 3 impuestos: un "Nombre: n%" por renglón, sin partir cada etiqueta', () => {
+      expect(items(breakdown([IVA], 19))).toEqual(['Iva: 19%']);
+      expect(items(breakdown([IVA, ICA], 25))).toEqual(['Iva: 19%', 'Ica: 6%']);
+      const three = breakdown([ICA, SALD, { name: 'Iva', rate: 12 }], 26);
+      expect(items(three)).toEqual(['Ica: 6%', 'SalD: 8%', 'Iva: 12%']);
+      expect(three.querySelectorAll('li.whitespace-nowrap').length).toBe(3);
+      expect(three.textContent).not.toContain('26%'); // no se muestra la suma
+    });
+    it('documento viejo / sin desglose: el valor único como hoy ("19%"), y "—" sin dato', () => {
+      expect(breakdown(undefined, 19).querySelector('[data-testid="tax-single"]')?.textContent?.trim()).toBe('19%');
+      expect(breakdown([], 26).textContent?.trim()).toBe('26%');
+      expect(breakdown(null, null).textContent?.trim()).toBe('—');
+      expect(breakdown([{ name: 'Iva', rate: 12.5 }], 12.5).textContent?.trim()).toBe('Iva: 12.5%');
+    });
+  });
+
+  describe('pantallas', () => {
+    it('factura borrador: con impuestos de categoría el desglose es de solo lectura; sin ellos queda la casilla editable', async () => {
+      const lines = [
+        { ...line('a', 1), ivaCatalogoPct: 25, ivaPct: 25, taxes: [IVA, ICA] },
+        { ...line('b', 1), ivaCatalogoPct: 19, ivaPct: 19, taxes: [] },
+      ];
+      setup({ id: 'i2' }, [inv('i2', 'BORRADOR', 'SALE', { lines })], []);
+      const el = await render(SaleInvoiceFormComponent);
+      expect(items(taxCell(el, 0))).toEqual(['Iva: 19%', 'Ica: 6%']);
+      expect(taxCell(el, 0)?.querySelector('p-inputnumber')).toBeNull();
+      expect(taxCell(el, 1)?.querySelector('p-inputnumber')).not.toBeNull();
+      expect(el.querySelector('thead')?.textContent).toContain('Impuesto %');
+    });
+    it('factura borrador: totales sin cambio (el impuesto usa la suma)', async () => {
+      // 2 x 1200 = 2400 + 25% = 600 => 30,00 ; 1 x 1200 = 1200 + 19% = 228 => 14,28 ; total 44,28
+      const lines = [
+        { ...line('a', 2), ivaCatalogoPct: 25, ivaPct: 25, taxes: [IVA, ICA] },
+        { ...line('b', 1) },
+      ];
+      setup({ id: 'i2' }, [inv('i2', 'BORRADOR', 'SALE', { lines })], []);
+      const el = await render(SaleInvoiceFormComponent);
+      expect(el.textContent).toMatch(/44,28/);
+    });
+    it('factura emitida: muestra el desglose congelado; un documento viejo sin taxes muestra el % único', async () => {
+      const lines = [
+        { ...line('a', 1), ivaPct: 26, taxes: [ICA, SALD, { name: 'Iva', rate: 12 }] },
+        { ...line('b', 1) }, // documento viejo: sin `taxes`
+      ];
+      setup({ id: 'i2' }, [inv('i2', 'EMITIDA', 'SALE', { lines })], []);
+      const el = await render(SaleInvoiceFormComponent);
+      expect(items(taxCell(el, 0))).toEqual(['Ica: 6%', 'SalD: 8%', 'Iva: 12%']);
+      expect(taxCell(el, 1)?.textContent?.trim()).toBe('19%');
+      expect(el.querySelector('p-table p-inputnumber')).toBeNull();
+    });
+    it('línea agregada desde el catálogo con impuestos de categoría: desglose de solo lectura (vista previa)', async () => {
+      setup({ kind: 'SALE' }, [inv('i2', 'BORRADOR')], []);
+      TestBed.overrideProvider(BillingProductCatalog, {
+        useValue: { getProducts: () => of([{ id: 'a', code: 'A', name: 'Prod a', priceCents: 1000, ivaPct: 25, taxes: [IVA, ICA] }]) },
+      });
+      const fixture = TestBed.createComponent(SaleInvoiceFormComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const cmp = fixture.componentInstance as unknown as { selectedProductId: string | null; addProduct: () => void };
+      cmp.selectedProductId = 'a';
+      cmp.addProduct();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(items(taxCell(el, 0))).toEqual(['Iva: 19%', 'Ica: 6%']);
+      expect(taxCell(el, 0)?.querySelector('p-inputnumber')).toBeNull();
+    });
+    it('vista previa de factura: desglose por línea', () => {
+      TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+      const fixture = TestBed.createComponent(SaleInvoicePreviewComponent);
+      fixture.componentRef.setInput('status', 'BORRADOR');
+      fixture.componentRef.setInput('date', '2026-10-01');
+      fixture.componentRef.setInput('lines', [{ ...line('a', 1), ivaPct: 25, taxes: [IVA, ICA] }, line('b', 1)]);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(items(el)).toEqual(['Iva: 19%', 'Ica: 6%']);
+      expect(el.querySelectorAll('tbody tr')[1].textContent).toContain('19%');
+    });
+    it('vista previa de devolución: desglose heredado', () => {
+      TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+      const fixture = TestBed.createComponent(SaleReturnPreviewComponent);
+      const r = ret('r1', 'EMITIDA', 'NC-1');
+      fixture.componentRef.setInput('saleReturn', { ...r, lines: [{ ...r.lines[0], ivaPct: 25, taxes: [IVA, ICA] }] });
+      fixture.detectChanges();
+      expect(items(fixture.nativeElement as HTMLElement)).toEqual(['Iva: 19%', 'Ica: 6%']);
+    });
+    it('devolución emitida: muestra el desglose heredado de la línea original (solo lectura)', async () => {
+      const r = ret('r1', 'EMITIDA', 'NC-1');
+      setup({ id: 'r1' }, [inv('i2', 'EMITIDA')], [{ ...r, lines: [{ ...r.lines[0], sourceLineNo: 1, ivaPct: 25, taxes: [IVA, ICA] }] }]);
+      const el = await render(SaleReturnFormComponent);
+      expect(items(el.querySelector('p-table tbody'))).toEqual(['Iva: 19%', 'Ica: 6%']);
+    });
+    it('devolución borrador: el desglose sale de la disponibilidad (línea original); sin él, el % único', async () => {
+      setup({ id: 'r1' }, [inv('i2', 'EMITIDA')], [ret('r1', 'BORRADOR', null)]);
+      TestBed.overrideProvider(BillingSaleReturnApi, {
+        useValue: {
+          listByInvoice: () => of([]),
+          getById: () => of(ret('r1', 'BORRADOR', null)),
+          getAvailability: () =>
+            of([
+              { ...avail[0], ivaPct: 25, taxes: [IVA, ICA] },
+              { ...avail[0], lineNo: 2, productId: 'b', productName: 'Prod b' },
+            ]),
+          saveDraft: () => of(ret('r1', 'BORRADOR', null)),
+        },
+      });
+      const el = await render(SaleReturnFormComponent);
+      const rows = el.querySelectorAll('p-table tbody tr');
+      expect(items(rows[0])).toEqual(['Iva: 19%', 'Ica: 6%']);
+      expect(rows[1].textContent).toContain('19%');
+      expect(items(rows[1])).toEqual([]);
+    });
   });
 });

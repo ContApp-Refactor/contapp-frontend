@@ -173,7 +173,10 @@
                   }
                 </td>
                 <td class="text-right">{{ row.precioUnitarioCents | copCents }}</td>
-                <td class="text-right">{{ row.ivaPct }}%</td>
+                <td>
+                  <!-- Heredado de la línea original (solo lectura): desglose por impuesto o valor único -->
+                  <app-billing-tax-breakdown [taxes]="row.taxes" [rate]="row.ivaPct"></app-billing-tax-breakdown>
+                </td>
                 <td class="text-right font-semibold">{{ rowSubtotal(row) | copCents }}</td>
               </tr>
             </ng-template>

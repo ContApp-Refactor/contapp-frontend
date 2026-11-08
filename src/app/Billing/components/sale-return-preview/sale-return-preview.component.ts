@@ -6,11 +6,12 @@ import { DOCUMENT_KIND_CONFIG } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { returnLineSubtotalOf, returnTotals } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 
 // Vista previa de la devolución (nota crédito) tal como se vería impresa. Solo lectura.
 @Component({
   selector: 'app-sale-return-preview',
-  imports: [DatePipe, CopCentsPipe, BillingStatusBadgeComponent],
+  imports: [DatePipe, CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent],
   template: `
     <div
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
@@ -93,7 +94,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
                 <td class="p-8">{{ line.productName }}</td>
                 <td class="p-8 text-right">{{ line.cantidadDevuelta }}</td>
                 <td class="p-8 text-right">{{ line.precioUnitarioCents | copCents }}</td>
-                <td class="p-8 text-right">{{ line.ivaPct }}%</td>
+                <td class="p-8 text-right">
+                  <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
+                </td>
                 <td class="p-8 text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
               </tr>
             } @empty {

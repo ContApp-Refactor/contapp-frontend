@@ -77,6 +77,7 @@ export function buildAvailability(
       available: Math.max(0, roundQty(l.cantidad - done)),
       precioUnitarioCents: l.precioUnitarioCents,
       ivaPct: l.ivaPct ?? 0, // una factura emitida siempre trae IVA del back
+      ...(l.taxes?.length ? { taxes: l.taxes } : {}), // la devolución hereda el desglose de la línea original
     };
   });
 }

@@ -412,7 +412,7 @@
                   }
                 </td>
                 <td>
-                  @if (editable()) {
+                  @if (editable() && !hasTaxBreakdown(line)) {
                     <p-inputNumber
                       #iva
                       [ngModel]="line.ivaPct"
@@ -429,10 +429,11 @@
                       inputStyleClass="w-full"
                     ></p-inputNumber>
                   } @else {
-                    <div class="text-right">{{ line.ivaPct != null ? line.ivaPct + '%' : '—' }}</div>
+                    <!-- Desglose de impuestos de la categoría (solo lectura) o valor único como siempre -->
+                    <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
                   }
-                  <!-- Referencia de catálogo que resuelve el back: solo en borrador y cuando el IVA difiere -->
-                  @if (editable() && line.ivaCatalogoPct != null && line.ivaPct !== line.ivaCatalogoPct) {
+                  <!-- Referencia de catálogo que resuelve el back: solo en borrador, casilla editable y cuando el IVA difiere -->
+                  @if (editable() && !hasTaxBreakdown(line) && line.ivaCatalogoPct != null && line.ivaPct !== line.ivaCatalogoPct) {
                     <div class="text-gray-500 text-xs mt-4">cat. {{ line.ivaCatalogoPct }}%</div>
                   }
                 </td>

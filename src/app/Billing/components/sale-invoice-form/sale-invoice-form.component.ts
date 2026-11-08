@@ -38,6 +38,8 @@ import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from
 import { buildReturnQuery } from '../../utils/return-trail';
 import { MIN_QUANTITY, calcTotals, centsToPesos, isWholeQty, lineSubtotalOf, pesosToCents, wholeQty } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
+import { hasTaxBreakdown, sameTaxes } from '../../utils/tax-breakdown';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
@@ -82,6 +84,7 @@ const todayIso = (): string => {
     TableModule,
     CopCentsPipe,
     BillingStatusBadgeComponent,
+    BillingTaxBreakdownComponent,
     SaleInvoicePreviewComponent,
     SaleReturnPreviewComponent,
   ],
@@ -500,6 +503,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
           ivaCatalogoPct: product.ivaPct,
           ivaPct: product.ivaPct,
           ivaEditado: false,
+          // Desglose de vista previa (impuestos de la categoría): con elementos la celda es de solo lectura
+          taxes: product.taxes ?? [],
         },
       ]);
       this.markDirty();
@@ -589,6 +594,10 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     field.writeValue(value);
     field.input.nativeElement.value = value == null ? '' : field.formatValue(value);
   }
+
+  // Regla de presentación: con impuestos de categoría el desglose es de SOLO LECTURA; sin ellos (IVA por defecto, documento
+  // viejo o IVA editado a mano) queda la casilla editable de % como siempre
+  readonly hasTaxBreakdown = hasTaxBreakdown;
 
   // Las filas se identifican por producto (no por referencia del objeto): editar una línea no recrea su fila ni el input
   readonly trackLine = (_: number, line: SaleInvoiceLine): string => line.productId;
@@ -787,7 +796,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   }
 
   // El back es la fuente de verdad del IVA y de los precios sin editar: tras guardar, cada línea toma ivaPct /
-  // ivaCatalogoPct / ivaEditado y precioCatalogoCents / precioEditado de la respuesta, y el precio unitario solo si la
+  // ivaCatalogoPct / ivaEditado / taxes (desglose) y precioCatalogoCents / precioEditado de la respuesta, y el precio unitario solo si la
   // línea sigue al catálogo (`precioEditado` false; un override del usuario no se pisa). Todo salvo que el usuario haya
   // vuelto a editar mientras se guardaba (ese cambio queda pendiente y manda).
   private adoptSavedLine(saved: SaleInvoice): void {
@@ -806,6 +815,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         ivaPct: pick(s.ivaPct, l.ivaPct),
         ivaCatalogoPct: pick(s.ivaCatalogoPct, l.ivaCatalogoPct),
         ivaEditado: pick(s.ivaEditado, l.ivaEditado),
+        taxes: pick(s.taxes, l.taxes),
         precioCatalogoCents: pick(s.precioCatalogoCents, l.precioCatalogoCents),
         precioEditado,
         precioUnitarioCents:
@@ -815,6 +825,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         next.ivaPct !== l.ivaPct ||
         next.ivaCatalogoPct !== l.ivaCatalogoPct ||
         next.ivaEditado !== l.ivaEditado ||
+        !sameTaxes(next.taxes, l.taxes) ||
         next.lineNo !== l.lineNo ||
         next.precioCatalogoCents !== l.precioCatalogoCents ||
         next.precioEditado !== l.precioEditado ||

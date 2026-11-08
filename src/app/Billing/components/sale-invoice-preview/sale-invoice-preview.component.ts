@@ -5,12 +5,13 @@ import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { calcTotals, lineSubtotalOf } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 
 // Vista previa de la factura tal como se vería impresa. Solo lectura: recibe el estado
 // actual del formulario por inputs y no emite nada.
 @Component({
   selector: 'app-sale-invoice-preview',
-  imports: [CopCentsPipe, BillingStatusBadgeComponent],
+  imports: [CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent],
   template: `
     <div
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
@@ -86,7 +87,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
                 <td class="p-8">{{ line.productName }}</td>
                 <td class="p-8 text-right">{{ line.cantidad }}</td>
                 <td class="p-8 text-right">{{ line.precioUnitarioCents | copCents }}</td>
-                <td class="p-8 text-right">{{ line.ivaPct != null ? line.ivaPct + '%' : '—' }}</td>
+                <td class="p-8 text-right">
+                  <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
+                </td>
                 <td class="p-8 text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
               </tr>
             } @empty {

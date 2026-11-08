@@ -21,6 +21,7 @@ import { ONLY_FRACTION_LEFT_MESSAGE } from '../../utils/full-return';
 import { MIN_QUANTITY, isWholeQty, wholeQty } from '../../utils/money';
 import { calcReturnTotals, returnLineSubtotalOf } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
@@ -55,6 +56,7 @@ const todayIso = (): string => {
     TableModule,
     CopCentsPipe,
     BillingStatusBadgeComponent,
+    BillingTaxBreakdownComponent,
   ],
   providers: [ConfirmationService],
   templateUrl: './sale-return-form.component.html',
@@ -437,6 +439,7 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
           precioUnitarioCents: l.precioUnitarioCents,
           ivaPct: l.ivaPct,
           ...(l.subtotalCents != null ? { subtotalCents: l.subtotalCents } : {}),
+          ...(l.taxes?.length ? { taxes: l.taxes } : {}), // desglose heredado de la línea original
         })),
       );
     }

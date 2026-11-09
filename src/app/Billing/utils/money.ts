@@ -44,6 +44,36 @@ export function calcTotals(lines: SaleInvoiceLine[]): InvoiceTotals {
   return { subtotalCents, ivaCents, totalCents: subtotalCents + ivaCents };
 }
 
+// Una fila del "Detalle de impuestos": un impuesto distinto (nombre + tarifa), la base sobre la que se aplica
+// (suma de los subtotales de las líneas que lo tienen) y su valor (base × tarifa), SIN redondear.
+export interface TaxSummaryRow {
+  name: string;
+  baseCents: number;
+  taxCents: number;
+}
+
+// Desglose por impuesto de las líneas. Solo presentación: no cambia el IVA de las líneas ni los totales del documento.
+// Una línea con `taxes` aporta a cada uno de sus impuestos; una sin desglose pero con `ivaPct` > 0 (documento viejo,
+// IVA por defecto o editado a mano) aporta a una fila única "Iva"; sin impuestos no aporta nada.
+export function taxSummaryRows(lines: SaleInvoiceLine[], editable: boolean): TaxSummaryRow[] {
+  const groups = new Map<string, { name: string; rate: number; baseCents: number }>();
+  for (const line of lines) {
+    const taxes = line.taxes?.length ? line.taxes : line.ivaPct ? [{ name: 'Iva', rate: line.ivaPct }] : [];
+    const base = lineSubtotalOf(line, editable);
+    for (const tax of taxes) {
+      const key = `${tax.name.trim().toLowerCase()}|${tax.rate}`;
+      const group = groups.get(key) ?? { name: tax.name.trim(), rate: tax.rate, baseCents: 0 };
+      group.baseCents += base;
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()].map((g) => ({
+    name: `${g.name} ${g.rate}%`,
+    baseCents: g.baseCents,
+    taxCents: (g.baseCents * Math.round(g.rate * 100)) / 10000,
+  }));
+}
+
 // Totales de un documento: en un documento NO editable (emitido/anulado) mandan los `totals` del back;
 // en borrador (o si el back no los envía, p. ej. el mock) se calcula con las líneas.
 export function invoiceTotals(invoice: Pick<SaleInvoice, 'status' | 'lines' | 'totals'>): InvoiceTotals {

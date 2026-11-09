@@ -3,15 +3,16 @@ import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.metho
 import { BillingClient, BillingIssuer, InvoiceStatus, InvoiceTotals, SaleInvoiceLine } from '../../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
-import { calcTotals, lineSubtotalOf } from '../../utils/money';
+import { calcTotals, lineSubtotalOf, taxSummaryRows } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
+import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-summary.component';
 
 // Vista previa de la factura tal como se vería impresa. Solo lectura: recibe el estado
 // actual del formulario por inputs y no emite nada.
 @Component({
   selector: 'app-sale-invoice-preview',
-  imports: [CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent],
+  imports: [CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent, BillingTaxSummaryComponent],
   template: `
     <div
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
@@ -104,22 +105,13 @@ import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-t
         </table>
 
         <!-- Totales -->
-        <div class="flex justify-end mt-16">
-          <div class="w-full flex flex-col gap-8" style="max-width: 280px">
-            <div class="flex justify-between">
-              <span class="text-gray-600">Subtotal:</span>
-              <span class="font-semibold">{{ shownTotals().subtotalCents | copCents }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-600">Impuesto:</span>
-              <span class="font-semibold">{{ shownTotals().ivaCents | copCents }}</span>
-            </div>
-            <div class="flex justify-between items-center p-8 rounded-md bg-gray-100 text-lg">
-              <span class="font-bold text-primary">TOTAL:</span>
-              <span class="font-extrabold text-primary">{{ shownTotals().totalCents | copCents }}</span>
-            </div>
-          </div>
-        </div>
+        <app-billing-tax-summary
+          variant="print"
+          [rows]="taxRows()"
+          [subtotalCents]="shownTotals().subtotalCents"
+          [taxCents]="shownTotals().ivaCents"
+          [totalCents]="shownTotals().totalCents"
+        ></app-billing-tax-summary>
 
         <!-- Pie -->
         <p class="mt-32 pt-12 border-t border-gray-200 text-center text-xs text-gray-500">
@@ -166,6 +158,7 @@ export class SaleInvoicePreviewComponent {
     const server = this.totals();
     return this.status() !== 'BORRADOR' && server ? server : calcTotals(this.lines());
   });
+  taxRows = computed(() => taxSummaryRows(this.lines(), this.status() === 'BORRADOR'));
   watermark = computed(() => {
     const s = this.status();
     return s === 'BORRADOR' ? 'Borrador' : s === 'ANULADA' ? 'Anulada' : null;

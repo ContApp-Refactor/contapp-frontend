@@ -36,9 +36,19 @@ import { billingErrorMessage, isConcurrentModification } from '../../utils/billi
 import { isoDateText } from '../../utils/format';
 import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from '../../utils/full-return';
 import { buildReturnQuery } from '../../utils/return-trail';
-import { MIN_QUANTITY, calcTotals, centsToPesos, isWholeQty, lineSubtotalOf, pesosToCents, wholeQty } from '../../utils/money';
+import {
+  MIN_QUANTITY,
+  calcTotals,
+  centsToPesos,
+  isWholeQty,
+  lineSubtotalOf,
+  pesosToCents,
+  taxSummaryRows,
+  wholeQty,
+} from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
+import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-summary.component';
 import { hasTaxBreakdown, sameTaxes } from '../../utils/tax-breakdown';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
@@ -85,6 +95,7 @@ const todayIso = (): string => {
     CopCentsPipe,
     BillingStatusBadgeComponent,
     BillingTaxBreakdownComponent,
+    BillingTaxSummaryComponent,
     SaleInvoicePreviewComponent,
     SaleReturnPreviewComponent,
   ],
@@ -132,6 +143,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Totales que calculó el back (solo se usan en documentos no editables; en borrador se calcula localmente)
   serverTotals = signal<InvoiceTotals | null>(null);
   totals = computed(() => (this.editable() ? calcTotals(this.lines()) : (this.serverTotals() ?? calcTotals(this.lines()))));
+  taxRows = computed(() => taxSummaryRows(this.lines(), this.editable()));
   selectedClient = computed(() => this.clients().find((c) => c.id === this.clientId()) ?? null);
   // Datos congelados por el back en documentos emitidos/anulados (RN-06): el tercero y el emisor no cambian aunque
   // cambie el catálogo. En borrador el tercero sigue siendo el del catálogo vivo.

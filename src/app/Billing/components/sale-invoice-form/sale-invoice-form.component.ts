@@ -32,7 +32,7 @@ import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { SaleReturnPreviewComponent } from '../sale-return-preview/sale-return-preview.component';
 import { RETURNED_INVOICE_LABEL, deriveReturnState, returnOrdinals, returnTotals } from '../../utils/sale-return';
-import { billingErrorMessage, isConcurrentModification } from '../../utils/billing-error';
+import { billingErrorMessage, isConcurrentModification, isDuplicateSupplierInvoice } from '../../utils/billing-error';
 import { isoDateText } from '../../utils/format';
 import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from '../../utils/full-return';
 import { buildReturnQuery } from '../../utils/return-trail';
@@ -135,6 +135,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   loading = signal(true);
   busy = signal(false);
   saveState = signal<SaveState>('idle');
+  supplierNumberError = signal<string | null>(null); // N.º de factura del proveedor repetido (se muestra bajo el campo)
   previewVisible = signal(false);
   selectedProductId: string | null = null;
 
@@ -268,6 +269,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Fallo del autosave: queda el estado "error" y se avisa UNA vez por racha de fallos (no en cada intento)
   private onAutosaveError(e: unknown): void {
     this.saveState.set('error');
+    this.noteDuplicateSupplierNumber(e);
     if (isConcurrentModification(e)) {
       this.fail('No se pudo guardar', e);
       return;
@@ -486,6 +488,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
 
   onSupplierInvoiceNumberChange(value: string): void {
     this.supplierInvoiceNumber.set(value ?? '');
+    this.supplierNumberError.set(null); // el usuario corrige el número: se reintenta con el autosave
     this.markDirty();
   }
 
@@ -782,6 +785,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         this.writes++; // la escritura terminó: un GET que salió antes ya no es confiable
         this.version = saved.version ?? null;
         this.autosaveFailing = false;
+        this.supplierNumberError.set(null);
         this.adoptSavedLine(saved);
         if (!this.invoiceId()) {
           this.invoiceId.set(saved.id);
@@ -879,8 +883,14 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
 
   // Toast de error; ante un 409 por bloqueo optimista además se recarga la versión vigente del documento
   private fail(summary: string, e: unknown): void {
+    this.noteDuplicateSupplierNumber(e);
     this.toast('error', summary, this.errorMessage(e));
     if (isConcurrentModification(e)) this.reloadDocument();
+  }
+
+  // Un duplicado no rompe la pantalla: el borrador conserva lo ya guardado y el mensaje queda visible bajo el campo
+  private noteDuplicateSupplierNumber(e: unknown): void {
+    if (isDuplicateSupplierInvoice(e)) this.supplierNumberError.set(this.errorMessage(e));
   }
 
   private reloadDocument(): void {

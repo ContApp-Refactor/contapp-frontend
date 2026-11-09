@@ -4,9 +4,13 @@ export const IDEMPOTENCY_CONFLICT_CODE = 'BILLING_IDEMPOTENCY_CONFLICT';
 export const CONCURRENT_MODIFICATION_CODE = 'BILLING_CONCURRENT_MODIFICATION';
 // 409: una creación con la misma clave sigue en curso (o colisionó)
 export const IDEMPOTENCY_IN_PROGRESS_CODE = 'BILLING_IDEMPOTENCY_IN_PROGRESS';
+// 409: el N.º de factura del proveedor ya lo usa otra factura de compra del mismo proveedor
+export const DUPLICATE_SUPPLIER_INVOICE_CODE = 'BILLING_DUPLICATE_SUPPLIER_INVOICE';
 
 export const CONCURRENT_MODIFICATION_MESSAGE =
   'El documento fue modificado por otra persona o en otra pestaña. Recarga para ver la versión actual.';
+export const DUPLICATE_SUPPLIER_INVOICE_MESSAGE =
+  'Ya existe una factura de compra de este proveedor con ese N.º. Usa un número diferente.';
 export const IDEMPOTENCY_IN_PROGRESS_MESSAGE = 'La operación ya se está procesando. Espera unos segundos y reintenta.';
 
 // 409 por bloqueo optimista: la versión enviada ya no es la vigente en el back
@@ -14,6 +18,12 @@ export const isConcurrentModification = (e: unknown): boolean =>
   e instanceof HttpErrorResponse &&
   e.status === 409 &&
   (e.error as { code?: string } | null)?.code === CONCURRENT_MODIFICATION_CODE;
+
+// 409 por N.º de factura del proveedor repetido (se valida al guardar el borrador y al emitir)
+export const isDuplicateSupplierInvoice = (e: unknown): boolean =>
+  e instanceof HttpErrorResponse &&
+  e.status === 409 &&
+  (e.error as { code?: string } | null)?.code === DUPLICATE_SUPPLIER_INVOICE_CODE;
 
 // Mismo error que responde el back; lo usan los mocks para simular el bloqueo optimista
 export const concurrentModificationError = (): HttpErrorResponse =>
@@ -89,6 +99,8 @@ export const billingErrorMessage = (e: unknown): string => {
     }
     if (body?.code === IDEMPOTENCY_IN_PROGRESS_CODE) return IDEMPOTENCY_IN_PROGRESS_MESSAGE;
     if (body?.code === CONCURRENT_MODIFICATION_CODE) return CONCURRENT_MODIFICATION_MESSAGE;
+    // El back arma el mensaje con el número (y el consecutivo si ya está emitida); sin él se usa el genérico
+    if (body?.code === DUPLICATE_SUPPLIER_INVOICE_CODE) return body.message?.trim() || DUPLICATE_SUPPLIER_INVOICE_MESSAGE;
     if (body?.message) return body.message;
   }
   return e instanceof Error ? e.message : 'Ocurrió un error inesperado.';

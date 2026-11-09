@@ -274,7 +274,11 @@
                 [ngModel]="supplierInvoiceNumber()"
                 (ngModelChange)="onSupplierInvoiceNumberChange($event)"
                 placeholder="Ej: FE-12345"
+                [attr.aria-invalid]="supplierNumberError() ? 'true' : null"
               />
+              @if (supplierNumberError(); as duplicateMessage) {
+                <span class="text-xs text-red-600 font-family-sans mt-4" role="alert">{{ duplicateMessage }}</span>
+              }
             } @else {
               <span class="font-semibold">{{ supplierInvoiceNumber() || '—' }}</span>
             }

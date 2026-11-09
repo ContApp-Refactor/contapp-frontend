@@ -1,8 +1,11 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
 import { BillingClient, BillingIssuer, InvoiceStatus, InvoiceTotals, SaleInvoiceLine } from '../../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
+import { buildInvoicePdf, invoicePdfFileName } from '../../utils/invoice-pdf';
 import { calcTotals, lineSubtotalOf, taxSummaryRows } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
@@ -12,9 +15,10 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
 // actual del formulario por inputs y no emite nada.
 @Component({
   selector: 'app-sale-invoice-preview',
-  imports: [CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent, BillingTaxSummaryComponent],
+  imports: [ButtonModule, CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent, BillingTaxSummaryComponent],
   template: `
     <div
+      #sheet
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
       style="max-width: 800px"
     >
@@ -129,6 +133,17 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
         </p>
       </div>
     </div>
+
+    <!-- Fuera de la hoja: no entra en el PDF -->
+    <div class="mx-auto mt-16 flex justify-end" style="max-width: 800px">
+      <p-button
+        label="Imprimir"
+        icon="pi pi-print"
+        [loading]="printing()"
+        [disabled]="printing()"
+        (onClick)="print()"
+      ></p-button>
+    </div>
   `,
 })
 export class SaleInvoicePreviewComponent {
@@ -152,6 +167,27 @@ export class SaleInvoicePreviewComponent {
     if (!issuer) return this.enterprise?.nit || '';
     return issuer.nit ? (issuer.dv ? `${issuer.nit}-${issuer.dv}` : issuer.nit) : '';
   });
+
+  private readonly messages = inject(MessageService, { optional: true });
+  private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
+  readonly printing = signal(false);
+  // Constructor del PDF; se expone para poder sustituirlo en pruebas
+  pdfBuilder = buildInvoicePdf;
+
+  // Genera y descarga el PDF de la hoja tal como se ve (incluida la marca de agua). No toca el estado de la factura.
+  async print(): Promise<void> {
+    if (this.printing()) return;
+    this.printing.set(true);
+    try {
+      const pdf = await this.pdfBuilder(this.sheet().nativeElement);
+      pdf.save(invoicePdfFileName(this.cfg().previewTitle, this.number()));
+    } catch (error) {
+      console.error('No se pudo generar el PDF de la factura', error);
+      this.messages?.add({ severity: 'error', summary: 'Imprimir', detail: 'No se pudo generar el PDF. Inténtalo de nuevo.' });
+    } finally {
+      this.printing.set(false);
+    }
+  }
 
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.kind()]);
   shownTotals = computed(() => {

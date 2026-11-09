@@ -91,7 +91,9 @@ export class InventoryBillingProductCatalog extends BillingProductCatalog {
             id: String(p.id),
             code: p.code,
             name: p.name,
-            // El backend no tiene precio de venta: el precio se deriva de cost (provisional).
+            // El backend no tiene precio de venta: el precio se deriva de cost (provisional). En COMPRA es solo la vista
+            // previa: el back sugiere el ÚLTIMO PRECIO DE COMPRA (kardex) con cost de respaldo, y el autosave de la línea
+            // lo adopta de la respuesta (`precioCatalogoCents`). No se consulta el kardex por producto desde el front.
             priceCents: Math.round((p.cost ?? 0) * 100),
             // VISTA PREVIA del IVA de la categoría para líneas aún no guardadas; el back es la fuente de verdad.
             // null = sin dato (sin categoría, sin IVA identificable o consulta fallida): nunca se asume 0.

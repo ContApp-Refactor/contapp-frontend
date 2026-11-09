@@ -191,6 +191,35 @@ describe('BillingHttpSaleInvoiceApi (idempotencia)', () => {
     put.flush({ id: 'i1' } as SaleInvoice);
   });
 
+  it('compra: la línea sin editar viaja null (el back sugiere el último precio de compra) y su respuesta se adopta tal cual', () => {
+    let saved: SaleInvoice | undefined;
+    api.saveDraft(
+      input({
+        kind: 'PURCHASE',
+        id: 'p1',
+        lines: [
+          // vista previa = cost (1000); el usuario no tocó el precio
+          { productId: 'a', productName: 'a', cantidad: 1, precioCatalogoCents: 1000, precioUnitarioCents: 1000, precioEditado: false, ivaPct: null },
+          // override explícito del usuario: manda sobre el último precio
+          { productId: 'b', productName: 'b', cantidad: 1, precioCatalogoCents: 1000, precioUnitarioCents: 900, precioEditado: true, ivaPct: null },
+        ],
+      }),
+    ).subscribe((s) => (saved = s));
+    const put = httpMock.expectOne((r) => r.method === 'PUT' && r.url === '/api/billing/purchase-invoices/p1');
+    const lines = (put.request.body as { lines: { precioUnitarioCents: number | null }[] }).lines;
+    expect(lines.map((l) => l.precioUnitarioCents)).toEqual([null, 900]);
+    put.flush({
+      id: 'p1',
+      kind: 'PURCHASE',
+      lines: [
+        { productId: 'a', precioCatalogoCents: 1250, precioUnitarioCents: 1250, precioEditado: false },
+        { productId: 'b', precioCatalogoCents: 1250, precioUnitarioCents: 900, precioEditado: true },
+      ],
+    });
+    expect(saved?.lines.map((l) => l.precioCatalogoCents)).toEqual([1250, 1250]);
+    expect(saved?.lines.map((l) => l.precioUnitarioCents)).toEqual([1250, 900]);
+  });
+
   describe('precio: misma regla que el IVA (precioEditado)', () => {
     type Body = { lines: { precioUnitarioCents: number | null }[] };
     const priceLine = (over: Record<string, unknown>) => ({

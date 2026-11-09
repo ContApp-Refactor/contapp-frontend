@@ -101,6 +101,15 @@ describe('InventoryBillingProductCatalog (IVA desde la categoría)', () => {
     expect(result.map((p) => p.priceCents)).toEqual([10000, 5000, 2000]);
   });
 
+  it('en COMPRA la vista previa sigue saliendo de cost (el último precio de compra lo resuelve el back al guardar) sin pedir más datos', () => {
+    let result: { priceCents: number }[] = [];
+    catalog.getProducts('PURCHASE').subscribe((r) => (result = r));
+    httpMock.expectOne((r) => r.url === '/api/products/findActivate').flush(products);
+    httpMock.expectOne((r) => r.url === '/api/categories/findActivate').flush(categories);
+    httpMock.expectOne('/api/tax/active/ent-1').flush(taxes);
+    expect(result.map((p) => p.priceCents)).toEqual([10000, 5000, 2000]);
+  });
+
   it('si falla categorías o impuestos el catálogo sigue, con el IVA sin dato (null) y no 0', () => {
     let result: { ivaPct: number | null }[] = [];
     catalog.getProducts('PURCHASE').subscribe((r) => (result = r));

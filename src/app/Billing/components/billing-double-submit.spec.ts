@@ -7,6 +7,7 @@ import { SaleInvoice } from '../models/billing-sale-invoice.model';
 import { SaleReturn } from '../models/billing-sale-return.model';
 import { BillingCounterpartyCatalog } from '../services/billing-counterparty-catalog';
 import { BillingProductCatalog } from '../services/billing-product-catalog';
+import { BillingPaymentCatalog } from '../services/billing-payment-catalog';
 import { BillingSaleInvoiceApi } from '../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../services/billing-sale-return.api';
 import { SaleInvoiceFormComponent } from './sale-invoice-form/sale-invoice-form.component';
@@ -22,6 +23,7 @@ const providersFor = (invoiceApi: unknown, returnApi: unknown) => [
   { provide: BillingSaleInvoiceApi, useValue: invoiceApi },
   { provide: BillingSaleReturnApi, useValue: returnApi },
   { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
+  { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([]) } },
   { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([]) } },
   { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
   { provide: Location, useValue: { replaceState: () => undefined, back: () => undefined } },
@@ -174,6 +176,8 @@ describe('Doble envío en el formulario de factura', () => {
     ]);
     expect(component.qtyFractionDigits(2.5)).toBe(3); // no se muestra redondeado a "3"
     expect(component.qtyFractionDigits(2)).toBe(0);
+    component.paymentMethods.set([{ id: '7', name: 'Efectivo' }]);
+    component.paymentMethodId.set('7');
     component.confirmEmit();
     const call = messages.add.calls.mostRecent().args[0];
     expect(call.severity).toBe('warn');

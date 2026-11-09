@@ -6,6 +6,7 @@ import { MessageService } from 'primeng/api';
 import { of, throwError } from 'rxjs';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
+import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { DUPLICATE_SUPPLIER_INVOICE_CODE } from '../../utils/billing-error';
@@ -39,6 +40,7 @@ describe('Formulario de factura de compra: N.º de factura del proveedor duplica
           getById: () => of(structuredClone(draft)), saveDraft, deleteDraft: () => of(undefined), emit: () => of(draft), annul: () => of(draft) } },
         { provide: BillingSaleReturnApi, useValue: { listByInvoice: () => of([]), getAvailability: () => of([]) } },
         { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
+        { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([]) } },
         { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([{ id: 's1', name: 'Proveedor Uno', document: '1' }]) } },
       ],
     });

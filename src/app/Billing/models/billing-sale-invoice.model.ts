@@ -38,6 +38,18 @@ export interface BillingIssuer {
   active: boolean;
 }
 
+// Pago de la factura de VENTA (la compra y las devoluciones no lo llevan): solo el método de pago. Billing solo lo registra y lo publica; no procesa pagos.
+export interface BillingPayment {
+  methodId?: string | null;
+  methodName?: string | null; // nombre congelado por el back al emitir (null en borrador)
+}
+
+// Método de pago de la empresa (catálogo de Maestros Generales > Métodos de Pago), solo los activos
+export interface BillingPaymentMethod {
+  id: string;
+  name: string;
+}
+
 // Contraparte del documento: cliente en ventas, proveedor en compras
 export interface BillingClient {
   id: string;
@@ -84,6 +96,7 @@ export interface SaleInvoice {
   annulReason?: string;
   version?: number | null; // bloqueo optimista: se devuelve en cada respuesta y se reenvía al modificar
   issuer?: BillingIssuer | null; // emisor congelado al emitir; null en borrador
+  payment?: BillingPayment | null; // forma de pago (solo venta); null/ausente en compras y en ventas anteriores a este dato
 }
 
 // Lo que el front envía al guardar un borrador (crea si no hay id)
@@ -95,6 +108,7 @@ export interface SaleInvoiceDraftInput {
   date: string;
   lines: SaleInvoiceLineInput[];
   version?: number | null; // versión conocida del borrador (bloqueo optimista); sin ella el back no verifica
+  payment?: BillingPayment | null; // solo venta (en compra no se envía); null = sin forma de pago todavía
 }
 
 // Línea enviada por el front: valores efectivos; las referencias de catálogo

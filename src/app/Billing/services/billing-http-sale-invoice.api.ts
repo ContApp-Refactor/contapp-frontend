@@ -7,6 +7,7 @@ import { BillingSaleInvoiceApi, InvoiceListResult } from './billing-sale-invoice
 import { BillingDocumentKindRegistry, INVOICE_BASE } from './billing-document-kind-registry';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
 import { IDEMPOTENCY_HEADER, IdempotencyKeyStore } from './idempotency-key.store';
+import { paymentBody } from '../utils/payment';
 
 const KINDS: DocumentKind[] = ['SALE', 'PURCHASE'];
 
@@ -35,16 +36,22 @@ const precioOverride = (l: SaleInvoiceDraftInput['lines'][number]): number | nul
 // catálogo. El IVA sigue la misma regla: el back es la fuente de verdad (lo resuelve desde la categoría del producto) y
 // solo viaja ivaPct cuando el usuario lo editó.
 // Sin dato (null) nunca se envía un valor inventado.
-export const toDraftBody = (input: SaleInvoiceDraftInput) => ({
-  ...input,
-  lines: input.lines.map((l) => ({
-    productId: l.productId,
-    cantidad: l.cantidad,
-    precioUnitarioCents: precioOverride(l),
-    ivaPct: ivaOverride(l),
-  })),
-  version: input.version ?? null, // bloqueo optimista: el back lo verifica solo si viene
-});
+//
+// Pago: solo la factura de VENTA lo envía (en compra la clave `payment` ni viaja): { methodId }.
+export const toDraftBody = (input: SaleInvoiceDraftInput) => {
+  const { payment, ...rest } = input;
+  return {
+    ...rest,
+    ...(input.kind === 'SALE' ? { payment: paymentBody(payment) } : {}),
+    lines: input.lines.map((l) => ({
+      productId: l.productId,
+      cantidad: l.cantidad,
+      precioUnitarioCents: precioOverride(l),
+      ivaPct: ivaOverride(l),
+    })),
+    version: input.version ?? null, // bloqueo optimista: el back lo verifica solo si viene
+  };
+};
 
 // Más recientes primero (el listado mezcla ventas y compras)
 const byUpdatedDesc = (a: SaleInvoice, b: SaleInvoice): number =>

@@ -2,11 +2,19 @@ import { Component, computed, ElementRef, inject, input, signal, viewChild } fro
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
-import { BillingClient, BillingIssuer, InvoiceStatus, InvoiceTotals, SaleInvoiceLine } from '../../models/billing-sale-invoice.model';
+import {
+  BillingClient,
+  BillingIssuer,
+  BillingPayment,
+  InvoiceStatus,
+  InvoiceTotals,
+  SaleInvoiceLine,
+} from '../../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { buildInvoicePdf, invoicePdfFileName } from '../../utils/invoice-pdf';
 import { calcTotals, lineSubtotalOf, taxSummaryRows } from '../../utils/money';
+import { paymentSummary } from '../../utils/payment';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-summary.component';
@@ -70,6 +78,10 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
           }
           @if (kind() === 'PURCHASE') {
             <p class="text-gray-600">N.º factura del proveedor: {{ supplierInvoiceNumber() || '—' }}</p>
+          }
+          <!-- Método de pago: solo factura de venta (dentro de la hoja, así sale también en el PDF) -->
+          @if (kind() === 'SALE') {
+            <p class="text-gray-600" data-testid="preview-payment">Método de pago: {{ paymentText() }}</p>
           }
         </div>
 
@@ -156,6 +168,7 @@ export class SaleInvoicePreviewComponent {
   lines = input.required<SaleInvoiceLine[]>();
   totals = input<InvoiceTotals | null>(null); // los del back; solo mandan si el documento no es borrador
   issuer = input<BillingIssuer | null>(null); // emisor congelado al emitir (RN-06); null en borrador
+  payment = input<BillingPayment | null>(null); // forma de pago (solo venta); null = sin dato => "—"
 
   // El emisor del documento emitido es el congelado por el back; los datos de la empresa en localStorage
   // quedan solo como respaldo (borradores y documentos sin emisor)
@@ -190,6 +203,7 @@ export class SaleInvoicePreviewComponent {
   }
 
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.kind()]);
+  paymentText = computed(() => paymentSummary(this.payment()));
   shownTotals = computed(() => {
     const server = this.totals();
     return this.status() !== 'BORRADOR' && server ? server : calcTotals(this.lines());

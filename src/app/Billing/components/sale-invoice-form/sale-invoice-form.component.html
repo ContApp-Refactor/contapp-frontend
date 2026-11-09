@@ -30,6 +30,7 @@
       [lines]="lines()"
       [totals]="serverTotals()"
       [issuer]="issuer()"
+      [payment]="payment()"
     />
   </p-dialog>
 
@@ -299,6 +300,67 @@
             <span class="font-semibold">{{ date() | date: 'dd/MM/yyyy' }}</span>
           }
         </div>
+
+        <!-- Pago: solo factura de VENTA. Solo método de pago -->
+        @if (isSale()) {
+          <div class="flex flex-col" data-testid="payment-method">
+            <label for="paymentMethod" class="font-normal text-primary mb-4"
+              >Método de pago:@if (editable()) { <span> *</span> }</label
+            >
+            @if (editable()) {
+              <p-dropdown
+                inputId="paymentMethod"
+                [options]="paymentMethods()"
+                optionLabel="name"
+                optionValue="id"
+                [ngModel]="paymentMethodId()"
+                (ngModelChange)="onPaymentMethodChange($event)"
+                [placeholder]="paymentMethodsState() === 'ready' && paymentMethods().length === 0 ? 'Sin métodos de pago' : 'Selecciona un método de pago...'"
+                [filter]="paymentMethods().length > 8"
+                filterBy="name"
+                styleClass="w-full md:w-1/2"
+                size="small"
+                appendTo="body"
+              ></p-dropdown>
+              <button
+                type="button"
+                class="self-start text-xs underline font-semibold cursor-pointer bg-transparent border-0 p-0 mt-4 text-primary disabled:opacity-50"
+                data-testid="payment-methods-link"
+                [disabled]="busy()"
+                (click)="goToPaymentMethods()"
+              >
+                Administrar métodos de pago
+              </button>
+              @if (paymentMethodsState() === 'failed') {
+                <span class="text-xs text-red-600 font-family-sans mt-4" role="alert" data-testid="payment-methods-failed">
+                  No se pudieron cargar los métodos de pago.
+                  <button
+                    type="button"
+                    class="underline font-semibold cursor-pointer bg-transparent border-0 p-0 text-red-700"
+                    (click)="loadPaymentMethods()"
+                  >
+                    Reintentar
+                  </button>
+                </span>
+              } @else if (paymentMethodsState() === 'ready' && paymentMethods().length === 0) {
+                <span class="text-xs text-amber-700 font-family-sans mt-4" role="alert" data-testid="payment-methods-empty">
+                  {{ noPaymentMethodsMessage }}
+                  <button
+                    type="button"
+                    class="underline font-semibold cursor-pointer bg-transparent border-0 p-0 text-primary disabled:opacity-50"
+                    [disabled]="busy()"
+                    (click)="goToPaymentMethods()"
+                  >
+                    Ir a Métodos de Pago
+                  </button>
+                </span>
+              }
+            } @else {
+              <span class="font-semibold">{{ paymentMethodLabel() }}</span>
+            }
+          </div>
+
+        }
 
         @if (annulReason()) {
           <div class="flex flex-col md:col-span-2">

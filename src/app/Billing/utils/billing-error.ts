@@ -7,6 +7,15 @@ export const IDEMPOTENCY_IN_PROGRESS_CODE = 'BILLING_IDEMPOTENCY_IN_PROGRESS';
 // 409: el N.º de factura del proveedor ya lo usa otra factura de compra del mismo proveedor
 export const DUPLICATE_SUPPLIER_INVOICE_CODE = 'BILLING_DUPLICATE_SUPPLIER_INVOICE';
 
+// 422: pago de la factura de venta (método obligatorio y válido)
+export const PAYMENT_METHOD_REQUIRED_CODE = 'BILLING_PAYMENT_METHOD_REQUIRED';
+export const PAYMENT_METHOD_INVALID_CODE = 'BILLING_PAYMENT_METHOD_INVALID';
+
+export const PAYMENT_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  [PAYMENT_METHOD_REQUIRED_CODE]: 'Selecciona el método de pago de la factura.',
+  [PAYMENT_METHOD_INVALID_CODE]: 'El método de pago no existe, está inactivo o no es de esta empresa. Elige otro en la lista.',
+};
+
 export const CONCURRENT_MODIFICATION_MESSAGE =
   'El documento fue modificado por otra persona o en otra pestaña. Recarga para ver la versión actual.';
 export const DUPLICATE_SUPPLIER_INVOICE_MESSAGE =
@@ -31,6 +40,14 @@ export const concurrentModificationError = (): HttpErrorResponse =>
     status: 409,
     statusText: 'Conflict',
     error: { code: CONCURRENT_MODIFICATION_CODE, message: CONCURRENT_MODIFICATION_MESSAGE },
+  });
+
+// Mismo error 422 que responde el back por la forma de pago; lo usan los mocks
+export const paymentApiError = (code: string): HttpErrorResponse =>
+  new HttpErrorResponse({
+    status: 422,
+    statusText: 'Unprocessable Entity',
+    error: { code, message: PAYMENT_ERROR_MESSAGES[code] },
   });
 
 // Toast resumido cuando el listado omitió documentos que no se pudieron cargar
@@ -89,11 +106,21 @@ const stockMessage = (code: string, detail: string | undefined): string => {
   return text ? `${base} Detalle: ${text}` : `${base} ${STOCK_REJECTED_FALLBACK}`;
 };
 
+/** Error de forma de pago de la factura de venta (422): el documento sigue en borrador. */
+export const isPaymentError = (e: unknown): boolean => {
+  const code = errorCode(e);
+  return code !== undefined && code in PAYMENT_ERROR_MESSAGES;
+};
+
 // Mensaje legible para el toast a partir del error del back (BillingErrorResponse: { code, message })
 export const billingErrorMessage = (e: unknown): string => {
   if (e instanceof HttpErrorResponse) {
     const body = e.error as { code?: string; message?: string } | null;
     if (body?.code && body.code in STOCK_ERROR_MESSAGES) return stockMessage(body.code, body.message);
+    // El back arma un mensaje claro en español; si no llega se usa el de respaldo del código
+    if (body?.code && body.code in PAYMENT_ERROR_MESSAGES) {
+      return body.message?.trim() || PAYMENT_ERROR_MESSAGES[body.code];
+    }
     if (body?.code === IDEMPOTENCY_CONFLICT_CODE) {
       return 'Esta operación ya se envió con datos distintos. Recarga la pantalla e inténtalo de nuevo.';
     }

@@ -3,6 +3,8 @@ import { BillingCounterpartyCatalog } from '../Billing/services/billing-counterp
 import { InventoryBillingCounterpartyCatalog } from '../Billing/services/inventory-billing-counterparty-catalog.service';
 import { BillingProductCatalog } from '../Billing/services/billing-product-catalog';
 import { InventoryBillingProductCatalog } from '../Billing/services/inventory-billing-product-catalog.service';
+import { BillingPaymentCatalog } from '../Billing/services/billing-payment-catalog';
+import { AccountingBillingPaymentCatalog } from '../Billing/services/accounting-billing-payment-catalog.service';
 import { BillingSaleInvoiceApi } from '../Billing/services/billing-sale-invoice.api';
 import { MockBillingSaleInvoiceApi } from '../Billing/services/mock-billing-sale-invoice.api';
 import { BillingHttpSaleInvoiceApi } from '../Billing/services/billing-http-sale-invoice.api';
@@ -21,6 +23,7 @@ export const BILLING_ROUTES: Routes = [
       { provide: BillingSaleReturnApi, useClass: BillingHttpSaleReturnApi },
       { provide: BillingProductCatalog, useClass: InventoryBillingProductCatalog },
       { provide: BillingCounterpartyCatalog, useClass: InventoryBillingCounterpartyCatalog },
+      { provide: BillingPaymentCatalog, useClass: AccountingBillingPaymentCatalog },
     ],
     children: [
       {

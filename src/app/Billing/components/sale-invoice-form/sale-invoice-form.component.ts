@@ -16,6 +16,8 @@ import { Subject, debounceTime, finalize, firstValueFrom } from 'rxjs';
 import {
   BillingClient,
   BillingIssuer,
+  BillingPayment,
+  BillingPaymentMethod,
   BillingProduct,
   INVOICE_STATUS_LABEL,
   InvoiceStatus,
@@ -27,6 +29,7 @@ import { ReturnAvailabilityLine, SaleReturn } from '../../models/billing-sale-re
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
+import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
@@ -34,6 +37,7 @@ import { SaleReturnPreviewComponent } from '../sale-return-preview/sale-return-p
 import { RETURNED_INVOICE_LABEL, deriveReturnState, returnOrdinals, returnTotals } from '../../utils/sale-return';
 import { billingErrorMessage, isConcurrentModification, isDuplicateSupplierInvoice } from '../../utils/billing-error';
 import { isoDateText } from '../../utils/format';
+import { NO_PAYMENT_METHODS_MESSAGE } from '../../utils/payment';
 import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from '../../utils/full-return';
 import { buildReturnQuery } from '../../utils/return-trail';
 import {
@@ -106,6 +110,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   private readonly api = inject(BillingSaleInvoiceApi);
   private readonly catalog = inject(BillingProductCatalog);
   private readonly counterpartyCatalog = inject(BillingCounterpartyCatalog);
+  private readonly paymentCatalog = inject(BillingPaymentCatalog);
   private readonly returnApi = inject(BillingSaleReturnApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -130,6 +135,27 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   date = signal<string>(todayIso());
   lines = signal<SaleInvoiceLine[]>([]);
   annulReason = signal<string | null>(null);
+
+  // Pago (solo factura de VENTA; en compra la sección no existe y nada de esto se envía): método y, si lo exige, cuenta
+  isSale = computed(() => this.kind() === 'SALE');
+  readonly noPaymentMethodsMessage = NO_PAYMENT_METHODS_MESSAGE;
+  paymentMethodId = signal<string | null>(null);
+  paymentMethodName = signal<string | null>(null); // congelado por el back al emitir
+  paymentMethods = signal<BillingPaymentMethod[]>([]);
+  paymentMethodsState = signal<'loading' | 'ready' | 'failed'>('loading');
+  selectedPaymentMethod = computed(() => this.paymentMethods().find((m) => m.id === this.paymentMethodId()) ?? null);
+  // Nombre del método: el congelado al emitir; en borrador, el del catálogo vivo
+  paymentMethodLabel = computed(
+    () =>
+      this.paymentMethodName() ??
+      this.selectedPaymentMethod()?.name ??
+      (this.paymentMethodId() ? `N.º ${this.paymentMethodId()}` : '—'),
+  );
+  // Pago actual del formulario: lo que se guarda y lo que ve la vista previa/PDF
+  payment = computed<BillingPayment | null>(() => {
+    if (!this.isSale() || !this.paymentMethodId()) return null;
+    return { methodId: this.paymentMethodId(), methodName: this.paymentMethodLabel() };
+  });
 
   // UI
   loading = signal(true);
@@ -225,6 +251,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.kind.set(this.route.snapshot.data['kind'] ?? 'SALE');
     this.loadProducts();
     this.loadCounterparties();
+    this.loadPaymentMethods();
 
     this.autosave$
       .pipe(debounceTime(AUTOSAVE_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))
@@ -246,6 +273,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
             this.kind.set(invoice.kind);
             this.loadProducts();
             this.loadCounterparties();
+            this.loadPaymentMethods();
           }
           this.applyInvoice(invoice);
           this.loading.set(false);
@@ -404,12 +432,43 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       .subscribe((c) => this.clients.set(c));
   }
 
+  // Métodos de pago activos de la empresa (solo venta). Un fallo NO es lo mismo que "no hay métodos": se avisa distinto
+  loadPaymentMethods(): void {
+    if (!this.isSale()) return;
+    this.paymentMethodsState.set('loading');
+    this.paymentCatalog
+      .getPaymentMethods()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (methods) => {
+          this.paymentMethods.set(methods);
+          this.paymentMethodsState.set('ready');
+        },
+        error: () => this.paymentMethodsState.set('failed'),
+      });
+  }
+
+  /** Atajo a Métodos de Pago: asegura el borrador guardado y abre el maestro (al volver a la pestaña se recarga la lista). */
+  async goToPaymentMethods(): Promise<void> {
+    if (!this.editable() || this.busy()) return;
+    this.busy.set(true);
+    try {
+      await this.persist();
+      await this.router.navigate(['/gen-masters/payment-methods/list']);
+    } catch (e) {
+      this.fail('No se pudo guardar el borrador', e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   // Al volver de crear/editar productos (pestaña o ventana recupera el foco) se recarga
   @HostListener('window:focus')
   @HostListener('document:visibilitychange')
   onReturnToWindow(): void {
     if (document.visibilityState !== 'visible' || !this.editable()) return;
     this.loadProducts();
+    this.loadPaymentMethods(); // por si se crearon métodos de pago en otra pestaña
     this.refreshDraft();
   }
 
@@ -489,6 +548,12 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   onSupplierInvoiceNumberChange(value: string): void {
     this.supplierInvoiceNumber.set(value ?? '');
     this.supplierNumberError.set(null); // el usuario corrige el número: se reintenta con el autosave
+    this.markDirty();
+  }
+
+  onPaymentMethodChange(id: string | null): void {
+    this.paymentMethodId.set(id);
+    this.paymentMethodName.set(null);
     this.markDirty();
   }
 
@@ -734,11 +799,24 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     if (this.kind() === 'PURCHASE' && !this.supplierInvoiceNumber().trim()) {
       return 'Debes ingresar el N.º de factura del proveedor.';
     }
+    const paymentError = this.paymentEmitError();
+    if (paymentError) return paymentError;
     if (this.lines().length === 0) return 'Agrega al menos un ítem a la factura.';
     if (this.lines().some((l) => !(l.cantidad > 0))) return 'Todos los ítems deben tener cantidad mayor a cero.';
     // Un borrador histórico puede traer decimales: Inventario los rechazaría al emitir
     if (this.lines().some((l) => !isWholeQty(l.cantidad))) {
       return 'Inventario solo admite cantidades enteras: corrige las cantidades con decimales antes de emitir.';
+    }
+    return null;
+  }
+
+  // Método de pago obligatorio al emitir una VENTA; el back lo vuelve a validar
+  private paymentEmitError(): string | null {
+    if (!this.isSale()) return null;
+    if (this.paymentMethodsState() === 'ready' && this.paymentMethods().length === 0) return NO_PAYMENT_METHODS_MESSAGE;
+    if (!this.paymentMethodId()) return 'Selecciona el método de pago.';
+    if (this.paymentMethodsState() === 'ready' && !this.selectedPaymentMethod()) {
+      return 'El método de pago elegido ya no está activo. Selecciona otro.';
     }
     return null;
   }
@@ -779,6 +857,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
             supplierInvoiceNumber: this.supplierInvoiceNumber(),
             date: this.date(),
             lines: this.lines(),
+            payment: this.payment(), // solo venta; null en compra
             version: this.version, // la de la respuesta anterior (la cadena serializa los guardados)
           }),
         );
@@ -867,6 +946,9 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.date.set(invoice.date);
     this.lines.set(invoice.lines);
     this.serverTotals.set(invoice.totals ?? null);
+    const payment = invoice.kind === 'SALE' ? (invoice.payment ?? null) : null;
+    this.paymentMethodId.set(payment?.methodId ?? null);
+    this.paymentMethodName.set(payment?.methodName ?? null);
     this.version = invoice.version ?? null;
     this.annulReason.set(invoice.annulReason ?? null);
     this.dirty = false;

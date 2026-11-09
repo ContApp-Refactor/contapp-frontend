@@ -45,6 +45,7 @@ describe('billingErrorMessage: errores de Inventario al emitir (BILLING_STOCK_*)
       ['BILLING_STOCK_QUANTITY_NOT_SUPPORTED', 422, 'solo admite cantidades enteras'],
       ['BILLING_STOCK_CONFIG_MISSING', 422, 'método de valoración de inventario (PEPS o promedio ponderado)'],
       ['BILLING_STOCK_ORIGINAL_NOT_FOUND', 422, 'movimiento de la factura original'],
+      ['BILLING_STOCK_PERIOD_CLOSED', 422, 'el mes está cerrado o no existe. Abre el mes en el calendario contable'],
       ['BILLING_STOCK_UNAVAILABLE', 503, 'Inventario no está disponible'],
     ];
     for (const [code, status, expected] of cases) {

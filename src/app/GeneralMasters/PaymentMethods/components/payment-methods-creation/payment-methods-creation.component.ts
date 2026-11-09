@@ -1,7 +1,8 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { safeReturnTo } from '../../../../Billing/utils/return-trail';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
@@ -27,6 +28,7 @@ export class PaymentMethodsCreationComponent {
   constructor(
     private readonly fb: FormBuilder,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly messageService: MessageService,
     private readonly service: PaymentMethodsServiceService,
     private readonly chartAccountService: ChartAccountService,
@@ -40,6 +42,7 @@ export class PaymentMethodsCreationComponent {
   }
 
   ngOnInit(): void {
+    this.returnTo = safeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'));
     const entData = localStorage.getItem('entData');
     const enterpriseId = entData ? JSON.parse(entData).id : '';
 
@@ -74,8 +77,15 @@ export class PaymentMethodsCreationComponent {
     }
   }
 
+  // Ruta segura para "Volver a factura" (solo si llegó con ?returnTo=/billing/...)
+  returnTo: string | null = null;
+
+  goBackToInvoice() {
+    if (this.returnTo) this.router.navigateByUrl(this.returnTo);
+  }
+
   goBack() {
-    this.router.navigate(['/gen-masters/payment-methods/list']);
+    this.router.navigate(['/gen-masters/payment-methods/list'], { queryParamsHandling: 'preserve' });
   }
 
 

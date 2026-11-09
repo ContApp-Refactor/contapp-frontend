@@ -11,8 +11,14 @@
           Modifique la información del método de pago seleccionado.
         </p>
       </div>
-      <div class="hidden sm:block">
-        <p-button icon="pi pi-arrow-left" (click)="goBack()" styleClass="p-button-text p-button-secondary"></p-button>
+      <div class="flex items-center gap-2">
+        <!-- Solo si se llegó desde Facturación (?returnTo=/billing/...) -->
+        @if (returnTo) {
+          <p-button label="Volver a factura" icon="pi pi-arrow-left" [style]="{'white-space': 'nowrap'}" (click)="goBackToInvoice()"></p-button>
+        }
+        <div class="hidden sm:block">
+          <p-button icon="pi pi-arrow-left" (click)="goBack()" styleClass="p-button-text p-button-secondary"></p-button>
+        </div>
       </div>
     </div>
 

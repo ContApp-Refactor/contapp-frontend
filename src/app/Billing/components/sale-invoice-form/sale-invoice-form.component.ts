@@ -454,7 +454,10 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.persist();
-      await this.router.navigate(['/gen-masters/payment-methods/list']);
+      const returnTo = `${this.cfg().basePath}/${this.invoiceId() ?? 'new'}`;
+      await this.router.navigate(['/gen-masters/payment-methods/list'], {
+        queryParams: buildReturnQuery(returnTo),
+      });
     } catch (e) {
       this.fail('No se pudo guardar el borrador', e);
     } finally {

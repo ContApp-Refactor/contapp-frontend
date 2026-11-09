@@ -1,9 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   CONCURRENT_MODIFICATION_MESSAGE,
+  DUPLICATE_SUPPLIER_INVOICE_CODE,
+  DUPLICATE_SUPPLIER_INVOICE_MESSAGE,
   IDEMPOTENCY_IN_PROGRESS_CODE,
   STOCK_ERROR_MESSAGES,
   billingErrorMessage,
+  isDuplicateSupplierInvoice,
   isStockError,
   skippedToast,
 } from './billing-error';
@@ -27,6 +30,23 @@ describe('billingErrorMessage', () => {
     );
     expect(billingErrorMessage(http(409, 'BILLING_CONCURRENT_MODIFICATION'))).toContain('Recarga para ver');
     expect(billingErrorMessage(http(409, 'BILLING_CONCURRENT_MODIFICATION'))).not.toContain('Recargá');
+  });
+
+  it('409 BILLING_DUPLICATE_SUPPLIER_INVOICE: muestra el mensaje claro del back (con el número)', () => {
+    const msg = 'Ya existe una factura de compra de este proveedor con el N.º 1234. Usa un número diferente.';
+    expect(billingErrorMessage(http(409, DUPLICATE_SUPPLIER_INVOICE_CODE, msg))).toBe(msg);
+  });
+
+  it('409 BILLING_DUPLICATE_SUPPLIER_INVOICE sin mensaje del back usa el texto genérico en español claro', () => {
+    const e = new HttpErrorResponse({ status: 409, error: { code: DUPLICATE_SUPPLIER_INVOICE_CODE } });
+    expect(billingErrorMessage(e)).toBe(DUPLICATE_SUPPLIER_INVOICE_MESSAGE);
+    expect(DUPLICATE_SUPPLIER_INVOICE_MESSAGE).toContain('Usa un número diferente');
+  });
+
+  it('isDuplicateSupplierInvoice distingue el duplicado de otros 409', () => {
+    expect(isDuplicateSupplierInvoice(http(409, DUPLICATE_SUPPLIER_INVOICE_CODE))).toBeTrue();
+    expect(isDuplicateSupplierInvoice(http(409, 'BILLING_CONCURRENT_MODIFICATION'))).toBeFalse();
+    expect(isDuplicateSupplierInvoice(new Error('x'))).toBeFalse();
   });
 
   it('sin código usa el mensaje del back o uno genérico', () => {

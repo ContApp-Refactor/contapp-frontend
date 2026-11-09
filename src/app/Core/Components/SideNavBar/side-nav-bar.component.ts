@@ -169,6 +169,11 @@ export class SideNavBarComponent implements OnInit {
   }
 
   getActiveClass(data: INavbarData): string {
-    return this.router.url.includes(data.routeLink) ? 'active' : '';
+    if (this.router.url.includes(data.routeLink)) return 'active';
+    // Grupo activo si alguna entrada hija (ruta absoluta) coincide, p. ej. /billing dentro de Comercial
+    const childActive = data.items?.some(
+      c => c.routeLink?.startsWith('/') && this.router.url.startsWith(c.routeLink)
+    );
+    return childActive ? 'active' : '';
   }
 }

@@ -8,6 +8,7 @@ import {
   lineSubtotalOf,
   mulQtyCents,
   pctOfCents,
+  taxSummaryRows,
   wholeQty,
 } from './money';
 import { calcReturnTotals, returnLineIvaCents, returnLineSubtotalCents, returnLineSubtotalOf } from './sale-return';
@@ -21,6 +22,45 @@ const line = (over: Partial<SaleInvoiceLine> = {}): SaleInvoiceLine => ({
   ivaCatalogoPct: 19,
   ivaPct: 19,
   ...over,
+});
+
+// Detalle de impuestos: base = suma de subtotales de las líneas que tienen ese impuesto; total = base × tarifa
+describe('taxSummaryRows (detalle de impuestos)', () => {
+  const ica = { name: 'Ica', rate: 6 };
+  const iva19 = { name: 'Iva', rate: 19 };
+  const iva12 = { name: 'Iva', rate: 12 };
+
+  it('agrupa por impuesto y cada base suma solo las líneas que lo tienen', () => {
+    const rows = taxSummaryRows(
+      [
+        line({ precioUnitarioCents: 150000, ivaPct: 25, taxes: [iva19, ica] }),
+        line({ cantidad: 3, precioUnitarioCents: 200000, ivaPct: 18, taxes: [iva12, ica] }),
+      ],
+      true,
+    );
+    expect(rows).toEqual([
+      { name: 'Iva 19%', baseCents: 150000, taxCents: 28500 },
+      { name: 'Ica 6%', baseCents: 750000, taxCents: 45000 },
+      { name: 'Iva 12%', baseCents: 600000, taxCents: 72000 },
+    ]);
+  });
+
+  it('sin redondear: no pierde fracciones de centavo', () => {
+    const [row] = taxSummaryRows([line({ precioUnitarioCents: 333, ivaPct: 19, taxes: [iva19] })], true);
+    expect(row.taxCents).toBeCloseTo(63.27, 10);
+  });
+
+  it('sin desglose usa una fila única "Iva" con el ivaPct; sin impuestos no aporta filas', () => {
+    expect(taxSummaryRows([line({ precioUnitarioCents: 1000, ivaPct: 19 })], true)).toEqual([
+      { name: 'Iva 19%', baseCents: 1000, taxCents: 190 },
+    ]);
+    expect(taxSummaryRows([line({ ivaPct: 0 }), line({ ivaPct: null })], true)).toEqual([]);
+  });
+
+  it('en un documento no editable la base usa el subtotal del back', () => {
+    const [row] = taxSummaryRows([line({ precioUnitarioCents: 100, subtotalCents: 500, taxes: [iva19] })], false);
+    expect(row.baseCents).toBe(500);
+  });
 });
 
 // Aritmética monetaria sin flotantes: debe coincidir con el BigDecimal HALF_UP del back

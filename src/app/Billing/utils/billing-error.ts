@@ -39,6 +39,7 @@ export const STOCK_CONFIG_MISSING_CODE = 'BILLING_STOCK_CONFIG_MISSING';
 export const STOCK_ORIGINAL_NOT_FOUND_CODE = 'BILLING_STOCK_ORIGINAL_NOT_FOUND';
 // También lo usa la anulación de un documento emitido (Inventario no tiene operación inversa)
 export const STOCK_REJECTED_CODE = 'BILLING_STOCK_REJECTED';
+export const STOCK_PERIOD_CLOSED_CODE = 'BILLING_STOCK_PERIOD_CLOSED';
 export const STOCK_UNAVAILABLE_CODE = 'BILLING_STOCK_UNAVAILABLE';
 
 export const STOCK_ERROR_MESSAGES: Readonly<Record<string, string>> = {
@@ -52,6 +53,8 @@ export const STOCK_ERROR_MESSAGES: Readonly<Record<string, string>> = {
     'La empresa no tiene configurado el método de valoración de inventario (PEPS o promedio ponderado). Configúralo en Inventario antes de emitir.',
   [STOCK_ORIGINAL_NOT_FOUND_CODE]:
     'Inventario no tiene registrado el movimiento de la factura original (p. ej. se emitió antes de la integración con Inventario), por eso no se puede registrar la devolución.',
+  [STOCK_PERIOD_CLOSED_CODE]:
+    'Inventario rechazó el movimiento debido a que el mes está cerrado o no existe. Abre el mes en el calendario contable o cambia la fecha del documento.',
   [STOCK_REJECTED_CODE]: 'Inventario rechazó el movimiento.',
   [STOCK_UNAVAILABLE_CODE]: 'Inventario no está disponible en este momento. Inténtalo de nuevo en unos minutos.',
 };

@@ -18,7 +18,7 @@ import { centsToPesos } from '../../utils/money';
 import { RETURN_STATE_LABEL } from '../../utils/sale-return';
 import { BillingKindTagComponent } from '../billing-kind-tag/billing-kind-tag.component';
 
-// Fila de la tabla: campos planos para que los filtros de columna (p-columnFilter) puedan leerlos
+// Fila de la tabla: campos planos para el filtro global
 interface ReturnListRow {
   summary: InvoiceWithReturnsSummary;
   invoiceText: string; // número de la factura + N.º de factura del proveedor (compras)
@@ -64,14 +64,6 @@ export class SaleReturnListComponent implements OnInit {
     'stateLabel',
     'invoiceTotalPesos',
     'returnedTotalPesos',
-  ];
-
-  // Opciones del filtro de la columna "Estado devolución"
-  readonly stateOptions = [
-    { label: 'Todos', value: null },
-    ...Object.values(RETURN_STATE_LABEL)
-      .filter((label) => label !== RETURN_STATE_LABEL.SIN_DEVOLUCION)
-      .map((label) => ({ label, value: label })),
   ];
 
   rows = computed<ReturnListRow[]>(() => {

@@ -17,7 +17,7 @@
       ></p-button>
     </div>
 
-    <!-- Barra de filtros: buscador general + tipo (cada columna también se filtra en su cabecera) -->
+    <!-- Barra de filtros: buscador general + tipo -->
     <div class="flex flex-wrap items-center gap-8 mb-16">
       <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
         <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
@@ -42,77 +42,38 @@
       ></p-dropdown>
     </div>
 
-    <div class="overflow-x-auto text-sm">
+    <div class="text-sm">
       <p-table
         #dt
         [value]="rows()"
         [loading]="loading()"
         [globalFilterFields]="globalFilterFields"
-        [tableStyle]="{ 'min-width': '76rem' }"
+        [tableStyle]="{ 'table-layout': 'fixed', width: '100%' }"
         styleClass="p-datatable-striped"
       >
         <ng-template pTemplate="header">
           <tr>
-            <th style="width: 7rem">Tipo</th>
-            <th style="width: 10rem">Factura</th>
-            <th>Cliente / Proveedor</th>
-            <th style="width: 9rem">Fecha</th>
-            <th style="width: 11rem" class="text-right">Total factura</th>
-            <th style="width: 9rem" class="text-center"># Devoluciones</th>
-            <th style="width: 11rem" class="text-right">Total devuelto</th>
-            <th style="width: 11rem">Estado devolución</th>
-            <th style="width: 6rem"><span class="sr-only">Acciones</span></th>
-          </tr>
-          <!-- Filtro por columna (Tipo se filtra con el desplegable de arriba) -->
-          <tr>
-            <th></th>
-            <th>
-              <p-columnFilter type="text" field="invoiceText" matchMode="contains" display="row" [showMenu]="false" placeholder="Factura" />
-            </th>
-            <th>
-              <p-columnFilter type="text" field="counterparty" matchMode="contains" display="row" [showMenu]="false" placeholder="Nombre" />
-            </th>
-            <th>
-              <p-columnFilter type="text" field="dateText" matchMode="contains" display="row" [showMenu]="false" placeholder="dd/mm/aaaa" />
-            </th>
-            <th>
-              <p-columnFilter type="numeric" field="invoiceTotalPesos" display="row" placeholder="Total" />
-            </th>
-            <th>
-              <p-columnFilter type="numeric" field="summary.returnsCount" display="row" placeholder="Cant." />
-            </th>
-            <th>
-              <p-columnFilter type="numeric" field="returnedTotalPesos" display="row" placeholder="Total" />
-            </th>
-            <th>
-              <p-columnFilter field="stateLabel" matchMode="equals" display="row" [showMenu]="false">
-                <ng-template pTemplate="filter" let-value let-filter="filterCallback">
-                  <p-dropdown
-                    [options]="stateOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    [ngModel]="value"
-                    (onChange)="filter($event.value)"
-                    styleClass="w-full"
-                    size="small"
-                    ariaLabel="Filtrar por estado de la devolución"
-                  ></p-dropdown>
-                </ng-template>
-              </p-columnFilter>
-            </th>
-            <th></th>
+            <th style="width: 8%">Tipo</th>
+            <th style="width: 14%">Factura</th>
+            <th style="width: 20%">Cliente / Proveedor</th>
+            <th style="width: 9%">Fecha</th>
+            <th class="text-right" style="width: 12%">Total factura</th>
+            <th class="text-center" style="width: 9%"># Devoluciones</th>
+            <th class="text-right" style="width: 12%">Total devuelto</th>
+            <th style="width: 10%">Estado devolución</th>
+            <th style="width: 6%"><span class="sr-only">Acciones</span></th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
           <tr>
             <td><app-billing-kind-tag [kind]="row.summary.kind" /></td>
-            <td>
+            <td class="break-words">
               <p class="font-semibold">{{ row.summary.invoiceNumber ?? '—' }}</p>
               @if (row.summary.supplierInvoiceNumber) {
                 <p class="text-xs text-gray-500">Fact. proveedor {{ row.summary.supplierInvoiceNumber }}</p>
               }
             </td>
-            <td>{{ row.counterparty }}</td>
+            <td class="break-words">{{ row.counterparty }}</td>
             <td>{{ row.summary.invoiceDate | date: 'dd/MM/yyyy' }}</td>
             <td class="text-right">{{ row.summary.invoiceTotalCents | copCents }}</td>
             <td class="text-center">{{ row.summary.returnsCount }}</td>

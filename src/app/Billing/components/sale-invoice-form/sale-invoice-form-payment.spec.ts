@@ -116,7 +116,10 @@ describe('Formulario de factura de venta: solo método de pago (sin cuenta banca
     q('payment-methods-link')!.click();
     await fixture.whenStable();
     expect(saveDraft).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/gen-masters/payment-methods/list']);
+    expect(navigate).toHaveBeenCalledWith(
+      ['/gen-masters/payment-methods/list'],
+      { queryParams: jasmine.objectContaining({ returnTo: jasmine.stringMatching(/^\/billing\//) }) },
+    );
   });
 
   it('el enlace no aparece en facturas emitidas ni anuladas', async () => {

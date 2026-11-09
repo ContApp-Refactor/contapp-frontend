@@ -168,7 +168,7 @@ export class EditEnterpriseComponent implements OnInit {
       phone: [this.enterpriseData?.phone?.replace(/^\+57 /, '') || ''],
       email: [this.enterpriseData?.email || ''],
       subjects: [
-        this.enterpriseData?.subjects?.map((subject) => this.getEntityId(subject.id)) || [],
+        this.enterpriseData?.subjects?.map((subject) => subject.id) || [],
       ],
     });
 
@@ -240,7 +240,8 @@ export class EditEnterpriseComponent implements OnInit {
       });
     } else {
       const existing = this.enterpriseData?.logo ?? null;
-      this.doUpdate(existing?.startsWith('http') ? existing : null);
+      // El back devuelve el logo como ruta relativa: se reenvia tal cual para no borrarlo
+      this.doUpdate(existing);
     }
   }
 
@@ -252,10 +253,11 @@ export class EditEnterpriseComponent implements OnInit {
         : `+57 ${f.phone}`
       : this.enterpriseData?.phone || '';
 
-    const subjectsIds =
-      f.subjects?.length > 0
-        ? f.subjects
-        : this.enterpriseData?.subjects?.map((subject) => this.getEntityId(subject.id)) || [];
+    // El control arranca con los ids de la empresa: lo que haya en el form es lo que se envia.
+    // Vaciar la seleccion envia [] (el back quita todas); solo si no existe el control se reenvian las actuales.
+    const subjectsIds: string[] = Array.isArray(f.subjects)
+      ? f.subjects
+      : this.enterpriseData?.subjects?.map((subject) => subject.id) || [];
 
     const updatedData: any = {
       name: f.name || this.enterpriseData?.name || '',

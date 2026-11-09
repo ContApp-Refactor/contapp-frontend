@@ -3,7 +3,7 @@ import { Observable } from 'rxjs';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { EnterpriseList } from '../models/EnterpriseList';
-import { EnterpriseDetails } from '../models/EnterpriseDetails';
+import { EnterpriseDetails, EnterpriseRequest } from '../models/EnterpriseDetails';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
 import { CopyProcess } from '../models/CopyProcess';
 
@@ -63,7 +63,7 @@ export class EnterpriseService {
 
   /** ==================== PUT EMPRESAS  ==================== */
   createEnterprise(
-    enterprise: EnterpriseDetails,
+    enterprise: EnterpriseRequest,
   ): Observable<EnterpriseDetails> {
     return this.http.post<EnterpriseDetails>(this.apiUrl, enterprise);
   }
@@ -71,7 +71,7 @@ export class EnterpriseService {
   // Actualiza todos los datos de la empresa
   updateEnterprise(
     id: string,
-    enterprise: EnterpriseDetails,
+    enterprise: EnterpriseRequest,
   ): Observable<EnterpriseDetails> {
     return this.http.put<EnterpriseDetails>(
       `${this.apiUrl}update/${id}`,

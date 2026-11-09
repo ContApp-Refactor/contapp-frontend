@@ -1,3 +1,5 @@
+import { Subject } from '../../Subjects/models/subjects';
+
 export interface EnterpriseDetails {
   id?: string;
   name: string;
@@ -30,9 +32,12 @@ export interface EnterpriseDetails {
   // Campos específicos para persona natural
   ownerName?: string;
   lastNames?: string;
-  subjects?: {
-    id?: string;
-    code?: string;
-    name?: string;
-  }[];
+  // En la respuesta del back: lista de materias { id (UUID), code, name }
+  subjects?: Subject[];
 }
+
+// Cuerpo de crear/editar: las materias viajan como ids (UUID).
+// Crear: ausente = sin materias. Editar: ausente/null = no modifica, [] = quita todas.
+export type EnterpriseRequest = Omit<EnterpriseDetails, 'subjects'> & {
+  subjects?: string[] | null;
+};

@@ -225,14 +225,14 @@ describe('Render de pantallas de Facturación', () => {
     el = await render(SaleInvoiceFormComponent);
     expect(badge()).toEqual(['Devuelta parcialmente']);
   });
-  it('factura borrador: Emitir factura, título de borrador y categoría del tercero seleccionado', async () => {
+  it('factura borrador: Emitir factura, título de borrador y "NIT - Nombre" del tercero seleccionado (sin categoría)', async () => {
     setup({ id: 'i2' }, [inv('i2', 'BORRADOR')], []);
     const el = await render(SaleInvoiceFormComponent);
     expect(el.textContent).toContain('Emitir factura');
     expect(el.querySelector('h1')?.textContent).toContain('Borrador de factura de venta');
-    // Cliente seleccionado (c1) con su categoría, no solo el nombre
-    expect(el.querySelector('p-dropdown')?.textContent).toContain('Cliente Uno');
-    expect(el.querySelector('p-dropdown')?.textContent).toContain('Cliente/Proveedor');
+    // Cliente seleccionado (c1): "NIT - Nombre", sin la etiqueta de categoría
+    expect(el.querySelector('p-dropdown')?.textContent).toContain('1 - Cliente Uno');
+    expect(el.querySelector('p-dropdown')?.textContent).not.toContain('Cliente/Proveedor');
   });
   it('factura emitida: título "Factura de venta" y categoría del tercero en solo lectura', async () => {
     setup({ id: 'i2' }, [inv('i2', 'EMITIDA')], []);

@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ConfirmationService, MessageService, SharedModule } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 import { DropdownModule } from 'primeng/dropdown';
@@ -30,6 +31,7 @@ import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
+import { BillingTax, BillingTaxCatalog } from '../../services/billing-tax-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
@@ -88,6 +90,7 @@ const todayIso = (): string => {
   imports: [
     FormsModule,
     ButtonModule,
+    CheckboxModule,
     ConfirmDialogModule,
     DatePipe,
     SharedModule,
@@ -111,6 +114,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   private readonly catalog = inject(BillingProductCatalog);
   private readonly counterpartyCatalog = inject(BillingCounterpartyCatalog);
   private readonly paymentCatalog = inject(BillingPaymentCatalog);
+  private readonly taxCatalog = inject(BillingTaxCatalog);
   private readonly returnApi = inject(BillingSaleReturnApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -140,6 +144,40 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // El método de pago aplica a ambas facturas (venta y compra); este form no sirve devoluciones.
   hasPayment = computed(() => this.kind() === 'SALE' || this.kind() === 'PURCHASE');
   readonly noPaymentMethodsMessage = NO_PAYMENT_METHODS_MESSAGE;
+
+  // Por ahora solo UI: aún no se envía al back ni afecta totales
+  withholdings = signal<string[]>([]);
+  toggleWithholding(code: string, checked: boolean): void {
+    this.withholdings.update((cur) => {
+      const rest = cur.filter((c) => c !== code);
+      return checked ? [...rest, code] : rest;
+    });
+    // Al desmarcar se limpia el impuesto elegido; al marcar arranca sin selección
+    this.withholdingTaxes.update((cur) => ({ ...cur, [code]: null }));
+  }
+  // Por ahora solo UI: aún no se envía al back ni afecta totales
+  withholdingTaxes = signal<Record<string, string | null>>({}); // código de retención -> id de impuesto
+  taxes = signal<BillingTax[]>([]);
+  taxesState = signal<'loading' | 'ready' | 'failed'>('loading');
+  readonly noTaxesMessage = 'No hay impuestos creados en la empresa';
+  taxOptions = computed(() => this.taxes().map((t) => ({ id: t.id, label: t.rate != null ? `${t.name} - ${t.rate}%` : t.name })));
+  onWithholdingTaxChange(code: string, taxId: string | null): void {
+    this.withholdingTaxes.update((cur) => ({ ...cur, [code]: taxId }));
+  }
+  // Impuestos de la empresa: se cargan una sola vez (no por casilla)
+  loadTaxes(): void {
+    this.taxesState.set('loading');
+    this.taxCatalog
+      .getTaxes()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => {
+          this.taxes.set(list);
+          this.taxesState.set('ready');
+        },
+        error: () => this.taxesState.set('failed'),
+      });
+  }
   paymentMethodId = signal<string | null>(null);
   paymentMethodName = signal<string | null>(null); // congelado por el back al emitir
   paymentMethods = signal<BillingPaymentMethod[]>([]);
@@ -260,6 +298,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.loadProducts();
     this.loadCounterparties();
     this.loadPaymentMethods();
+    this.loadTaxes();
 
     this.autosave$
       .pipe(debounceTime(AUTOSAVE_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))

@@ -355,6 +355,55 @@
             }
           </div>
 
+          <!-- Por ahora solo UI: aún no se envía al back ni afecta totales -->
+          @if (editable()) {
+            <div class="flex flex-col" data-testid="withholdings" role="group" aria-label="Retenciones">
+              <span class="font-normal text-primary mb-4">Retenciones:</span>
+              <div class="flex flex-wrap gap-16">
+                @for (w of cfg().withholdings; track w.code) {
+                  <div class="flex items-center gap-8">
+                    <p-checkbox
+                      [binary]="true"
+                      [inputId]="'withholding-' + w.code"
+                      [attr.data-testid]="'withholding-' + w.code"
+                      [ngModel]="withholdings().includes(w.code)"
+                      (ngModelChange)="toggleWithholding(w.code, $event)"
+                    ></p-checkbox>
+                    <label [for]="'withholding-' + w.code">{{ w.label }}</label>
+                  </div>
+                }
+              </div>
+              @for (w of cfg().withholdings; track w.code) {
+                @if (withholdings().includes(w.code)) {
+                  <div class="flex flex-col gap-4 mt-8">
+                    <label class="font-normal text-primary" [for]="'withholding-tax-' + w.code">Impuesto para {{ w.label }}</label>
+                    <p-dropdown
+                      [inputId]="'withholding-tax-' + w.code"
+                      [attr.data-testid]="'withholding-tax-' + w.code"
+                      [ariaLabel]="'Impuesto para ' + w.label"
+                      [options]="taxOptions()"
+                      optionLabel="label"
+                      optionValue="id"
+                      [ngModel]="withholdingTaxes()[w.code] ?? null"
+                      (ngModelChange)="onWithholdingTaxChange(w.code, $event)"
+                      [placeholder]="taxesState() === 'loading' ? 'Cargando impuestos...' : taxesState() === 'failed' ? 'No se pudieron cargar los impuestos' : taxes().length === 0 ? noTaxesMessage : 'Selecciona un impuesto...'"
+                      [filter]="true"
+                      filterBy="label"
+                      styleClass="w-full md:w-1/2"
+                      size="small"
+                      appendTo="body"
+                    ></p-dropdown>
+                    @if (taxesState() === 'ready' && taxes().length === 0) {
+                      <span class="text-xs text-gray-500 font-family-sans" data-testid="withholding-tax-empty">{{ noTaxesMessage }}</span>
+                    }
+                    @if (taxesState() === 'failed') {
+                      <span class="text-xs text-red-600 font-family-sans" data-testid="withholding-tax-failed">No se pudieron cargar los impuestos</span>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          }
         }
 
         @if (annulReason()) {

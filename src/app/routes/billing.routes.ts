@@ -6,6 +6,8 @@ import { BillingProductCatalog } from '../Billing/services/billing-product-catal
 import { InventoryBillingProductCatalog } from '../Billing/services/inventory-billing-product-catalog.service';
 import { BillingPaymentCatalog } from '../Billing/services/billing-payment-catalog';
 import { AccountingBillingPaymentCatalog } from '../Billing/services/accounting-billing-payment-catalog.service';
+import { BillingTaxCatalog } from '../Billing/services/billing-tax-catalog';
+import { GeneralMastersBillingTaxCatalog } from '../Billing/services/general-masters-billing-tax-catalog.service';
 import { BillingSaleInvoiceApi } from '../Billing/services/billing-sale-invoice.api';
 import { MockBillingSaleInvoiceApi } from '../Billing/services/mock-billing-sale-invoice.api';
 import { BillingHttpSaleInvoiceApi } from '../Billing/services/billing-http-sale-invoice.api';
@@ -87,6 +89,7 @@ export const BILLING_ROUTES: Routes = [
       { provide: BillingProductCatalog, useClass: InventoryBillingProductCatalog },
       { provide: BillingCounterpartyCatalog, useClass: InventoryBillingCounterpartyCatalog },
       { provide: BillingPaymentCatalog, useClass: AccountingBillingPaymentCatalog },
+      { provide: BillingTaxCatalog, useClass: GeneralMastersBillingTaxCatalog },
     ],
     children: [
       // Rutas viejas (marcadores guardados): llevan a la versión de venta

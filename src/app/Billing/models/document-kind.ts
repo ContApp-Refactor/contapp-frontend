@@ -4,7 +4,20 @@
 
 export type DocumentKind = 'SALE' | 'PURCHASE';
 
+export type WithholdingCode = 'RETE_IVA' | 'RETE_ICA' | 'RETE_FUENTE' | 'AUTO_RENTA';
+export interface WithholdingOption {
+  code: WithholdingCode;
+  label: string;
+}
+
+const BASE_WITHHOLDINGS: readonly WithholdingOption[] = [
+  { code: 'RETE_IVA', label: 'ReteIVA' },
+  { code: 'RETE_ICA', label: 'ReteICA' },
+  { code: 'RETE_FUENTE', label: 'ReteFuente' },
+];
+
 export interface DocumentKindConfig {
+  withholdings: readonly WithholdingOption[]; // retenciones seleccionables en la factura
   tag: string; // etiqueta corta del tipo: Venta / Compra
   basePath: string; // ruta de la factura: `${basePath}/:id`
   invoicePrefix: string; // prefijo de numeración de la factura
@@ -30,6 +43,7 @@ export interface DocumentKindConfig {
 export const DOCUMENT_KIND_CONFIG: Record<DocumentKind, DocumentKindConfig> = {
   SALE: {
     tag: 'Venta',
+    withholdings: [...BASE_WITHHOLDINGS, { code: 'AUTO_RENTA', label: 'AutoRenta' }], // AutoRenta solo en venta
     basePath: '/billing/sale',
     invoicePrefix: 'FV-',
     returnPrefix: 'NC-',
@@ -52,6 +66,7 @@ export const DOCUMENT_KIND_CONFIG: Record<DocumentKind, DocumentKindConfig> = {
   },
   PURCHASE: {
     tag: 'Compra',
+    withholdings: BASE_WITHHOLDINGS,
     basePath: '/billing/purchase',
     invoicePrefix: 'FC-',
     returnPrefix: 'DC-',

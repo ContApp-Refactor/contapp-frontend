@@ -281,7 +281,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.toast('error', 'Factura no encontrada', 'No existe la factura solicitada.');
-          this.router.navigate(['/billing']);
+          this.router.navigate([this.cfg().basePath]);
         },
       });
   }
@@ -745,8 +745,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       typeof from === 'string' && from.startsWith('/billing')
         ? from
         : this.status() === 'BORRADOR'
-          ? '/billing'
-          : '/billing/list';
+          ? this.cfg().basePath
+          : `${this.cfg().basePath}/list`;
     this.router.navigate([target]);
   }
 
@@ -789,7 +789,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       this.writes++;
       if (id) await firstValueFrom(this.api.deleteDraft(id, this.version));
       this.toast('success', 'Borrador eliminado', 'El borrador fue eliminado.');
-      this.router.navigate(['/billing']);
+      this.router.navigate([this.cfg().basePath]);
     } catch (e) {
       this.fail('No se pudo eliminar', e);
     } finally {

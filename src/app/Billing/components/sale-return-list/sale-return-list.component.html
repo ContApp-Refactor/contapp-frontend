@@ -5,19 +5,19 @@
         <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
           <span class="border-b-4 border-secondary-light inline-block pb-1">Facturas con devolución</span>
         </h1>
-        <p class="font-family-sans font-normal text-sm mt-12">Facturas de venta y compra que tienen al menos una devolución emitida.</p>
+        <p class="font-family-sans font-normal text-sm mt-12">Facturas de {{ cfg.tag.toLowerCase() }} que tienen al menos una devolución emitida.</p>
       </div>
-      <!-- Volver al menú de Facturación -->
+      <!-- Volver al hub del tipo -->
       <p-button
         label="Volver"
         icon="pi pi-arrow-left"
         styleClass="p-button-outlined"
-        ariaLabel="Volver al menú de Facturación"
+        [ariaLabel]="'Volver a ' + cfg.invoiceTitle"
         (click)="goBack()"
       ></p-button>
     </div>
 
-    <!-- Barra de filtros: buscador general + tipo -->
+    <!-- Barra de filtros: buscador general -->
     <div class="flex flex-wrap items-center gap-8 mb-16">
       <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
         <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
@@ -30,16 +30,6 @@
           class="w-full text-sm"
         />
       </p-iconfield>
-      <p-dropdown
-        [options]="kindOptions"
-        optionLabel="label"
-        optionValue="value"
-        [ngModel]="kindFilter()"
-        (ngModelChange)="kindFilter.set($event)"
-        styleClass="w-150"
-        size="small"
-        ariaLabel="Filtrar por tipo"
-      ></p-dropdown>
     </div>
 
     <div class="text-sm">
@@ -53,10 +43,9 @@
       >
         <ng-template pTemplate="header">
           <tr>
-            <th style="width: 8%">Tipo</th>
-            <th style="width: 14%">Factura</th>
-            <th style="width: 20%">Cliente / Proveedor</th>
-            <th style="width: 9%">Fecha</th>
+            <th style="width: 16%">Factura</th>
+            <th style="width: 24%">{{ cfg.counterparty }}</th>
+            <th style="width: 10%">Fecha</th>
             <th class="text-right" style="width: 12%">Total factura</th>
             <th class="text-center" style="width: 9%"># Devoluciones</th>
             <th class="text-right" style="width: 12%">Total devuelto</th>
@@ -66,7 +55,6 @@
         </ng-template>
         <ng-template pTemplate="body" let-row>
           <tr>
-            <td><app-billing-kind-tag [kind]="row.summary.kind" /></td>
             <td class="break-words">
               <p class="font-semibold">{{ row.summary.invoiceNumber ?? '—' }}</p>
               @if (row.summary.supplierInvoiceNumber) {
@@ -94,7 +82,7 @@
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="9" class="text-center p-20">
+            <td colspan="8" class="text-center p-20">
               <i class="pi pi-inbox text-primary text-2xl"></i>
               <p class="mt-8">No hay facturas con devoluciones.</p>
               <p class="text-xs text-gray-500 mt-4">Cuando una factura tenga una devolución emitida aparecerá aquí.</p>

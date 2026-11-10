@@ -223,7 +223,7 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.toast('error', 'Devolución no encontrada', 'No existe la devolución solicitada.');
-          if (!reload) this.router.navigate(['/billing/returns']);
+          if (!reload) this.router.navigate([`${this.cfg().basePath}/returns`]);
         },
       });
   }

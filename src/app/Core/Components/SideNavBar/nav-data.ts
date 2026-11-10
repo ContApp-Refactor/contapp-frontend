@@ -279,9 +279,14 @@ export const navbarData: INavbarData[] = [
       //   label: 'Factura de Compra',
       // },
       {
-        routeLink: '/billing',
+        routeLink: '/billing/purchase',
         icon: 'receipt_long',
-        label: 'Facturación',
+        label: 'Factura de Compra',
+      },
+      {
+        routeLink: '/billing/sale',
+        icon: 'order_approve',
+        label: 'Factura de Venta',
       },
       {
         routeLink: '/commercial/invoice-template',

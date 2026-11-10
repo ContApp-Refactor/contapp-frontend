@@ -30,9 +30,9 @@ describe('toDraftBody: pago (solo venta)', () => {
     expect((toDraftBody(input()) as Record<string, unknown>)['payment']).toBeNull();
   });
 
-  it('compra: la clave payment no viaja aunque el input la traiga', () => {
+  it('compra: payment viaja como { methodId }', () => {
     const body = toDraftBody(input({ kind: 'PURCHASE', payment: { methodId: '7' } })) as Record<string, unknown>;
-    expect('payment' in body).toBeFalse();
+    expect(body['payment']).toEqual({ methodId: '7' });
   });
 });
 
@@ -64,10 +64,10 @@ describe('BillingHttpSaleInvoiceApi: pago', () => {
     expect(result?.payment?.methodName).toBe('Transferencia');
   });
 
-  it('el PUT de un borrador de compra no envía payment', () => {
+  it('el PUT de un borrador de compra envía payment', () => {
     api.saveDraft(input({ id: 'p1', kind: 'PURCHASE', payment: { methodId: '7' } })).subscribe();
     const req = httpMock.expectOne((r) => r.method === 'PUT' && r.url === '/api/billing/purchase-invoices/p1');
-    expect('payment' in (req.request.body as object)).toBeFalse();
+    expect((req.request.body as { payment: unknown }).payment).toEqual({ methodId: '7' });
     req.flush({ id: 'p1', kind: 'PURCHASE' });
   });
 

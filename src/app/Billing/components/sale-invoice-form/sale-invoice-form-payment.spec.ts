@@ -61,15 +61,45 @@ describe('Formulario de factura de venta: solo método de pago (sin cuenta banca
 
   const q = (id: string): HTMLElement | null => fixture.nativeElement.querySelector(`[data-testid="${id}"]`);
 
-  it('la sección solo existe en la factura de venta', async () => {
+  it('la sección existe en la factura de venta', async () => {
     await setup('SALE', {});
     expect(q('payment-method')).not.toBeNull();
   });
 
-  it('la factura de compra no muestra método de pago', async () => {
+  it('la factura de compra también muestra el select y el enlace', async () => {
     await setup('PURCHASE', { supplierInvoiceNumber: 'F-1' });
-    expect(q('payment-method')).toBeNull();
-    expect(component.payment()).toBeNull();
+    expect(q('payment-method')).not.toBeNull();
+    expect(q('payment-methods-link')?.textContent).toContain('Administrar métodos de pago');
+    component.onPaymentMethodChange('9');
+    expect(component.payment()).toEqual({ methodId: '9', methodName: 'Transferencia' });
+  });
+
+  it('compra: el enlace guarda y navega con returnTo a la factura de compra', async () => {
+    await setup('PURCHASE', { supplierInvoiceNumber: 'F-1' });
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    component.onPaymentMethodChange('7'); // borrador con cambios pendientes
+    q('payment-methods-link')!.click();
+    await fixture.whenStable();
+    expect(saveDraft).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(
+      ['/gen-masters/payment-methods/list'],
+      { queryParams: jasmine.objectContaining({ returnTo: jasmine.stringMatching(/^\/billing\/purchase\//) }) },
+    );
+  });
+
+  it('compra: emitir sin método se bloquea, y el autoguardado lo envía', async () => {
+    await setup('PURCHASE', { supplierInvoiceNumber: 'F-1' });
+    component.confirmEmit();
+    expect(messages.calls.mostRecent().args[0].detail).toContain('método de pago');
+    component.onPaymentMethodChange('7');
+    await (component as unknown as { persist(): Promise<void> }).persist();
+    expect(saveDraft.calls.mostRecent().args[0].payment).toEqual(jasmine.objectContaining({ methodId: '7' }));
+  });
+
+  it('compra emitida: método solo lectura con el nombre congelado y sin enlace', async () => {
+    await setup('PURCHASE', { status: 'EMITIDA', number: 'FC-1', supplierInvoiceNumber: 'F-1', payment: { methodId: '9', methodName: 'Transferencia' } });
+    expect(q('payment-method')?.textContent).toContain('Transferencia');
+    expect(q('payment-methods-link')).toBeNull();
   });
 
   it('ya no hay forma de pago, plazo ni vencimiento', async () => {

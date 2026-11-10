@@ -45,6 +45,13 @@ const montar = (saleReturn: SaleReturn) => {
 describe('PDF de la devolución (vista previa)', () => {
   beforeEach(() => TestBed.configureTestingModule({ providers: [provideNoopAnimations(), MessageService] }));
 
+  it('la devolución (venta o compra) no muestra método de pago', () => {
+    for (const kind of ['SALE', 'PURCHASE'] as const) {
+      const el = montar(devolucion({ kind })).nativeElement as HTMLElement;
+      expect(el.textContent).not.toContain('Método de pago');
+    }
+  });
+
   it('genera un PDF real de la hoja de la devolución, con al menos una página y con peso', async () => {
     const fixture = montar(devolucion());
     const hoja = fixture.nativeElement.querySelector('div.relative') as HTMLElement;

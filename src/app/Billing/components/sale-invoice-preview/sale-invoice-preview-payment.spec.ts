@@ -52,8 +52,13 @@ describe('Vista previa / PDF de la factura de venta: método de pago', () => {
     expect(sheet.contains(el.querySelector('[data-testid="preview-payment"]'))).toBeTrue();
   });
 
-  it('la factura de compra no muestra método de pago', () => {
+  it('la factura de compra muestra el método de pago', () => {
     const el = render({ kind: 'PURCHASE', supplierInvoiceNumber: 'F-1', payment: { methodName: 'Efectivo' } });
-    expect(paymentLine(el)).toBeNull();
+    expect(paymentLine(el)).toBe('Método de pago: Efectivo');
+  });
+
+  it('compra antigua sin método muestra "—"', () => {
+    const old = render({ kind: 'PURCHASE', supplierInvoiceNumber: 'F-1', payment: null });
+    expect(paymentLine(old)).toBe('Método de pago: —');
   });
 });

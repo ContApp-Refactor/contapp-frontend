@@ -88,13 +88,21 @@ describe('MockBillingSaleInvoiceApi: método de pago, sin banco (sincronizado co
     }
   });
 
-  it('la compra ignora el pago y se emite sin él', async () => {
+  it('la compra guarda el pago, lo exige al emitir y congela el nombre', async () => {
+    const sin = await firstValueFrom(api.saveDraft(draft({ kind: 'PURCHASE', supplierInvoiceNumber: 'F-1' })));
+    let code: string | undefined;
+    try {
+      await firstValueFrom(api.emit(sin.id, sin.version));
+    } catch (e) {
+      code = codeOf(e);
+    }
+    expect(code).toBe('BILLING_PAYMENT_METHOD_REQUIRED');
     const saved = await firstValueFrom(
-      api.saveDraft(draft({ kind: 'PURCHASE', supplierInvoiceNumber: 'F-1', payment: { methodId: '7' } })),
+      api.saveDraft(draft({ id: sin.id, version: sin.version, kind: 'PURCHASE', supplierInvoiceNumber: 'F-1', payment: { methodId: '7' } })),
     );
-    expect(saved.payment).toBeUndefined();
+    expect(saved.payment).toEqual({ methodId: '7', methodName: null });
     const emitted = await firstValueFrom(api.emit(saved.id, saved.version));
     expect(emitted.status).toBe('EMITIDA');
-    expect(emitted.payment).toBeUndefined();
+    expect(emitted.payment).toEqual({ methodId: '7', methodName: 'Efectivo' });
   });
 });

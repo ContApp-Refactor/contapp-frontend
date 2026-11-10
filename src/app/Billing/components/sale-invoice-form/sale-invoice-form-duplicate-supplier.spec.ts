@@ -40,7 +40,7 @@ describe('Formulario de factura de compra: N.º de factura del proveedor duplica
           getById: () => of(structuredClone(draft)), saveDraft, deleteDraft: () => of(undefined), emit: () => of(draft), annul: () => of(draft) } },
         { provide: BillingSaleReturnApi, useValue: { listByInvoice: () => of([]), getAvailability: () => of([]) } },
         { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
-        { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([]) } },
+        { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([{ id: '7', name: 'Efectivo' }]) } },
         { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([{ id: 's1', name: 'Proveedor Uno', document: '1' }]) } },
       ],
     });

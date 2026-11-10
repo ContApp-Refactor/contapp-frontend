@@ -1299,7 +1299,7 @@ export const routes: Routes = [
       {
         path: 'billing',
         data: {
-          breadcrumb: 'Facturación',
+          breadcrumb: null, // cada hub (Factura de Compra / Venta) pone el suyo
         },
         loadChildren: () =>
           import('./routes/billing.routes').then((m) => m.BILLING_ROUTES),

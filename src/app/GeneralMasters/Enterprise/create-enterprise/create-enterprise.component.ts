@@ -19,6 +19,10 @@ import { EnterpriseService } from '../services/enterprise.service';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
 import { Enterprise } from '../models/enterprise';
 import { EnterpriseList } from '../models/EnterpriseList';
+import {
+  DEFAULT_INVENTORY_CONFIGURATION_TYPE,
+  INVENTORY_VALUATION_OPTIONS,
+} from '../models/InventoryValuation';
 import { SubjectService } from '../../Subjects/services/subjects.service';
 import { Subject } from '../../Subjects/models/subjects';
 import { AddressService } from '../services/addressService';
@@ -75,10 +79,7 @@ export class CreateEnterpriseComponent implements OnInit {
     { id: 3, name: 'Gran contribuyente' },
   ];
 
-  inventoryMethods = [
-    { name: 'PEPS (FIFO)', value: 'PEPS' },
-    { name: 'Costo Promedio Ponderado', value: 'WEIGHTED_AVERAGE' },
-  ];
+  inventoryValuationOptions = INVENTORY_VALUATION_OPTIONS;
 
   subjects: any[] = [];
   loadedSubjects: Subject[] = [];
@@ -136,7 +137,10 @@ export class CreateEnterpriseComponent implements OnInit {
       department: [null, Validators.required],
       city: [null, Validators.required],
       subject: [null as number | null],
-      inventoryMethod: [null, Validators.required],
+      inventoryConfigurationType: [
+        DEFAULT_INVENTORY_CONFIGURATION_TYPE,
+        Validators.required,
+      ],
       address: ['', [Validators.required, Validators.minLength(10)]],
       phone: ['', [Validators.required, Validators.pattern(/^\d{7,10}$/)]],
       email: ['', [Validators.required, Validators.email]],
@@ -325,7 +329,7 @@ export class CreateEnterpriseComponent implements OnInit {
       taxLiabilities: f.taxLiabilities.map((t: any) => t.id ?? t),
       state: 'ACTIVE',
       taxPayerType: f.taxPayerType.id ?? f.taxPayerType,
-      inventoryConfigurationType: f.inventoryMethod,
+      inventoryConfigurationType: f.inventoryConfigurationType,
       enterpriseType: f.enterpriseType.id ?? f.enterpriseType,
 
       personType:

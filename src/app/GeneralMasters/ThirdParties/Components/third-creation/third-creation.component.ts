@@ -27,6 +27,7 @@ import { eThirdGender } from '../../models/eThirdGender';
 import { ePersonType } from '../../models/ePersonType';
 
 // Shared Services
+import { buildReturnQuery, safeReturnTo } from '../../../../Billing/utils/return-trail';
 import { ThirdFormService } from '../../Services/third-form.service';
 import { ThirdValidationService } from '../../Services/third-validation.service';
 import { GeographyHelperService } from '../../Services/geography-helper.service';
@@ -166,7 +167,20 @@ export class ThirdCreationComponent implements OnInit {
     this.initializeForm();
   }
 
+  // Ruta segura para "Volver a factura" (solo si llegó con ?returnTo=/billing/...)
+  returnTo: string | null = null;
+
+  goBackToInvoice(): void {
+    if (this.returnTo) this.router.navigateByUrl(this.returnTo);
+  }
+
+  // Conserva el rastro de retorno al volver a la lista de terceros
+  private listQueryParams(): { returnTo: string; returnLabel: string } | undefined {
+    return this.returnTo ? buildReturnQuery(this.returnTo) : undefined;
+  }
+
   ngOnInit(): void {
+    this.returnTo = safeReturnTo(this.router.parseUrl(this.router.url).queryParams['returnTo']);
     this.loadInitialData().then(() => {
       // Esperar a que se carguen los datos antes de procesar el RUT
       this.checkForRUTData();
@@ -756,7 +770,7 @@ export class ThirdCreationComponent implements OnInit {
           // Limpiar datos del RUT si existen
           this.thirdService.clearInfoThirdRUT();
 
-          this.router.navigate(['/gen-masters/third-parties/list']);
+          this.router.navigate(['/gen-masters/third-parties/list'], { queryParams: this.listQueryParams() });
         },
         error: (error: any) => {
           // Extraer el mensaje de error más específico disponible
@@ -795,7 +809,7 @@ export class ThirdCreationComponent implements OnInit {
    */
   onCancel(): void {
     this.thirdService.clearInfoThirdRUT();
-    this.router.navigate(['/gen-masters/third-parties/list']);
+    this.router.navigate(['/gen-masters/third-parties/list'], { queryParams: this.listQueryParams() });
   }
 
   /**

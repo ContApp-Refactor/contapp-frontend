@@ -1,18 +1,33 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
 import { SaleReturn } from '../../models/billing-sale-return.model';
 import { DOCUMENT_KIND_CONFIG } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
-import { calcReturnTotals, returnLineSubtotalCents } from '../../utils/sale-return';
+import { buildInvoicePdf, invoicePdfFileName } from '../../utils/invoice-pdf';
+import { returnLineSubtotalOf, returnTotals } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 
 // Vista previa de la devolución (nota crédito) tal como se vería impresa. Solo lectura.
 @Component({
   selector: 'app-sale-return-preview',
-  imports: [DatePipe, CopCentsPipe, BillingStatusBadgeComponent],
+  imports: [DatePipe, ButtonModule, CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent],
   template: `
+    <!-- Acciones arriba a la derecha, fuera de la hoja (#sheet): no entran en el PDF -->
+    <div class="mx-auto mb-12 flex justify-end" style="max-width: 800px">
+      <p-button
+        label="Imprimir"
+        icon="pi pi-print"
+        [loading]="printing()"
+        [disabled]="printing()"
+        (onClick)="print()"
+      ></p-button>
+    </div>
     <div
+      #sheet
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
       style="max-width: 800px"
     >
@@ -33,9 +48,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
         <!-- Encabezado -->
         <div class="flex justify-between items-start gap-16 pb-16 border-b-2 border-gray-300">
           <div>
-            <p class="font-bold text-xl text-primary">{{ companyName }}</p>
-            @if (companyNit) {
-              <p class="text-gray-600 mt-4">NIT: {{ companyNit }}</p>
+            <p class="font-bold text-xl text-primary">{{ companyName() }}</p>
+            @if (companyNit()) {
+              <p class="text-gray-600 mt-4">NIT: {{ companyNit() }}</p>
             }
           </div>
           <div class="text-right">
@@ -63,6 +78,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
           }
           <p class="text-gray-600">Fecha: {{ saleReturn().originalDate | date: 'dd/MM/yyyy' }}</p>
           <p class="text-gray-600">{{ cfg().counterparty }}: {{ saleReturn().clientName || '—' }}</p>
+          @if (saleReturn().clientDocument) {
+            <p class="text-gray-600">Documento: {{ saleReturn().clientDocument }}</p>
+          }
         </div>
 
         <!-- Motivo -->
@@ -79,7 +97,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
               <th class="text-left p-8">Descripción</th>
               <th class="text-right p-8">Cant. devuelta</th>
               <th class="text-right p-8">Vr. unitario</th>
-              <th class="text-right p-8">IVA %</th>
+              <th class="text-right p-8 whitespace-nowrap">Impuesto %</th>
               <th class="text-right p-8">Subtotal</th>
             </tr>
           </thead>
@@ -90,12 +108,14 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
                 <td class="p-8">{{ line.productName }}</td>
                 <td class="p-8 text-right">{{ line.cantidadDevuelta }}</td>
                 <td class="p-8 text-right">{{ line.precioUnitarioCents | copCents }}</td>
-                <td class="p-8 text-right">{{ line.ivaPct }}%</td>
+                <td class="p-8 text-right">
+                  <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
+                </td>
                 <td class="p-8 text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="6" class="text-center text-gray-500 p-24">Esta devolución no tiene líneas.</td>
+                <td colspan="6" class="text-center text-gray-500 p-24">Esta devolución no tiene ítems.</td>
               </tr>
             }
           </tbody>
@@ -109,7 +129,7 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
               <span class="font-semibold">{{ totals().subtotalCents | copCents }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-gray-600">IVA:</span>
+              <span class="text-gray-600">Impuesto:</span>
               <span class="font-semibold">{{ totals().ivaCents | copCents }}</span>
             </div>
             <div class="flex justify-between items-center p-8 rounded-md bg-gray-100 text-lg">
@@ -141,21 +161,49 @@ export class SaleReturnPreviewComponent {
   /** Ordinal dentro de la factura (null en borradores) */
   ordinal = input<number | null>(null);
 
+  // El emisor del documento emitido es el congelado por el back (`issuer`); los datos de la empresa en
+  // localStorage quedan solo como respaldo (borradores y documentos sin emisor)
   private readonly storage = inject(LocalStorageMethods);
   private readonly enterprise = this.storage.loadEnterpriseData();
-  readonly companyName = this.enterprise?.name || 'Empresa';
-  readonly companyNit = this.enterprise?.nit || '';
+  readonly companyName = computed(() => this.saleReturn().issuer?.name || this.enterprise?.name || 'Empresa');
+  readonly companyNit = computed(() => {
+    const issuer = this.saleReturn().issuer;
+    if (!issuer) return this.enterprise?.nit || '';
+    return issuer.nit ? (issuer.dv ? `${issuer.nit}-${issuer.dv}` : issuer.nit) : '';
+  });
+
+  private readonly messages = inject(MessageService, { optional: true });
+  private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
+  readonly printing = signal(false);
+  // Constructor del PDF; se expone para poder sustituirlo en pruebas
+  pdfBuilder = buildInvoicePdf;
+
+  // Genera y descarga el PDF de la hoja tal como se ve (incluida la marca de agua). No toca el estado de la devolución.
+  async print(): Promise<void> {
+    if (this.printing()) return;
+    this.printing.set(true);
+    try {
+      const pdf = await this.pdfBuilder(this.sheet().nativeElement);
+      pdf.save(invoicePdfFileName(this.cfg().returnPreviewTitle, this.saleReturn().number));
+    } catch (error) {
+      console.error('No se pudo generar el PDF de la devolución', error);
+      this.messages?.add({ severity: 'error', summary: 'Imprimir', detail: 'No se pudo generar el PDF. Inténtalo de nuevo.' });
+    } finally {
+      this.printing.set(false);
+    }
+  }
 
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.saleReturn().kind]);
   noteShortCapitalized = computed(() => {
     const note = this.cfg().noteShort;
     return note.charAt(0).toUpperCase() + note.slice(1);
   });
-  totals = computed(() => calcReturnTotals(this.saleReturn().lines));
+  totals = computed(() => returnTotals(this.saleReturn())); // en no-borrador mandan los totales del back
   watermark = computed(() => {
     const s = this.saleReturn().status;
     return s === 'BORRADOR' ? 'Borrador' : s === 'ANULADA' ? 'Anulada' : null;
   });
 
-  lineSubtotal = returnLineSubtotalCents;
+  lineSubtotal = (line: SaleReturn['lines'][number]): number =>
+    returnLineSubtotalOf(line, this.saleReturn().status === 'BORRADOR');
 }

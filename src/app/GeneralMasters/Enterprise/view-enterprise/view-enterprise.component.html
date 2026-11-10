@@ -236,10 +236,14 @@
 
             <div class="flex flex-col">
               <label class="text-sm font-medium text-gray-600 mb-1"
-                >Método de inventario:</label
+                >Método de valoración de inventario:</label
               >
               <span class="text-lg font-semibold text-gray-800">{{
-                enterpriseData?.inventoryMethods || "No disponible"
+                enterpriseData?.inventoryConfigurationType === "PEPS"
+                  ? "PEPS"
+                  : enterpriseData?.inventoryConfigurationType === "WEIGHTED_AVERAGE"
+                    ? "Promedio ponderado"
+                    : "No disponible"
               }}</span>
             </div>
 

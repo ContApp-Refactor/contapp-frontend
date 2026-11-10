@@ -1,4 +1,4 @@
-import { InvoiceTotals, SaleInvoiceLine } from '../models/billing-sale-invoice.model';
+import { InvoiceTotals, SaleInvoice, SaleInvoiceLine } from '../models/billing-sale-invoice.model';
 
 // Aritmética monetaria en centavos enteros. Solo se redondea una vez por línea (IVA),
 // así los totales siempre cuadran con la suma de las líneas.
@@ -6,11 +6,33 @@ import { InvoiceTotals, SaleInvoiceLine } from '../models/billing-sale-invoice.m
 export const pesosToCents = (pesos: number): number => Math.round((pesos ?? 0) * 100);
 export const centsToPesos = (cents: number): number => cents / 100;
 
-export const lineSubtotalCents = (line: SaleInvoiceLine): number =>
-  Math.round(line.cantidad * line.precioUnitarioCents);
+// División entera con redondeo HALF_UP (como el BigDecimal del back); los operandos son enteros
+const divHalfUp = (n: number, d: number): number => {
+  const abs = Math.abs(n);
+  const twice = 2 * abs + d;
+  const q = (twice - (twice % (2 * d))) / (2 * d);
+  return n < 0 ? -q : q;
+};
 
-export const lineIvaCents = (line: SaleInvoiceLine): number =>
-  Math.round((lineSubtotalCents(line) * line.ivaPct) / 100);
+// Aritmética SIN flotantes: la cantidad (entera hoy; hasta 3 decimales en documentos históricos) se escala a milésimas enteras y el IVA (hasta 2 decimales)
+// a centésimas enteras, así 1.005 × 100 = 101 como en el back y no 100 (por 1.005 × 100 = 100.49999...).
+/** cantidad × precio (centavos), redondeado HALF_UP a centavos enteros. */
+export const mulQtyCents = (cantidad: number, cents: number): number =>
+  divHalfUp(Math.round(cantidad * 1000) * Math.round(cents), 1000);
+/** base (centavos) × porcentaje / 100, redondeado HALF_UP a centavos enteros. */
+export const pctOfCents = (cents: number, pct: number): number => divHalfUp(cents * Math.round(pct * 100), 10000);
+
+export const lineSubtotalCents = (line: Pick<SaleInvoiceLine, 'cantidad' | 'precioUnitarioCents'>): number =>
+  mulQtyCents(line.cantidad, line.precioUnitarioCents);
+
+// En un documento NO editable (emitido/anulado) manda el subtotal de la línea que calculó el back (si lo envía);
+// en borrador siempre se calcula con los valores en pantalla
+export const lineSubtotalOf = (line: SaleInvoiceLine, editable: boolean): number =>
+  !editable && line.subtotalCents != null ? line.subtotalCents : lineSubtotalCents(line);
+
+// Una línea sin dato de IVA (nueva, aún sin guardar) se estima en 0 solo para el total provisional;
+// al guardar el back devuelve el IVA real y el total se recalcula
+export const lineIvaCents = (line: SaleInvoiceLine): number => pctOfCents(lineSubtotalCents(line), line.ivaPct ?? 0);
 
 export function calcTotals(lines: SaleInvoiceLine[]): InvoiceTotals {
   let subtotalCents = 0;
@@ -21,6 +43,52 @@ export function calcTotals(lines: SaleInvoiceLine[]): InvoiceTotals {
   }
   return { subtotalCents, ivaCents, totalCents: subtotalCents + ivaCents };
 }
+
+// Una fila del "Detalle de impuestos": un impuesto distinto (nombre + tarifa), la base sobre la que se aplica
+// (suma de los subtotales de las líneas que lo tienen) y su valor (base × tarifa), SIN redondear.
+export interface TaxSummaryRow {
+  name: string;
+  baseCents: number;
+  taxCents: number;
+}
+
+// Desglose por impuesto de las líneas. Solo presentación: no cambia el IVA de las líneas ni los totales del documento.
+// Una línea con `taxes` aporta a cada uno de sus impuestos; una sin desglose pero con `ivaPct` > 0 (documento viejo,
+// IVA por defecto o editado a mano) aporta a una fila única "Iva"; sin impuestos no aporta nada.
+export function taxSummaryRows(lines: SaleInvoiceLine[], editable: boolean): TaxSummaryRow[] {
+  const groups = new Map<string, { name: string; rate: number; baseCents: number }>();
+  for (const line of lines) {
+    const taxes = line.taxes?.length ? line.taxes : line.ivaPct ? [{ name: 'Iva', rate: line.ivaPct }] : [];
+    const base = lineSubtotalOf(line, editable);
+    for (const tax of taxes) {
+      const key = `${tax.name.trim().toLowerCase()}|${tax.rate}`;
+      const group = groups.get(key) ?? { name: tax.name.trim(), rate: tax.rate, baseCents: 0 };
+      group.baseCents += base;
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()].map((g) => ({
+    name: `${g.name} ${g.rate}%`,
+    baseCents: g.baseCents,
+    taxCents: (g.baseCents * Math.round(g.rate * 100)) / 10000,
+  }));
+}
+
+// Totales de un documento: en un documento NO editable (emitido/anulado) mandan los `totals` del back;
+// en borrador (o si el back no los envía, p. ej. el mock) se calcula con las líneas.
+export function invoiceTotals(invoice: Pick<SaleInvoice, 'status' | 'lines' | 'totals'>): InvoiceTotals {
+  return invoice.status !== 'BORRADOR' && invoice.totals ? invoice.totals : calcTotals(invoice.lines);
+}
+
+// Redondeo a 3 decimales: SOLO para aritmética/visualización de documentos históricos (antes de la integración con
+// Inventario se admitían hasta 3 decimales) y para evitar errores de flotante (p. ej. 2.9999999 -> 3) al sumar/restar.
+export const roundQty = (value: number): number => Math.round(value * 1000) / 1000;
+
+// Inventario solo admite cantidades ENTERAS: es la regla para todo lo que se captura o se envía (facturas y devoluciones)
+export const MIN_QUANTITY = 1;
+export const isWholeQty = (value: number): boolean => Number.isInteger(roundQty(value));
+/** Parte entera (hacia abajo) de una cantidad; nunca supera el valor original (p. ej. disponible 2.5 -> 2). */
+export const wholeQty = (value: number): number => Math.floor(roundQty(value));
 
 const copFormatter = new Intl.NumberFormat('es-CO', {
   style: 'currency',

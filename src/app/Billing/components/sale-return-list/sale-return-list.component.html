@@ -1,80 +1,94 @@
 <div class="flex w-full h-full font-titillium">
   <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
-    <div class="flex flex-wrap items-center justify-between gap-16 mb-20">
+    <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-16 mb-20">
       <div>
         <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
           <span class="border-b-4 border-secondary-light inline-block pb-1">Facturas con devolución</span>
         </h1>
-        <p class="font-family-sans font-normal text-sm mt-12">Facturas de venta y compra que tienen al menos una devolución emitida.</p>
+        <p class="font-family-sans font-normal text-sm mt-12">Facturas de {{ cfg.tag.toLowerCase() }} que tienen al menos una devolución emitida.</p>
       </div>
-      <div class="flex items-center gap-8">
-        <p-dropdown
-          [options]="kindOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="kindFilter()"
-          (ngModelChange)="kindFilter.set($event)"
-          styleClass="w-150"
-          size="small"
-        ></p-dropdown>
-        <!-- Volver al menú de Facturación -->
+      <!-- Volver al hub del tipo -->
+      <div class="flex flex-wrap items-center gap-8 sm:justify-end">
         <p-button
+          label="Volver"
           icon="pi pi-arrow-left"
-          [rounded]="true"
-          [outlined]="true"
-          ariaLabel="Volver"
-          title="Volver"
+          styleClass="p-button-outlined"
+          [ariaLabel]="'Volver a ' + cfg.invoiceTitle"
           (click)="goBack()"
         ></p-button>
       </div>
     </div>
 
+    <!-- Barra de filtros: buscador general -->
+    <div class="flex flex-wrap items-center gap-8 mb-16">
+      <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
+        <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
+        <input
+          pInputText
+          type="text"
+          #search
+          (input)="dt.filterGlobal(search.value, 'contains')"
+          placeholder="Buscar en todas las columnas..."
+          class="w-full text-sm"
+        />
+      </p-iconfield>
+    </div>
+
     <div class="overflow-x-auto text-sm">
-      <p-table [value]="filtered()" [loading]="loading()" [tableStyle]="{ 'min-width': '70rem' }" styleClass="p-datatable-striped">
+      <p-table
+        #dt
+        [value]="rows()"
+        [loading]="loading()"
+        [globalFilterFields]="globalFilterFields"
+        [tableStyle]="{ 'table-layout': 'fixed', width: '100%', 'min-width': '44rem' }"
+        styleClass="p-datatable-striped"
+      >
         <ng-template pTemplate="header">
           <tr>
-            <th style="width: 7rem">Tipo</th>
-            <th style="width: 9rem">Factura</th>
-            <th>Cliente / Proveedor</th>
-            <th style="width: 9rem">Fecha</th>
-            <th style="width: 11rem" class="text-right">Total factura</th>
-            <th style="width: 8rem" class="text-center"># Devoluciones</th>
-            <th style="width: 11rem" class="text-right">Total devuelto</th>
-            <th style="width: 10rem">Estado devolución</th>
-            <th style="width: 6rem"></th>
+            <th style="width: 16%">Factura</th>
+            <th style="width: 24%">{{ cfg.counterparty }}</th>
+            <th style="width: 10%">Fecha</th>
+            <th class="text-right" style="width: 12%">Total factura</th>
+            <th class="text-center" style="width: 9%"># Devoluciones</th>
+            <th class="text-right" style="width: 12%">Total devuelto</th>
+            <th style="width: 10%">Estado devolución</th>
+            <th style="width: 6%"><span class="sr-only">Acciones</span></th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
           <tr>
-            <td><app-billing-kind-tag [kind]="row.kind" /></td>
-            <td>
-              <p class="font-semibold">{{ row.invoiceNumber ?? '—' }}</p>
-              @if (row.supplierInvoiceNumber) {
-                <p class="text-xs text-gray-500">Fact. proveedor {{ row.supplierInvoiceNumber }}</p>
+            <td class="break-words">
+              <p class="font-semibold">{{ row.summary.invoiceNumber ?? '—' }}</p>
+              @if (row.summary.supplierInvoiceNumber) {
+                <p class="text-xs text-gray-500">Fact. proveedor {{ row.summary.supplierInvoiceNumber }}</p>
               }
             </td>
-            <td>{{ counterpartyOf(row) }}</td>
-            <td>{{ row.invoiceDate | date: 'dd/MM/yyyy' }}</td>
-            <td class="text-right">{{ row.invoiceTotalCents | copCents }}</td>
-            <td class="text-center">{{ row.returnsCount }}</td>
-            <td class="text-right font-semibold">{{ row.returnedTotalCents | copCents }}</td>
+            <td class="break-words">{{ row.counterparty }}</td>
+            <td>{{ row.summary.invoiceDate | date: 'dd/MM/yyyy' }}</td>
+            <td class="text-right">{{ row.summary.invoiceTotalCents | copCents }}</td>
+            <td class="text-center">{{ row.summary.returnsCount }}</td>
+            <td class="text-right font-semibold">{{ row.summary.returnedTotalCents | copCents }}</td>
             <td>
               <span
                 class="inline-block px-12 py-4 rounded-full text-xs font-semibold font-family-sans"
-                [class]="row.state === 'TOTAL' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'"
-                >{{ stateLabel[row.state] }}</span
+                [class]="row.summary.state === 'TOTAL' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'"
+                >{{ row.stateLabel }}</span
               >
             </td>
             <td>
               <div class="flex justify-end">
-                <p-button label="Ver" icon="pi pi-eye" styleClass="p-button-text" (click)="view(row)"></p-button>
+                <p-button label="Ver" icon="pi pi-eye" styleClass="p-button-text" (click)="view(row.summary)"></p-button>
               </div>
             </td>
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="9" class="text-center p-20">No hay facturas con devoluciones</td>
+            <td colspan="8" class="text-center p-20">
+              <i class="pi pi-inbox text-primary text-2xl"></i>
+              <p class="mt-8">No hay facturas con devoluciones.</p>
+              <p class="text-xs text-gray-500 mt-4">Cuando una factura tenga una devolución emitida aparecerá aquí.</p>
+            </td>
           </tr>
         </ng-template>
       </p-table>

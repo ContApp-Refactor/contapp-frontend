@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, catchError, forkJoin, map, of, switchMap, tap, throwError } from 'rxjs';
-import { InvoiceStatus } from '../models/billing-sale-invoice.model';
+import { BillingIssuer, InvoiceStatus, InvoiceTotals } from '../models/billing-sale-invoice.model';
+import { toLineTaxes } from '../utils/tax-breakdown';
 import { DocumentKind } from '../models/document-kind';
 import {
   InvoiceReturnState,
@@ -14,6 +15,7 @@ import {
 import { BillingSaleReturnApi } from './billing-sale-return.api';
 import { BillingDocumentKindRegistry, INVOICE_BASE, RETURN_BASE } from './billing-document-kind-registry';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
+import { IDEMPOTENCY_HEADER, IdempotencyKeyStore } from './idempotency-key.store';
 
 interface ReturnLineDto {
   sourceLineNo: number | null;
@@ -22,6 +24,13 @@ interface ReturnLineDto {
   cantidadDevuelta: number;
   precioUnitarioCents: number;
   ivaPct: number;
+  subtotalCents?: number | null;
+  taxes?: TaxDto[] | null; // desglose heredado de la línea original (ausente en back/documentos viejos)
+}
+
+interface TaxDto {
+  name: string;
+  rate: number | string;
 }
 
 interface ReturnDto {
@@ -34,15 +43,18 @@ interface ReturnDto {
   originalDate: string;
   clientId: string | null;
   clientName: string | null;
+  clientDocument?: string | null;
   date: string;
   reason: string | null;
   lines: ReturnLineDto[];
+  totals?: InvoiceTotals | null;
   createdAt: string;
   updatedAt: string;
   emittedAt: string | null;
   annulledAt: string | null;
   annulReason: string | null;
-  version: number;
+  version: number | null;
+  issuer?: BillingIssuer | null;
 }
 
 interface AvailabilityLineDto {
@@ -54,6 +66,7 @@ interface AvailabilityLineDto {
   available: number;
   precioUnitarioCents: number;
   ivaPct: number;
+  taxes?: TaxDto[] | null;
 }
 
 interface InvoiceWithReturnsDto {
@@ -71,12 +84,18 @@ interface InvoiceWithReturnsDto {
 
 const KINDS: DocumentKind[] = ['SALE', 'PURCHASE'];
 
+// Ámbito de la clave de idempotencia de la creación de devoluciones de una factura
+const returnScope = (kind: DocumentKind, invoiceId: string): string => `return:${kind}:${invoiceId}`;
+
 const toReturnLine = (l: ReturnLineDto): SaleReturnLine => ({
+  sourceLineNo: l.sourceLineNo,
   productId: l.productId,
   productName: l.productName,
   cantidadDevuelta: Number(l.cantidadDevuelta),
   precioUnitarioCents: l.precioUnitarioCents,
   ivaPct: Number(l.ivaPct),
+  ...(l.subtotalCents != null ? { subtotalCents: l.subtotalCents } : {}),
+  ...(l.taxes?.length ? { taxes: toLineTaxes(l.taxes) } : {}),
 });
 
 const toSaleReturn = (r: ReturnDto): SaleReturn => ({
@@ -89,14 +108,18 @@ const toSaleReturn = (r: ReturnDto): SaleReturn => ({
   originalDate: r.originalDate,
   clientId: r.clientId,
   clientName: r.clientName,
+  clientDocument: r.clientDocument ?? null,
   date: r.date,
   reason: r.reason ?? '',
   lines: r.lines.map(toReturnLine),
+  totals: r.totals ?? null,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
   emittedAt: r.emittedAt ?? undefined,
   annulledAt: r.annulledAt ?? undefined,
   annulReason: r.annulReason ?? undefined,
+  version: r.version ?? null,
+  issuer: r.issuer ?? null,
 });
 
 @Injectable()
@@ -104,6 +127,7 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
   private readonly http = inject(HttpClient);
   private readonly localStorageMethods = inject(LocalStorageMethods);
   private readonly registry = inject(BillingDocumentKindRegistry);
+  private readonly idempotency = inject(IdempotencyKeyStore);
 
   private getEnterpriseId(): string {
     return this.localStorageMethods.getIdEnterprise();
@@ -152,6 +176,7 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
     return this.onKind(invoiceId, (kind) => this.fetchAvailability(kind, invoiceId)).pipe(
       map((lines) =>
         lines.map((l) => ({
+          lineNo: l.lineNo,
           productId: l.productId,
           productName: l.productName,
           sold: Number(l.sold),
@@ -159,6 +184,7 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
           available: Number(l.available),
           precioUnitarioCents: l.precioUnitarioCents,
           ivaPct: Number(l.ivaPct),
+          ...(l.taxes?.length ? { taxes: toLineTaxes(l.taxes) } : {}),
         })),
       ),
     );
@@ -206,48 +232,86 @@ export class BillingHttpSaleReturnApi extends BillingSaleReturnApi {
     return this.onKind(id, (kind) => this.fetchReturn(kind, id));
   }
 
+  // Tipo de la factura original: casi siempre ya está en el registro (la pantalla leyó antes la disponibilidad);
+  // si no, se prueba consultando la disponibilidad (venta y luego compra)
+  private invoiceKind(invoiceId: string): Observable<DocumentKind> {
+    const known = this.registry.kindOf(invoiceId);
+    if (known) return of(known);
+    return this.onKind(invoiceId, (kind) => this.fetchAvailability(kind, invoiceId)).pipe(
+      map(() => this.registry.kindOf(invoiceId) ?? 'SALE'),
+    );
+  }
+
   saveDraft(input: SaleReturnDraftInput): Observable<SaleReturn> {
     const params = this.params();
-    // El back identifica las líneas por el lineNo de la factura original, no por productId
-    return this.onKind(input.invoiceId, (kind) =>
-      this.fetchAvailability(kind, input.invoiceId).pipe(map((availability) => ({ kind, availability }))),
-    ).pipe(
-      switchMap(({ kind, availability }) => {
-        const body = {
-          invoiceId: input.invoiceId,
-          date: input.date,
-          reason: input.reason,
-          lines: input.lines.map((l) => ({
-            sourceLineNo: availability.find((a) => a.productId === l.productId)?.lineNo,
-            cantidad: l.cantidad,
-          })),
-        };
-        const request = input.id
-          ? this.http.put<ReturnDto>(`${RETURN_BASE[kind]}/${input.id}`, body, { params })
-          : this.http.post<ReturnDto>(RETURN_BASE[kind], body, { params });
-        return request.pipe(tap((r) => this.registry.remember(r.id, kind)));
+    // El back identifica las líneas por el lineNo de la factura original y exige cantidad > 0 (@Positive):
+    // las líneas con 0 (producto que no se devuelve) no se envían. Sin líneas el borrador es válido (solo motivo/fecha).
+    const body = {
+      invoiceId: input.invoiceId,
+      date: input.date,
+      reason: input.reason,
+      lines: input.lines.filter((l) => l.cantidad > 0).map((l) => ({ sourceLineNo: l.lineNo, cantidad: l.cantidad })),
+    };
+    return this.invoiceKind(input.invoiceId).pipe(
+      switchMap((kind) => {
+        if (input.id) {
+          return this.http
+            .put<ReturnDto>(`${RETURN_BASE[kind]}/${input.id}`, { ...body, version: input.version ?? null }, { params })
+            .pipe(tap((r) => this.registry.remember(r.id, kind)));
+        }
+        // Creación idempotente: misma clave mientras el cuerpo no cambie (doble clic o reintento); tras un intento sin
+        // respuesta se reenvía el cuerpo original con la misma clave y luego un PUT aplica el nuevo (ver IdempotencyKeyStore)
+        return this.idempotency.create<ReturnDto>(
+          returnScope(kind, input.invoiceId),
+          body,
+          (key, sent) =>
+            this.http
+              .post<ReturnDto>(RETURN_BASE[kind], sent, { params, headers: { [IDEMPOTENCY_HEADER]: key } })
+              .pipe(tap((r) => this.registry.remember(r.id, kind))),
+          (created) =>
+            this.http
+              .put<ReturnDto>(`${RETURN_BASE[kind]}/${created.id}`, { ...body, version: created.version ?? null }, { params })
+              .pipe(tap((r) => this.registry.remember(r.id, kind))),
+        );
       }),
       map(toSaleReturn),
     );
   }
 
-  deleteDraft(id: string): Observable<void> {
+  override forgetPendingCreation(invoiceId: string): void {
+    for (const kind of KINDS) this.idempotency.forget(returnScope(kind, invoiceId));
+  }
+
+  // La versión viaja por query en DELETE y en el cuerpo en emit/annul (así la lee el back)
+  deleteDraft(id: string, version?: number | null): Observable<void> {
     return this.resolveReturnKind(id).pipe(
-      switchMap((kind) => this.http.delete<void>(`${RETURN_BASE[kind]}/${id}`, { params: this.params() })),
+      switchMap((kind) => {
+        let params = this.params();
+        if (version != null) params = params.set('version', String(version));
+        return this.http.delete<void>(`${RETURN_BASE[kind]}/${id}`, { params });
+      }),
     );
   }
 
-  emit(id: string): Observable<SaleReturn> {
+  emit(id: string, version?: number | null): Observable<SaleReturn> {
     return this.resolveReturnKind(id).pipe(
-      switchMap((kind) => this.http.post<ReturnDto>(`${RETURN_BASE[kind]}/${id}/emit`, {}, { params: this.params() })),
+      switchMap((kind) =>
+        this.http.post<ReturnDto>(`${RETURN_BASE[kind]}/${id}/emit`, version != null ? { version } : {}, {
+          params: this.params(),
+        }),
+      ),
       map(toSaleReturn),
     );
   }
 
-  annul(id: string, reason: string): Observable<SaleReturn> {
+  annul(id: string, reason: string, version?: number | null): Observable<SaleReturn> {
     return this.resolveReturnKind(id).pipe(
       switchMap((kind) =>
-        this.http.post<ReturnDto>(`${RETURN_BASE[kind]}/${id}/annul`, { reason }, { params: this.params() }),
+        this.http.post<ReturnDto>(
+          `${RETURN_BASE[kind]}/${id}/annul`,
+          version != null ? { reason, version } : { reason },
+          { params: this.params() },
+        ),
       ),
       map(toSaleReturn),
     );

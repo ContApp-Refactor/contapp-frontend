@@ -19,6 +19,10 @@ import { EnterpriseService } from '../services/enterprise.service';
 import { SubjectService } from '../../Subjects/services/subjects.service';
 import { AddressService } from '../services/addressService';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
+import {
+  DEFAULT_INVENTORY_CONFIGURATION_TYPE,
+  INVENTORY_VALUATION_OPTIONS,
+} from '../models/InventoryValuation';
 import { TaxService } from '../../../GeneralMasters/Taxes/services/tax.service';
 import {
   LocalStorageMethods,
@@ -64,10 +68,7 @@ export class EditEnterpriseComponent implements OnInit {
     { id: 'INACTIVE', name: 'Inactivo' },
   ];
 
-  inventoryMethodsOptions = [
-    { name: 'PEPS (FIFO)', value: 'PEPS' },
-    { name: 'Costo Promedio Ponderado', value: 'WEIGHTED_AVERAGE' },
-  ];
+  inventoryValuationOptions = INVENTORY_VALUATION_OPTIONS;
 
   taxLiabilities: any[] = [];
 
@@ -157,7 +158,10 @@ export class EditEnterpriseComponent implements OnInit {
       taxPayerType: [this.getEntityId(this.enterpriseData?.taxPayerType) || null],
       mainActivity: [this.enterpriseData?.mainActivity || ''],
       secondaryActivity: [this.enterpriseData?.secondaryActivity || ''],
-        inventoryMethods: [this.enterpriseData?.inventoryConfigurationType || null],
+      inventoryConfigurationType: [
+        this.enterpriseData?.inventoryConfigurationType ||
+          DEFAULT_INVENTORY_CONFIGURATION_TYPE,
+      ],
       branch: [this.enterpriseData?.branch || ''],
       country: [this.getEntityId(this.enterpriseData?.location?.country) || null],
       department: [this.getEntityId(this.enterpriseData?.location?.department) || null],
@@ -269,7 +273,9 @@ export class EditEnterpriseComponent implements OnInit {
       secondaryActivity:
         f.secondaryActivity || this.enterpriseData?.secondaryActivity || undefined,
       inventoryConfigurationType:
-        f.inventoryMethods || this.enterpriseData?.inventoryConfigurationType || undefined,
+        f.inventoryConfigurationType ||
+        this.enterpriseData?.inventoryConfigurationType ||
+        undefined,
       taxLiabilities:
         f.taxLiabilities?.length > 0
           ? f.taxLiabilities.map((id: any) => Number(id))

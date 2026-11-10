@@ -115,11 +115,66 @@ describe('Render de pantallas de Facturación', () => {
     expect(el.textContent).toContain('Ítems');
     expect(el.textContent).not.toContain('Líneas');
   });
-  it('menú', async () => {
+  it('hub de venta: solo opciones de venta, con rutas de venta', async () => {
     setup({}, [inv('i2', 'BORRADOR')], []);
     const el = await render(BillingMenuComponent);
+    expect(el.querySelector('h1')?.textContent).toContain('Factura de venta');
     expect(el.textContent).toContain('Nueva factura de venta');
+    expect(el.textContent).not.toContain('Nueva factura de compra');
+    const menu = TestBed.createComponent(BillingMenuComponent).componentInstance;
+    expect(menu.options.map((o) => o.route)).toEqual(['/billing/sale/new', '/billing/sale/list', '/billing/sale/returns']);
+  });
+  it('hub de compra: solo opciones de compra, con rutas de compra', async () => {
+    setup({ kind: 'PURCHASE' }, [inv('i2', 'BORRADOR')], []);
+    const el = await render(BillingMenuComponent);
+    expect(el.querySelector('h1')?.textContent).toContain('Factura de compra');
     expect(el.textContent).toContain('Nueva factura de compra');
+    expect(el.textContent).not.toContain('Nueva factura de venta');
+    const menu = TestBed.createComponent(BillingMenuComponent).componentInstance;
+    expect(menu.options.map((o) => o.route)).toEqual(['/billing/purchase/new', '/billing/purchase/list', '/billing/purchase/returns']);
+  });
+  it('hub: la tabla de pendientes embebida solo muestra borradores de su tipo', async () => {
+    setup({ kind: 'PURCHASE' }, [inv('s1', 'BORRADOR', 'SALE', { clientName: 'Cliente Venta' }), inv('p1', 'BORRADOR', 'PURCHASE', { clientName: 'Proveedor Compra' })], []);
+    const el = await render(BillingMenuComponent);
+    expect(el.textContent).toContain('Proveedor Compra');
+    expect(el.textContent).not.toContain('Cliente Venta');
+  });
+  it('pendientes: solo el tipo de la ruta y sin select de tipo ni columna Tipo', async () => {
+    setup({ kind: 'PURCHASE' }, [inv('s1', 'BORRADOR', 'SALE', { clientName: 'Cliente Venta' }), inv('p1', 'BORRADOR', 'PURCHASE', { clientName: 'Proveedor Compra' })], []);
+    const el = await render(SaleInvoicePendingComponent);
+    expect(el.querySelectorAll('tbody tr').length).toBe(1);
+    expect(el.textContent).toContain('Proveedor Compra');
+    expect(el.textContent).not.toContain('Cliente Venta');
+    expect(el.querySelector('p-dropdown')).toBeNull();
+    expect(Array.from(el.querySelectorAll('th')).map((t) => t.textContent!.trim())).not.toContain('Tipo');
+  });
+  it('listado de facturas: solo el tipo de la ruta y sin select de tipo ni columna Tipo', async () => {
+    setup({ kind: 'SALE' }, [inv('s1', 'EMITIDA', 'SALE', { clientName: 'Cliente Venta' }), inv('p1', 'EMITIDA', 'PURCHASE', { clientName: 'Proveedor Compra' })], []);
+    const el = await render(SaleInvoiceListComponent);
+    expect(el.querySelectorAll('tbody tr').length).toBe(1);
+    expect(el.textContent).toContain('Cliente Venta');
+    expect(el.textContent).not.toContain('Proveedor Compra');
+    expect(Array.from(el.querySelectorAll('th')).map((t) => t.textContent!.trim())).not.toContain('Tipo');
+    expect(el.querySelector('[aria-label="Filtrar por tipo"]')).toBeNull();
+    expect(el.querySelectorAll('p-dropdown').length).toBe(2); // estado y estado de devolución
+  });
+  it('listado de facturas de compra: muestra solo compras', async () => {
+    setup({ kind: 'PURCHASE' }, [inv('s1', 'EMITIDA', 'SALE', { clientName: 'Cliente Venta' }), inv('p1', 'EMITIDA', 'PURCHASE', { clientName: 'Proveedor Compra' })], []);
+    const el = await render(SaleInvoiceListComponent);
+    expect(el.textContent).toContain('Proveedor Compra');
+    expect(el.textContent).not.toContain('Cliente Venta');
+  });
+  it('devoluciones: solo el tipo de la ruta, sin select de tipo ni columna Tipo', async () => {
+    setup({ kind: 'PURCHASE' }, [], []);
+    const api = TestBed.inject(BillingSaleReturnApi) as any;
+    const row = (id: string, kind: string, name: string) => ({ invoiceId: id, invoiceNumber: id, kind, clientName: name, invoiceDate: '2026-10-01', invoiceTotalCents: 5000, returnsCount: 1, returnedTotalCents: 1000, state: 'PARCIAL' });
+    api.listInvoicesWithReturns = () => of([row('v1', 'SALE', 'Cliente Venta'), row('c1', 'PURCHASE', 'Proveedor Compra')]);
+    const el = await render(SaleReturnListComponent);
+    expect(el.querySelectorAll('tbody tr').length).toBe(1);
+    expect(el.textContent).toContain('Proveedor Compra');
+    expect(el.textContent).not.toContain('Cliente Venta');
+    expect(el.querySelector('p-dropdown')).toBeNull();
+    expect(Array.from(el.querySelectorAll('th')).map((t) => t.textContent!.trim())).not.toContain('Tipo');
   });
   it('facturas con devolución', async () => {
     setup({}, [], []);

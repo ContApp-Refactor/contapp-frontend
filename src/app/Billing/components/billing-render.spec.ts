@@ -512,3 +512,28 @@ describe('Desglose de impuestos por línea', () => {
     });
   });
 });
+
+// Patrón de encabezado unificado: título a la izquierda y acciones (Volver, etc.) arriba a la derecha, apilado en móvil
+describe('Encabezado unificado de Facturación', () => {
+  const cabecera = (el: HTMLElement) => {
+    const header = el.querySelector('h1')!.closest('div.flex-col')!;
+    return { header, acciones: header.querySelector(':scope > div[class~="sm:justify-end"]') as HTMLElement | null };
+  };
+  const vistas: [string, () => void, import('@angular/core').Type<unknown>][] = [
+    ['hub', () => setup({}, [inv('i2', 'BORRADOR')], []), BillingMenuComponent],
+    ['pendientes', () => setup({}, [inv('i2', 'BORRADOR')], []), SaleInvoicePendingComponent],
+    ['lista de facturas', () => setup({}, [inv('i1', 'EMITIDA')], []), SaleInvoiceListComponent],
+    ['facturas con devolución', () => setup({}, [inv('i1', 'EMITIDA')], []), SaleReturnListComponent],
+    ['formulario de factura', () => setup({ id: 'i2' }, [inv('i2', 'EMITIDA')], []), SaleInvoiceFormComponent],
+  ];
+  for (const [nombre, preparar, tipo] of vistas) {
+    it(`${nombre}: acciones agrupadas arriba a la derecha y apiladas en pantallas pequeñas`, async () => {
+      preparar();
+      const el = await render(tipo);
+      const { header, acciones } = cabecera(el);
+      expect(header.className).toContain('sm:flex-row');
+      expect(acciones).not.toBeNull();
+      expect(acciones!.querySelector('p-button')).not.toBeNull();
+    });
+  }
+});

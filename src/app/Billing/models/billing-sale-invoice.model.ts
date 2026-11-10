@@ -96,7 +96,7 @@ export interface SaleInvoice {
   annulReason?: string;
   version?: number | null; // bloqueo optimista: se devuelve en cada respuesta y se reenvía al modificar
   issuer?: BillingIssuer | null; // emisor congelado al emitir; null en borrador
-  payment?: BillingPayment | null; // forma de pago (solo venta); null/ausente en compras y en ventas anteriores a este dato
+  payment?: BillingPayment | null; // forma de pago (venta y compra); null/ausente en facturas anteriores a este dato
 }
 
 // Lo que el front envía al guardar un borrador (crea si no hay id)
@@ -108,7 +108,7 @@ export interface SaleInvoiceDraftInput {
   date: string;
   lines: SaleInvoiceLineInput[];
   version?: number | null; // versión conocida del borrador (bloqueo optimista); sin ella el back no verifica
-  payment?: BillingPayment | null; // solo venta (en compra no se envía); null = sin forma de pago todavía
+  payment?: BillingPayment | null; // venta y compra; null = sin forma de pago todavía
 }
 
 // Línea enviada por el front: valores efectivos; las referencias de catálogo

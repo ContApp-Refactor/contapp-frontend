@@ -158,8 +158,8 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       invoice.clientDocument = client?.document ?? null;
       if (invoice.kind === 'PURCHASE') invoice.supplierInvoiceNumber = input.supplierInvoiceNumber?.trim() || null;
       invoice.date = input.date;
-      // Pago: solo venta (en compra se ignora), como el back
-      if (invoice.kind === 'SALE') invoice.payment = this.draftPayment(input.payment);
+      // Pago: venta y compra, como el back
+      invoice.payment = this.draftPayment(input.payment);
       const previousLines = invoice.lines;
       invoice.lines = input.lines.map((l, index) => {
         const product = catalog.find((p) => p.id === l.productId);
@@ -245,7 +245,7 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
   private freezePaymentMethod(invoice: SaleInvoice): Observable<void> {
     const payment = invoice.payment;
     const catalog = this.paymentCatalog;
-    if (invoice.kind !== 'SALE' || !payment?.methodId || !catalog) return of(void 0);
+    if (!payment?.methodId || !catalog) return of(void 0);
     return catalog.getPaymentMethods().pipe(
       switchMap((methods) => {
         const method = methods.find((m) => m.id === payment.methodId);
@@ -269,10 +269,7 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       throw new Error('Todas las líneas deben tener cantidad mayor a cero.');
     }
 
-    if (invoice.kind === 'SALE') {
-      const payment = invoice.payment;
-      if (!payment?.methodId) throw paymentApiError(PAYMENT_METHOD_REQUIRED_CODE);
-    }
+    if (!invoice.payment?.methodId) throw paymentApiError(PAYMENT_METHOD_REQUIRED_CODE);
 
     const now = new Date().toISOString();
     invoice.number = this.nextNumber(invoice.kind);

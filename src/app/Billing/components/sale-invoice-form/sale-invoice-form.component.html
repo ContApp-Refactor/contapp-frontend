@@ -301,8 +301,8 @@
           }
         </div>
 
-        <!-- Pago: solo factura de VENTA. Solo método de pago -->
-        @if (isSale()) {
+        <!-- Pago: factura de venta y de compra. Solo método de pago -->
+        @if (hasPayment()) {
           <div class="flex flex-col" data-testid="payment-method">
             <label for="paymentMethod" class="font-normal text-primary mb-4"
               >Método de pago:@if (editable()) { <span> *</span> }</label

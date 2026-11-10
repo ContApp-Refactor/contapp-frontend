@@ -37,12 +37,12 @@ const precioOverride = (l: SaleInvoiceDraftInput['lines'][number]): number | nul
 // solo viaja ivaPct cuando el usuario lo editó.
 // Sin dato (null) nunca se envía un valor inventado.
 //
-// Pago: solo la factura de VENTA lo envía (en compra la clave `payment` ni viaja): { methodId }.
+// Pago: lo envían ambas facturas (venta y compra): { methodId }.
 export const toDraftBody = (input: SaleInvoiceDraftInput) => {
   const { payment, ...rest } = input;
   return {
     ...rest,
-    ...(input.kind === 'SALE' ? { payment: paymentBody(payment) } : {}),
+    payment: paymentBody(payment),
     lines: input.lines.map((l) => ({
       productId: l.productId,
       cantidad: l.cantidad,

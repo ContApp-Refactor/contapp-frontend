@@ -79,8 +79,8 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
           @if (kind() === 'PURCHASE') {
             <p class="text-gray-600">N.º factura del proveedor: {{ supplierInvoiceNumber() || '—' }}</p>
           }
-          <!-- Método de pago: solo factura de venta (dentro de la hoja, así sale también en el PDF) -->
-          @if (kind() === 'SALE') {
+          <!-- Método de pago: facturas de venta y compra (dentro de la hoja, así sale también en el PDF) -->
+          @if (kind() === 'SALE' || kind() === 'PURCHASE') {
             <p class="text-gray-600" data-testid="preview-payment">Método de pago: {{ paymentText() }}</p>
           }
         </div>
@@ -168,7 +168,7 @@ export class SaleInvoicePreviewComponent {
   lines = input.required<SaleInvoiceLine[]>();
   totals = input<InvoiceTotals | null>(null); // los del back; solo mandan si el documento no es borrador
   issuer = input<BillingIssuer | null>(null); // emisor congelado al emitir (RN-06); null en borrador
-  payment = input<BillingPayment | null>(null); // forma de pago (solo venta); null = sin dato => "—"
+  payment = input<BillingPayment | null>(null); // forma de pago (venta y compra); null = sin dato => "—"
 
   // El emisor del documento emitido es el congelado por el back; los datos de la empresa en localStorage
   // quedan solo como respaldo (borradores y documentos sin emisor)

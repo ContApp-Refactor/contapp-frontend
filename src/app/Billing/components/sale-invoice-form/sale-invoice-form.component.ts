@@ -136,8 +136,9 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   lines = signal<SaleInvoiceLine[]>([]);
   annulReason = signal<string | null>(null);
 
-  // Pago (solo factura de VENTA; en compra la sección no existe y nada de esto se envía): método y, si lo exige, cuenta
-  isSale = computed(() => this.kind() === 'SALE');
+  // Pago (facturas de venta y compra): método y, si lo exige, cuenta
+  // El método de pago aplica a ambas facturas (venta y compra); este form no sirve devoluciones.
+  hasPayment = computed(() => this.kind() === 'SALE' || this.kind() === 'PURCHASE');
   readonly noPaymentMethodsMessage = NO_PAYMENT_METHODS_MESSAGE;
   paymentMethodId = signal<string | null>(null);
   paymentMethodName = signal<string | null>(null); // congelado por el back al emitir
@@ -153,7 +154,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   );
   // Pago actual del formulario: lo que se guarda y lo que ve la vista previa/PDF
   payment = computed<BillingPayment | null>(() => {
-    if (!this.isSale() || !this.paymentMethodId()) return null;
+    if (!this.hasPayment() || !this.paymentMethodId()) return null;
     return { methodId: this.paymentMethodId(), methodName: this.paymentMethodLabel() };
   });
 
@@ -432,9 +433,9 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       .subscribe((c) => this.clients.set(c));
   }
 
-  // Métodos de pago activos de la empresa (solo venta). Un fallo NO es lo mismo que "no hay métodos": se avisa distinto
+  // Métodos de pago activos de la empresa (venta y compra). Un fallo NO es lo mismo que "no hay métodos": se avisa distinto
   loadPaymentMethods(): void {
-    if (!this.isSale()) return;
+    if (!this.hasPayment()) return;
     this.paymentMethodsState.set('loading');
     this.paymentCatalog
       .getPaymentMethods()
@@ -815,7 +816,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
 
   // Método de pago obligatorio al emitir una VENTA; el back lo vuelve a validar
   private paymentEmitError(): string | null {
-    if (!this.isSale()) return null;
+    if (!this.hasPayment()) return null;
     if (this.paymentMethodsState() === 'ready' && this.paymentMethods().length === 0) return NO_PAYMENT_METHODS_MESSAGE;
     if (!this.paymentMethodId()) return 'Selecciona el método de pago.';
     if (this.paymentMethodsState() === 'ready' && !this.selectedPaymentMethod()) {
@@ -860,7 +861,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
             supplierInvoiceNumber: this.supplierInvoiceNumber(),
             date: this.date(),
             lines: this.lines(),
-            payment: this.payment(), // solo venta; null en compra
+            payment: this.payment(),
             version: this.version, // la de la respuesta anterior (la cadena serializa los guardados)
           }),
         );
@@ -949,7 +950,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.date.set(invoice.date);
     this.lines.set(invoice.lines);
     this.serverTotals.set(invoice.totals ?? null);
-    const payment = invoice.kind === 'SALE' ? (invoice.payment ?? null) : null;
+    const payment = invoice.payment ?? null;
     this.paymentMethodId.set(payment?.methodId ?? null);
     this.paymentMethodName.set(payment?.methodName ?? null);
     this.version = invoice.version ?? null;

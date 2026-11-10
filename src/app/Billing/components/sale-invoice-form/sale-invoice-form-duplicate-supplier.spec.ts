@@ -7,6 +7,7 @@ import { of, throwError } from 'rxjs';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
 import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
+import { BillingTaxCatalog } from '../../services/billing-tax-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { DUPLICATE_SUPPLIER_INVOICE_CODE } from '../../utils/billing-error';
@@ -41,6 +42,7 @@ describe('Formulario de factura de compra: N.º de factura del proveedor duplica
         { provide: BillingSaleReturnApi, useValue: { listByInvoice: () => of([]), getAvailability: () => of([]) } },
         { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
         { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([{ id: '7', name: 'Efectivo' }]) } },
+        { provide: BillingTaxCatalog, useValue: { getTaxes: () => of([]) } },
         { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([{ id: 's1', name: 'Proveedor Uno', document: '1' }]) } },
       ],
     });

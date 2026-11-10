@@ -6,6 +6,7 @@ import { MessageService } from 'primeng/api';
 import { of } from 'rxjs';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
+import { BillingTaxCatalog } from '../../services/billing-tax-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
@@ -48,6 +49,7 @@ describe('Formulario de factura de venta: solo método de pago (sin cuenta banca
         { provide: BillingSaleReturnApi, useValue: { listByInvoice: () => of([]), getAvailability: () => of([]) } },
         { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
         { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of(methods) } },
+        { provide: BillingTaxCatalog, useValue: { getTaxes: () => of([]) } },
         { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([{ id: 'c1', name: 'Cliente Uno', document: '1' }]) } },
       ],
     });

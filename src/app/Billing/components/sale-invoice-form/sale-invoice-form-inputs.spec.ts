@@ -9,6 +9,7 @@ import { of } from 'rxjs';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
 import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
+import { BillingTaxCatalog } from '../../services/billing-tax-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { SaleInvoiceFormComponent } from './sale-invoice-form.component';
@@ -40,6 +41,7 @@ describe('Formulario de factura: edición con teclado de cantidad, precio e IVA'
         { provide: BillingSaleReturnApi, useValue: { listByInvoice: () => of([]), getAvailability: () => of([]) } },
         { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
         { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([]) } },
+        { provide: BillingTaxCatalog, useValue: { getTaxes: () => of([]) } },
         { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([{ id: 'c1', name: 'Cliente Uno', document: '1' }]) } },
       ],
     });

@@ -217,28 +217,23 @@
             <div class="flex flex-col gap-4">
               <p-dropdown
                 inputId="billingClient"
-                [options]="clients()"
-                optionLabel="name"
+                [options]="clientOptions()"
+                optionLabel="label"
                 optionValue="id"
                 [ngModel]="clientId()"
                 (ngModelChange)="onClientChange($event)"
                 [placeholder]="'Selecciona un ' + cfg().counterpartyLower + '...'"
                 [filter]="true"
-                filterBy="name,document,category"
+                filterBy="label,name,document"
                 styleClass="w-full md:w-1/2"
                 size="small"
               >
-                <!-- Valor seleccionado: "Nombre — Categoría" -->
+                <!-- Valor seleccionado y opciones: solo "NIT - Nombre" -->
                 <ng-template let-client pTemplate="selectedItem">
-                  <span>{{ client.name }}@if (client.category) { <span class="text-gray-500"> — {{ client.category }}</span> }</span>
+                  <span>{{ client.label }}</span>
                 </ng-template>
                 <ng-template let-client pTemplate="item">
-                  <div class="flex flex-col">
-                    <span class="font-semibold"
-                      >{{ client.name }}@if (client.category) { <span class="font-normal text-gray-500"> — {{ client.category }}</span> }</span
-                    >
-                    <small>{{ client.document }}</small>
-                  </div>
+                  <span class="font-semibold">{{ client.label }}</span>
                 </ng-template>
               </p-dropdown>
               <span class="text-xs text-gray-500 font-family-sans">

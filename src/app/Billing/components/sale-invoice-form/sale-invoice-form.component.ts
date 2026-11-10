@@ -172,6 +172,13 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   serverTotals = signal<InvoiceTotals | null>(null);
   totals = computed(() => (this.editable() ? calcTotals(this.lines()) : (this.serverTotals() ?? calcTotals(this.lines()))));
   taxRows = computed(() => taxSummaryRows(this.lines(), this.editable()));
+  /** Opciones del selector: "NIT - Nombre" (solo el nombre si el tercero no tiene documento). */
+  clientOptions = computed(() =>
+    this.clients().map((c) => {
+      const doc = (c.document ?? '').toString().trim();
+      return { ...c, label: doc ? `${doc} - ${c.name}` : c.name };
+    }),
+  );
   selectedClient = computed(() => this.clients().find((c) => c.id === this.clientId()) ?? null);
   // Datos congelados por el back en documentos emitidos/anulados (RN-06): el tercero y el emisor no cambian aunque
   // cambie el catálogo. En borrador el tercero sigue siendo el del catálogo vivo.

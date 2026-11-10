@@ -25,6 +25,16 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
   selector: 'app-sale-invoice-preview',
   imports: [ButtonModule, CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent, BillingTaxSummaryComponent],
   template: `
+    <!-- Acciones arriba a la derecha, fuera de la hoja (#sheet): no entran en el PDF -->
+    <div class="mx-auto mb-12 flex justify-end" style="max-width: 800px">
+      <p-button
+        label="Imprimir"
+        icon="pi pi-print"
+        [loading]="printing()"
+        [disabled]="printing()"
+        (onClick)="print()"
+      ></p-button>
+    </div>
     <div
       #sheet
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
@@ -144,17 +154,6 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
           }
         </p>
       </div>
-    </div>
-
-    <!-- Fuera de la hoja: no entra en el PDF -->
-    <div class="mx-auto mt-16 flex justify-end" style="max-width: 800px">
-      <p-button
-        label="Imprimir"
-        icon="pi pi-print"
-        [loading]="printing()"
-        [disabled]="printing()"
-        (onClick)="print()"
-      ></p-button>
     </div>
   `,
 })

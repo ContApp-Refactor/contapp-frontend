@@ -31,6 +31,7 @@
       [totals]="serverTotals()"
       [issuer]="issuer()"
       [payment]="payment()"
+      [withholdings]="withholdingRows()"
     />
   </p-dialog>
 
@@ -355,7 +356,7 @@
             }
           </div>
 
-          <!-- Por ahora solo UI: aún no se envía al back ni afecta totales -->
+          <!-- Retenciones (solo borrador): se guardan con el borrador y restan del total. En emitida/anulada se ven en los totales -->
           @if (editable()) {
             <div class="flex flex-col" data-testid="withholdings" role="group" aria-label="Retenciones">
               <span class="font-normal text-primary mb-4">Retenciones:</span>
@@ -398,6 +399,11 @@
                     }
                     @if (taxesState() === 'failed') {
                       <span class="text-xs text-red-600 font-family-sans" data-testid="withholding-tax-failed">No se pudieron cargar los impuestos</span>
+                    }
+                    @if (!withholdingTaxes()[w.code] && taxesState() === 'ready' && taxes().length > 0) {
+                      <span class="text-xs text-amber-700 font-family-sans" data-testid="missing-tax-hint">
+                        Elige el impuesto de {{ w.label }}: sin él la retención no se guarda ni se descuenta, y no podrás emitir.
+                      </span>
                     }
                   </div>
                 }
@@ -577,6 +583,7 @@
         [subtotalCents]="totals().subtotalCents"
         [taxCents]="totals().ivaCents"
         [totalCents]="totals().totalCents"
+        [withholdings]="withholdingRows()"
       ></app-billing-tax-summary>
 
       <!-- Devoluciones de esta factura (solo cuando ya no es borrador) -->

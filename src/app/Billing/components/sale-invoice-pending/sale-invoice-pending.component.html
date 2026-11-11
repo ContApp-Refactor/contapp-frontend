@@ -32,6 +32,7 @@
         [supplierInvoiceNumber]="inv.supplierInvoiceNumber ?? null"
         [lines]="inv.lines"
         [totals]="inv.totals ?? null"
+        [withholdings]="previewWithholdings()"
       />
     }
   </p-dialog>

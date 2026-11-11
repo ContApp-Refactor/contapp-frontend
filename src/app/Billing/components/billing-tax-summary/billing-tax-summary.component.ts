@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
-import { TaxSummaryRow } from '../../utils/money';
+import { TaxSummaryRow, WithholdingRow, withholdingRowName } from '../../utils/money';
 
 export type { TaxSummaryRow };
 
@@ -60,6 +60,12 @@ export type { TaxSummaryRow };
               <span class="font-semibold" data-testid="summary-tax">{{ taxCents() | copCents }}</span>
             </div>
           }
+          @for (w of withholdings(); track w.code) {
+            <div class="flex justify-between" data-testid="withholding-row">
+              <span [class]="labelClass()">{{ nameOf(w) }}:</span>
+              <span class="font-semibold" data-testid="withholding-amount">-{{ w.amountCents | copCents }}</span>
+            </div>
+          }
           @if (variant() === 'print') {
             <div class="flex justify-between items-center p-8 rounded-md bg-gray-100 text-lg">
               <span class="font-bold text-primary">TOTAL:</span>
@@ -81,7 +87,9 @@ export class BillingTaxSummaryComponent {
   readonly rows = input<TaxSummaryRow[]>([]);
   readonly subtotalCents = input.required<number>();
   readonly taxCents = input<number>(0); // total de impuestos; solo se muestra mientras no haya `rows`
-  readonly totalCents = input.required<number>();
+  readonly totalCents = input.required<number>(); // NETO: ya descuenta las retenciones
+  readonly withholdings = input<WithholdingRow[]>([]); // una línea por retención, con signo menos
+  readonly nameOf = withholdingRowName;
   // 'form' (pantalla de edición/consulta) o 'print' (vista previa impresa: TOTAL en recuadro gris)
   readonly variant = input<'form' | 'print'>('form');
 

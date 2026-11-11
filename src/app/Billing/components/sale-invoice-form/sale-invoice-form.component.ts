@@ -20,11 +20,13 @@ import {
   BillingPayment,
   BillingPaymentMethod,
   BillingProduct,
+  BillingWithholding,
   INVOICE_STATUS_LABEL,
   InvoiceStatus,
   InvoiceTotals,
   SaleInvoice,
   SaleInvoiceLine,
+  WithholdingInput,
 } from '../../models/billing-sale-invoice.model';
 import { ReturnAvailabilityLine, SaleReturn } from '../../models/billing-sale-return.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
@@ -50,6 +52,11 @@ import {
   lineSubtotalOf,
   pesosToCents,
   taxSummaryRows,
+  WithholdingRow,
+  withholdingAmountCents,
+  withholdingLabel,
+  withholdingRowsOf,
+  withTotalsNet,
   wholeQty,
 } from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
@@ -145,25 +152,82 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   hasPayment = computed(() => this.kind() === 'SALE' || this.kind() === 'PURCHASE');
   readonly noPaymentMethodsMessage = NO_PAYMENT_METHODS_MESSAGE;
 
-  // Por ahora solo UI: aún no se envía al back ni afecta totales
+  // Retenciones: casillas marcadas + impuesto elegido por cada una. Solo las marcadas CON impuesto se guardan, restan del
+  // total y viajan al back; una marcada sin impuesto no cuenta y bloquea "Emitir".
   withholdings = signal<string[]>([]);
   toggleWithholding(code: string, checked: boolean): void {
+    const before = this.withholdingsKey();
     this.withholdings.update((cur) => {
       const rest = cur.filter((c) => c !== code);
       return checked ? [...rest, code] : rest;
     });
     // Al desmarcar se limpia el impuesto elegido; al marcar arranca sin selección
     this.withholdingTaxes.update((cur) => ({ ...cur, [code]: null }));
+    this.markDirtyIfWithholdingsChanged(before);
   }
-  // Por ahora solo UI: aún no se envía al back ni afecta totales
   withholdingTaxes = signal<Record<string, string | null>>({}); // código de retención -> id de impuesto
   taxes = signal<BillingTax[]>([]);
   taxesState = signal<'loading' | 'ready' | 'failed'>('loading');
   readonly noTaxesMessage = 'No hay impuestos creados en la empresa';
-  taxOptions = computed(() => this.taxes().map((t) => ({ id: t.id, label: t.rate != null ? `${t.name} - ${t.rate}%` : t.name })));
+  // Impuestos de retenciones restauradas del borrador (por si ya no están en el catálogo): así el select no queda vacío
+  private restoredTaxes = signal<Record<string, { id: string; name: string; rate: number }>>({});
+  taxOptions = computed(() => {
+    const label = (name: string, rate: number | null | undefined) => (rate != null ? `${name} - ${rate}%` : name);
+    const options = this.taxes().map((t) => ({ id: t.id, label: label(t.name, t.rate) }));
+    if (this.taxesState() === 'loading') return options;
+    for (const r of Object.values(this.restoredTaxes())) {
+      if (!options.some((o) => o.id === r.id)) options.push({ id: r.id, label: label(r.name, r.rate) });
+    }
+    return options;
+  });
   onWithholdingTaxChange(code: string, taxId: string | null): void {
+    const before = this.withholdingsKey();
     this.withholdingTaxes.update((cur) => ({ ...cur, [code]: taxId }));
+    this.markDirtyIfWithholdingsChanged(before);
   }
+  // Lo que se envía al guardar: solo las casillas marcadas que ya tienen impuesto
+  withholdingPayload = computed<WithholdingInput[]>(() =>
+    this.cfg()
+      .withholdings.filter((w) => this.withholdings().includes(w.code) && !!this.withholdingTaxes()[w.code])
+      .map((w) => ({ code: w.code, taxId: this.withholdingTaxes()[w.code]! })),
+  );
+  // Casillas marcadas que aún no tienen impuesto (bloquean la emisión)
+  withholdingsMissingTax = computed(() =>
+    this.cfg().withholdings.filter((w) => this.withholdings().includes(w.code) && !this.withholdingTaxes()[w.code]),
+  );
+  private withholdingsKey(): string {
+    return JSON.stringify(this.withholdingPayload());
+  }
+  // Marcar/desmarcar o cambiar el impuesto es un cambio del borrador como cualquier otro, pero solo si cambia lo que se guarda
+  private markDirtyIfWithholdingsChanged(before: string): void {
+    if (this.withholdingsKey() !== before) this.markDirty();
+  }
+  // Respuesta del back (retenciones y subtotal con que se calcularon): fuente de verdad mientras el subtotal local coincida
+  private serverWithholdings = signal<BillingWithholding[]>([]);
+  private serverSubtotal = signal<number | null>(null);
+  // Filas a mostrar. No editable: el snapshot congelado del back. Borrador: cálculo local en vivo
+  // round(subtotal × tasa / 100) para verlas antes de guardar; cuando el back respondió con el mismo subtotal y la misma
+  // selección, sus valores mandan.
+  withholdingRows = computed<WithholdingRow[]>(() => {
+    if (!this.editable()) return withholdingRowsOf(this.serverWithholdings());
+    const subtotal = calcTotals(this.lines()).subtotalCents;
+    const fromServer = this.serverSubtotal() === subtotal ? this.serverWithholdings() : [];
+    return this.withholdingPayload().map((p) => {
+      const taxId = String(p.taxId);
+      const srv = fromServer.find((s) => s.code === p.code && String(s.taxId) === taxId);
+      if (srv) return withholdingRowsOf([srv])[0];
+      const tax = this.taxes().find((t) => t.id === taxId);
+      const restored = this.restoredTaxes()[p.code];
+      const ratePct = tax?.rate ?? (restored?.id === taxId ? restored.rate : 0);
+      return {
+        code: p.code,
+        label: withholdingLabel(p.code),
+        taxName: tax?.name ?? (restored?.id === taxId ? restored.name : ''),
+        ratePct,
+        amountCents: withholdingAmountCents(subtotal, ratePct),
+      };
+    });
+  });
   // Impuestos de la empresa: se cargan una sola vez (no por casilla)
   loadTaxes(): void {
     this.taxesState.set('loading');
@@ -208,7 +272,12 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   editable = computed(() => this.status() === 'BORRADOR');
   // Totales que calculó el back (solo se usan en documentos no editables; en borrador se calcula localmente)
   serverTotals = signal<InvoiceTotals | null>(null);
-  totals = computed(() => (this.editable() ? calcTotals(this.lines()) : (this.serverTotals() ?? calcTotals(this.lines()))));
+  // Borrador: subtotal + impuestos − retenciones (local); emitida/anulada: los del back (totalCents ya neto)
+  totals = computed(() =>
+    this.editable()
+      ? withTotalsNet(calcTotals(this.lines()), this.withholdingRows())
+      : (this.serverTotals() ?? withTotalsNet(calcTotals(this.lines()), this.withholdingRows())),
+  );
   taxRows = computed(() => taxSummaryRows(this.lines(), this.editable()));
   /** Opciones del selector: "NIT - Nombre" (solo el nombre si el tercero no tiene documento). */
   clientOptions = computed(() =>
@@ -851,11 +920,16 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     }
     const paymentError = this.paymentEmitError();
     if (paymentError) return paymentError;
+    const missingTax = this.withholdingsMissingTax()[0];
+    if (missingTax) return `Elige el impuesto de ${missingTax.label}.`;
     if (this.lines().length === 0) return 'Agrega al menos un ítem a la factura.';
     if (this.lines().some((l) => !(l.cantidad > 0))) return 'Todos los ítems deben tener cantidad mayor a cero.';
     // Un borrador histórico puede traer decimales: Inventario los rechazaría al emitir
     if (this.lines().some((l) => !isWholeQty(l.cantidad))) {
       return 'Inventario solo admite cantidades enteras: corrige las cantidades con decimales antes de emitir.';
+    }
+    if (this.totals().totalCents < 0) {
+      return 'Las retenciones superan el subtotal más los impuestos. Revisa los impuestos elegidos en las retenciones.';
     }
     return null;
   }
@@ -908,11 +982,14 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
             date: this.date(),
             lines: this.lines(),
             payment: this.payment(),
+            withholdings: this.withholdingPayload(), // reemplazo total; [] quita las retenciones
             version: this.version, // la de la respuesta anterior (la cadena serializa los guardados)
           }),
         );
         this.writes++; // la escritura terminó: un GET que salió antes ya no es confiable
         this.version = saved.version ?? null;
+        this.serverWithholdings.set(saved.withholdings ?? []);
+        this.serverSubtotal.set(saved.totals?.subtotalCents ?? null);
         this.autosaveFailing = false;
         this.supplierNumberError.set(null);
         this.adoptSavedLine(saved);
@@ -999,10 +1076,25 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     const payment = invoice.payment ?? null;
     this.paymentMethodId.set(payment?.methodId ?? null);
     this.paymentMethodName.set(payment?.methodName ?? null);
+    this.applyWithholdings(invoice);
     this.version = invoice.version ?? null;
     this.annulReason.set(invoice.annulReason ?? null);
     this.dirty = false;
     this.saveState.set(invoice.status === 'BORRADOR' ? 'saved' : 'idle');
+  }
+
+  // Restaura casillas y selects desde las retenciones del back (el id del impuesto se empareja como texto con el catálogo)
+  private applyWithholdings(invoice: SaleInvoice): void {
+    const list = invoice.withholdings ?? [];
+    // Una casilla marcada SIN impuesto no existe en el back: un refresco no debe desmarcarla
+    const unsaved = this.withholdings().filter((c) => !this.withholdingTaxes()[c] && !list.some((w) => w.code === c));
+    this.withholdings.set([...list.map((w) => w.code as string), ...(invoice.status === 'BORRADOR' ? unsaved : [])]);
+    this.withholdingTaxes.set(Object.fromEntries(list.map((w) => [w.code, String(w.taxId)])));
+    this.restoredTaxes.set(
+      Object.fromEntries(list.map((w) => [w.code, { id: String(w.taxId), name: w.taxName, rate: w.ratePct }])),
+    );
+    this.serverWithholdings.set(list);
+    this.serverSubtotal.set(invoice.totals?.subtotalCents ?? null);
   }
 
   private toast(severity: 'success' | 'warn' | 'error', summary: string, detail: string): void {

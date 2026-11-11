@@ -19,7 +19,7 @@ import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { billingErrorMessage, isConcurrentModification, skippedToast } from '../../utils/billing-error';
 import { isoDateText, isoDateTimeText } from '../../utils/format';
 import { kindFromRoute } from '../../utils/route-kind';
-import { centsToPesos, invoiceTotals } from '../../utils/money';
+import { centsToPesos, invoiceTotals, withholdingRowsOf } from '../../utils/money';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
 const todayIso = (): string => {
@@ -71,6 +71,7 @@ export class SaleInvoicePendingComponent implements OnInit {
   // Borrador que se muestra en el modal "Vista factura" y su contraparte (cliente o proveedor) completa
   previewInvoice = signal<SaleInvoice | null>(null);
   previewClient = signal<BillingClient | null>(null);
+  previewWithholdings = computed(() => withholdingRowsOf(this.previewInvoice()?.withholdings));
 
   // true cuando la tabla se muestra dentro del menú de Facturación (sin título de página ni botón volver)
   embedded = input(false);

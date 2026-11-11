@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
+import { BillingQrComponent } from '../billing-qr/billing-qr.component';
 import { TaxSummaryRow, WithholdingRow, withholdingRowName } from '../../utils/money';
 
 export type { TaxSummaryRow };
@@ -12,7 +13,7 @@ export type { TaxSummaryRow };
   selector: 'app-billing-tax-summary',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CopCentsPipe],
+  imports: [CopCentsPipe, BillingQrComponent],
   template: `
     <div [class]="rootClass()" data-testid="tax-summary">
       <!-- Detalle de impuestos -->
@@ -41,6 +42,21 @@ export type { TaxSummaryRow };
             }
           </tbody>
         </table>
+        <!-- QR de verificación (solo hoja emitida/anulada con código) o recuadro del borrador -->
+        @if (verificationCode(); as code) {
+          <div class="mt-16 flex flex-col items-start gap-4" data-testid="verification-qr">
+            <app-billing-qr [value]="code" [size]="104" />
+            <span class="text-gray-500 break-all" style="font-size: 9px; max-width: 220px">{{ code }}</span>
+          </div>
+        } @else if (qrPlaceholder()) {
+          <div
+            class="mt-16 flex items-center justify-center text-center text-gray-500 border border-dashed border-gray-300 bg-gray-50"
+            style="width: 104px; height: 104px; font-size: 10px"
+            data-testid="verification-qr-placeholder"
+          >
+            El QR se genera al emitir
+          </div>
+        }
       </section>
       }
 
@@ -99,6 +115,11 @@ export class BillingTaxSummaryComponent {
   // 'all' (impuestos + totales, como la vista previa) | 'totals' (solo el resumen) | 'taxes' (solo "Detalle de impuestos").
   // El formulario usa 'totals' junto a la tabla de productos y 'taxes' debajo.
   readonly part = input<'all' | 'totals' | 'taxes'>('all');
+
+  // Código de verificación (string opaco) que codifica el QR bajo "Detalle de impuestos"; vacío = no se muestra QR
+  readonly verificationCode = input<string | null | undefined>(null);
+  // Borrador: en lugar del QR se muestra un recuadro "El QR se genera al emitir"
+  readonly qrPlaceholder = input<boolean>(false);
 
   readonly rootClass = computed(() =>
     this.part() === 'all' ? 'flex flex-col md:flex-row md:justify-between gap-24 mt-20' : 'flex flex-col',

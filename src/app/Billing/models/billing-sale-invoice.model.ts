@@ -112,6 +112,7 @@ export interface SaleInvoice {
   annulReason?: string;
   version?: number | null; // bloqueo optimista: se devuelve en cada respuesta y se reenvía al modificar
   issuer?: BillingIssuer | null; // emisor congelado al emitir; null en borrador
+  verificationCode?: string | null; // string opaco (UUID/CUFE) solo en emitidas/anuladas; el QR lo codifica tal cual
   payment?: BillingPayment | null; // forma de pago (venta y compra); null/ausente en facturas anteriores a este dato
   withholdings?: BillingWithholding[]; // retenciones (venta y compra); vacío/ausente = sin retenciones
 }

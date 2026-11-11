@@ -293,6 +293,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   frozenClientName = signal<string | null>(null);
   frozenClientDocument = signal<string | null>(null);
   issuer = signal<BillingIssuer | null>(null);
+  verificationCode = signal<string | null>(null); // código de verificación del back (QR de la vista previa)
   clientName = computed(() =>
     this.editable()
       ? (this.selectedClient()?.name ?? '—')
@@ -1070,6 +1071,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.frozenClientName.set(invoice.clientName ?? null);
     this.frozenClientDocument.set(invoice.clientDocument ?? null);
     this.issuer.set(invoice.issuer ?? null);
+    this.verificationCode.set(invoice.verificationCode ?? null);
     this.supplierInvoiceNumber.set(invoice.supplierInvoiceNumber ?? '');
     this.date.set(invoice.date);
     this.lines.set(invoice.lines);

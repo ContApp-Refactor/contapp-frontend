@@ -138,6 +138,8 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
           [taxCents]="shownTotals().ivaCents"
           [totalCents]="shownTotals().totalCents"
           [withholdings]="withholdings()"
+          [verificationCode]="status() === 'BORRADOR' ? null : verificationCode()"
+          [qrPlaceholder]="status() === 'BORRADOR'"
         ></app-billing-tax-summary>
 
         <!-- Pie -->
@@ -170,6 +172,8 @@ export class SaleInvoicePreviewComponent {
   issuer = input<BillingIssuer | null>(null); // emisor congelado al emitir (RN-06); null en borrador
   payment = input<BillingPayment | null>(null); // forma de pago (venta y compra); null = sin dato => "—"
   withholdings = input<WithholdingRow[]>([]); // retenciones a mostrar (con signo menos); vacío = sin retenciones
+
+  verificationCode = input<string | null>(null); // string opaco del back (emitidas/anuladas); null = sin QR (docs viejos)
 
   // El emisor del documento emitido es el congelado por el back; los datos de la empresa en localStorage
   // quedan solo como respaldo (borradores y documentos sin emisor)

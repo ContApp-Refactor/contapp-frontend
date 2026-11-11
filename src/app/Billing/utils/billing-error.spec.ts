@@ -112,3 +112,13 @@ describe('skippedToast', () => {
     expect(skippedToast(2).severity).toBe('warn');
   });
 });
+
+describe('billingErrorMessage: retenciones (422)', () => {
+  const err = (code: string, message = 'técnico') =>
+    new HttpErrorResponse({ status: 422, error: { code, message } });
+  it('mapea los códigos de retención a mensajes amigables en español', () => {
+    expect(billingErrorMessage(err('BILLING_WITHHOLDING_INVALID'))).toContain('retención no es válida');
+    expect(billingErrorMessage(err('BILLING_WITHHOLDING_TAX_INVALID'))).toContain('no existe o está inactivo');
+    expect(billingErrorMessage(err('BILLING_TOTAL_NEGATIVE'))).toContain('superan el subtotal');
+  });
+});

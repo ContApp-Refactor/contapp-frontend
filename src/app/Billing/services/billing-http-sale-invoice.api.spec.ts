@@ -443,3 +443,16 @@ describe('BillingHttpSaleInvoiceApi (idempotencia)', () => {
     expect(result?.version).toBe(2);
   });
 });
+
+describe('toDraftBody: retenciones', () => {
+  const base = { kind: 'SALE' as const, clientId: 'c1', date: '2026-11-09', lines: [] };
+  it('envía withholdings [{code, taxId}] con el id numérico como número', () => {
+    const body = toDraftBody({ ...base, withholdings: [{ code: 'RETE_ICA', taxId: '3' }, { code: 'RETE_IVA', taxId: 4 }] }) as { withholdings: unknown };
+    expect(body.withholdings).toEqual([{ code: 'RETE_ICA', taxId: 3 }, { code: 'RETE_IVA', taxId: 4 }]);
+  });
+  it('un id no numérico viaja como string; [] se envía (quita las retenciones); ausente no se toca', () => {
+    expect((toDraftBody({ ...base, withholdings: [{ code: 'RETE_FUENTE', taxId: 'abc' }] }) as { withholdings: unknown }).withholdings).toEqual([{ code: 'RETE_FUENTE', taxId: 'abc' }]);
+    expect((toDraftBody({ ...base, withholdings: [] }) as { withholdings: unknown }).withholdings).toEqual([]);
+    expect('withholdings' in toDraftBody(base)).toBeFalse();
+  });
+});

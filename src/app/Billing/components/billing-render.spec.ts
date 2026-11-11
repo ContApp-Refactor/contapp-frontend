@@ -539,3 +539,74 @@ describe('Encabezado unificado de Facturación', () => {
     });
   }
 });
+
+// Retenciones en las vistas: vista previa del borrador, factura emitida e impresión (la hoja #sheet que va al PDF)
+describe('Retenciones en la vista previa e impresión', () => {
+  const whs = [
+    { code: 'RETE_ICA' as const, label: 'ReteICA', taxName: 'ICA', ratePct: 20, amountCents: 400000 },
+    { code: 'RETE_FUENTE' as const, label: 'ReteFuente', taxName: 'Fuente', ratePct: 10, amountCents: 200000 },
+  ];
+  const big = { ...line('a', 1), precioUnitarioCents: 2000000, ivaPct: 15, ivaCatalogoPct: 15 };
+  const preview = (status: string, extra: Record<string, unknown> = {}) => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(SaleInvoicePreviewComponent);
+    fixture.componentRef.setInput('status', status);
+    fixture.componentRef.setInput('date', '2026-10-01');
+    fixture.componentRef.setInput('lines', [big]);
+    for (const [k, v] of Object.entries(extra)) fixture.componentRef.setInput(k, v);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  };
+  const rowsOf = (root: Element) =>
+    Array.from(root.querySelectorAll('[data-testid="withholding-row"]')).map((r) => r.textContent?.replace(/\s+/g, ' ').trim());
+
+  it('borrador: líneas de retención con signo menos y TOTAL neto 17.000', () => {
+    const el = preview('BORRADOR', { withholdings: whs });
+    expect(rowsOf(el).length).toBe(2);
+    expect(rowsOf(el)[0]).toContain('ReteICA (ICA 20%)');
+    expect(rowsOf(el)[0]).toMatch(/-\s?\$?\s?4\.000/);
+    expect(el.querySelector('[data-testid="summary-total"]')?.textContent).toMatch(/17\.000/);
+  });
+  it('emitida: usa el total neto del back y las retenciones del snapshot', () => {
+    const totals = { subtotalCents: 2000000, ivaCents: 300000, withholdingsCents: 600000, totalCents: 1700000 };
+    const el = preview('EMITIDA', { number: 'FV-1', totals, withholdings: whs });
+    expect(rowsOf(el).length).toBe(2);
+    expect(el.querySelector('[data-testid="summary-total"]')?.textContent).toMatch(/17\.000/);
+  });
+  it('impresión: las retenciones están dentro de la hoja #sheet y el botón Imprimir queda fuera', () => {
+    const el = preview('EMITIDA', { number: 'FV-1', withholdings: whs });
+    const sheet = el.querySelector('div.relative.mx-auto')!; // la hoja que se convierte a PDF
+    expect(sheet.querySelectorAll('[data-testid="withholding-row"]').length).toBe(2);
+    expect(sheet.textContent).not.toContain('Imprimir');
+    expect(el.textContent).toContain('Imprimir');
+  });
+  it('sin retenciones no se muestra ninguna línea y el total es el de siempre', () => {
+    const el = preview('BORRADOR');
+    expect(rowsOf(el).length).toBe(0);
+    expect(el.querySelector('[data-testid="summary-total"]')?.textContent).toMatch(/23\.000/);
+  });
+  it('formulario de factura emitida con retenciones: filas y total neto del back', async () => {
+    const totals = { subtotalCents: 2000000, ivaCents: 300000, withholdingsCents: 600000, totalCents: 1700000 };
+    const withholdings = whs.map((w) => ({ code: w.code, taxId: '1', taxName: w.taxName, ratePct: w.ratePct, amountCents: w.amountCents }));
+    setup({ id: 'i2' }, [inv('i2', 'EMITIDA', 'SALE', { lines: [big], totals, withholdings })], []);
+    const el = await render(SaleInvoiceFormComponent);
+    expect(rowsOf(el).length).toBe(2);
+    expect(el.querySelector('[data-testid="summary-total"]')?.textContent).toMatch(/17\.000/);
+    expect(el.querySelector('[data-testid="withholdings"]')).toBeNull();
+  });
+  it('lista de facturas: el total de una emitida con retenciones es el neto del back', async () => {
+    const totals = { subtotalCents: 2000000, ivaCents: 300000, withholdingsCents: 600000, totalCents: 1700000 };
+    setup({}, [inv('i1', 'EMITIDA', 'SALE', { totals })], []);
+    const el = await render(SaleInvoiceListComponent);
+    expect(el.querySelector('tbody')?.textContent).toMatch(/17\.000/);
+  });
+  it('devolución: no muestra retenciones (siempre 0)', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(SaleReturnPreviewComponent);
+    fixture.componentRef.setInput('saleReturn', { ...ret('r1', 'EMITIDA', 'NC-1'), totals: { subtotalCents: 1200, ivaCents: 228, withholdingsCents: 0, totalCents: 1428 } });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="withholding-row"]')).toBeNull();
+    expect(el.textContent).toMatch(/14,28/);
+  });
+});

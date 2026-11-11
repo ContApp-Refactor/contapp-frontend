@@ -10,6 +10,11 @@ import {
   pctOfCents,
   taxSummaryRows,
   wholeQty,
+  invoiceTotals,
+  withholdingAmountCents,
+  withholdingRowName,
+  withholdingRowsOf,
+  withTotalsNet,
 } from './money';
 import { calcReturnTotals, returnLineIvaCents, returnLineSubtotalCents, returnLineSubtotalOf } from './sale-return';
 
@@ -143,5 +148,40 @@ describe('sale-return (mismo redondeo que la factura)', () => {
     const l = { ...rl(), subtotalCents: 555 };
     expect(returnLineSubtotalOf(l, false)).toBe(555);
     expect(returnLineSubtotalOf(l, true)).toBe(101);
+  });
+});
+
+describe('retenciones', () => {
+  it('monto = subtotal × tasa / 100 con HALF_UP, sobre el subtotal completo', () => {
+    expect(withholdingAmountCents(2000000, 20)).toBe(400000);
+    expect(withholdingAmountCents(2000000, 10)).toBe(200000);
+    expect(withholdingAmountCents(1000, 5.25)).toBe(53); // 52.5 -> 53
+    expect(withholdingAmountCents(100000, 0.966)).toBe(970); // tasa a 2 decimales como TaxRate del back (0.97)
+    expect(withholdingAmountCents(1000, 0)).toBe(0);
+  });
+
+  it('total neto = subtotal + impuestos − retenciones (ejemplo 17.000)', () => {
+    const base = { subtotalCents: 2000000, ivaCents: 300000, totalCents: 2300000 };
+    expect(withTotalsNet(base, [{ amountCents: 400000 }, { amountCents: 200000 }])).toEqual({
+      subtotalCents: 2000000, ivaCents: 300000, withholdingsCents: 600000, totalCents: 1700000,
+    });
+    expect(withTotalsNet(base, [])).toBe(base);
+  });
+
+  it('nombre de la fila y filas desde el response', () => {
+    const [row] = withholdingRowsOf([{ code: 'RETE_IVA', taxId: '1', taxName: 'Impuesto del gobierno', ratePct: 5, amountCents: 100 }]);
+    expect(withholdingRowName(row)).toBe('ReteIVA (Impuesto del gobierno 5%)');
+    expect(withholdingRowsOf(undefined)).toEqual([]);
+  });
+
+  it('invoiceTotals: borrador con retenciones resta; emitida usa los del back; sin retenciones no cambia', () => {
+    const lines = [line({ precioUnitarioCents: 1000, ivaPct: 10 })];
+    const wh = [{ code: 'RETE_ICA' as const, taxId: '3', taxName: 'ICA', ratePct: 20, amountCents: 200 }];
+    expect(invoiceTotals({ status: 'BORRADOR', lines, totals: null, withholdings: wh })).toEqual({
+      subtotalCents: 1000, ivaCents: 100, withholdingsCents: 200, totalCents: 900,
+    });
+    const server = { subtotalCents: 1000, ivaCents: 100, withholdingsCents: 200, totalCents: 900 };
+    expect(invoiceTotals({ status: 'EMITIDA', lines, totals: server, withholdings: wh })).toBe(server);
+    expect(invoiceTotals({ status: 'BORRADOR', lines, totals: null })).toEqual({ subtotalCents: 1000, ivaCents: 100, totalCents: 1100 });
   });
 });

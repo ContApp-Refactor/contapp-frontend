@@ -14,8 +14,9 @@ export type { TaxSummaryRow };
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CopCentsPipe],
   template: `
-    <div class="flex flex-col md:flex-row md:justify-between gap-24 mt-20" data-testid="tax-summary">
+    <div [class]="rootClass()" data-testid="tax-summary">
       <!-- Detalle de impuestos -->
+      @if (part() !== 'totals') {
       <section class="w-full md:w-1/2 text-sm" aria-label="Detalle de impuestos">
         <h4 class="font-bold text-primary mb-8">Detalle de impuestos</h4>
         <table class="w-full border-collapse">
@@ -41,9 +42,11 @@ export type { TaxSummaryRow };
           </tbody>
         </table>
       </section>
+      }
 
       <!-- Totales -->
-      <div class="w-full md:w-1/3 text-sm">
+      @if (part() !== 'taxes') {
+      <div [class]="part() === 'totals' ? 'w-full text-sm' : 'w-full md:w-1/3 text-sm'">
         <div class="flex flex-col gap-12">
           <div class="flex justify-between">
             <span [class]="labelClass()">Subtotal:</span>
@@ -80,6 +83,7 @@ export type { TaxSummaryRow };
           }
         </div>
       </div>
+      }
     </div>
   `,
 })
@@ -92,6 +96,13 @@ export class BillingTaxSummaryComponent {
   readonly nameOf = withholdingRowName;
   // 'form' (pantalla de edición/consulta) o 'print' (vista previa impresa: TOTAL en recuadro gris)
   readonly variant = input<'form' | 'print'>('form');
+  // 'all' (impuestos + totales, como la vista previa) | 'totals' (solo el resumen) | 'taxes' (solo "Detalle de impuestos").
+  // El formulario usa 'totals' junto a la tabla de productos y 'taxes' debajo.
+  readonly part = input<'all' | 'totals' | 'taxes'>('all');
+
+  readonly rootClass = computed(() =>
+    this.part() === 'all' ? 'flex flex-col md:flex-row md:justify-between gap-24 mt-20' : 'flex flex-col',
+  );
 
   readonly labelClass = computed(() => (this.variant() === 'print' ? 'text-gray-600' : 'text-gray-700'));
   readonly headClass = computed(() =>

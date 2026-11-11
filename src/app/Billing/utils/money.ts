@@ -68,9 +68,8 @@ export const withholdingLabel = (code: WithholdingCode): string => WITHHOLDING_L
 export const withholdingAmountCents = (subtotalCents: number, ratePct: number): number =>
   pctOfCents(subtotalCents, ratePct);
 
-/** Texto de la fila: "ReteIVA (Impuesto del gobierno 5%)". */
-export const withholdingRowName = (row: Pick<WithholdingRow, 'label' | 'taxName' | 'ratePct'>): string =>
-  `${row.label} (${row.taxName ? `${row.taxName} ` : ''}${row.ratePct}%)`;
+/** Texto de la fila: solo el nombre de la retención ("ReteIVA"); el impuesto elegido se ve en su select. */
+export const withholdingRowName = (row: Pick<WithholdingRow, 'label'>): string => row.label;
 
 /** Filas a partir de las retenciones del back (snapshot en emitida/anulada, tasa vigente en borrador). */
 export const withholdingRowsOf = (list: readonly BillingWithholding[] | null | undefined): WithholdingRow[] =>

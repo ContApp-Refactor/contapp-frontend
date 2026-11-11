@@ -1,4 +1,4 @@
-import { DatePipe, Location } from '@angular/common';
+import { DatePipe, Location, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -100,6 +100,7 @@ const todayIso = (): string => {
     CheckboxModule,
     ConfirmDialogModule,
     DatePipe,
+    NgTemplateOutlet,
     SharedModule,
     DialogModule,
     DropdownModule,

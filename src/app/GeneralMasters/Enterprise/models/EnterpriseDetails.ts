@@ -1,4 +1,5 @@
 import { Subject } from '../../Subjects/models/subjects';
+import { InventoryConfigurationType } from './InventoryValuation';
 
 export interface EnterpriseDetails {
   id?: string;
@@ -21,7 +22,7 @@ export interface EnterpriseDetails {
   personType: any;
   location: any;
   state?: string;
-  inventoryMethods?: string;
+  inventoryConfigurationType?: InventoryConfigurationType | null;
   dv: string;
   mainActivity?: number;
   secondaryActivity?: number;
@@ -40,4 +41,6 @@ export interface EnterpriseDetails {
 // Crear: ausente = sin materias. Editar: ausente/null = no modifica, [] = quita todas.
 export type EnterpriseRequest = Omit<EnterpriseDetails, 'subjects'> & {
   subjects?: string[] | null;
+  // Editar: true = quitar el logo (se envia con logo null). Ausente/false: logo null = no tocar.
+  removeLogo?: boolean;
 };

@@ -324,11 +324,11 @@
                   <!-- Metodo de inventario -->
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                      Método de Inventario <span class="text-red-500">*</span>
+                      Método de valoración de inventario <span class="text-red-500">*</span>
                     </label>
                     <p-dropdown
-                      formControlName="inventoryMethod"
-                      [options]="inventoryMethods"
+                      formControlName="inventoryConfigurationType"
+                      [options]="inventoryValuationOptions"
                       optionLabel="name"
                       optionValue="value"
                       placeholder="Seleccione una opción"

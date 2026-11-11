@@ -19,6 +19,10 @@ import { EnterpriseService } from '../services/enterprise.service';
 import { SubjectService } from '../../Subjects/services/subjects.service';
 import { AddressService } from '../services/addressService';
 import { EnterpriseDetails } from '../models/EnterpriseDetails';
+import {
+  DEFAULT_INVENTORY_CONFIGURATION_TYPE,
+  INVENTORY_VALUATION_OPTIONS,
+} from '../models/InventoryValuation';
 import { TaxService } from '../../../GeneralMasters/Taxes/services/tax.service';
 import {
   LocalStorageMethods,
@@ -47,6 +51,8 @@ export class EditEnterpriseComponent implements OnInit {
   enterpriseForm!: FormGroup;
   personType: 'juridica' | 'natural' = 'juridica';
   selectedFile: File | null = null;
+  /** Intencion explicita de quitar el logo actual (se cancela al elegir un archivo nuevo). */
+  removeLogo: boolean = false;
   loading: boolean = false;
   enterpriseData: EnterpriseDetails | null = null;
   enterpriseId: string = '';
@@ -64,12 +70,7 @@ export class EditEnterpriseComponent implements OnInit {
     { id: 'INACTIVE', name: 'Inactivo' },
   ];
 
-  inventoryMethodsOptions = [
-    { name: 'PEPS / FIFO', value: 'FIFO' },
-    { name: 'UEPS / LIFO', value: 'LIFO' },
-    { name: 'Costo Promedio Ponderado', value: 'CPP' },
-    { name: 'Identificación Específica', value: 'SPECIFIC' },
-  ];
+  inventoryValuationOptions = INVENTORY_VALUATION_OPTIONS;
 
   taxLiabilities: any[] = [];
 
@@ -159,7 +160,10 @@ export class EditEnterpriseComponent implements OnInit {
       taxPayerType: [this.getEntityId(this.enterpriseData?.taxPayerType) || null],
       mainActivity: [this.enterpriseData?.mainActivity || ''],
       secondaryActivity: [this.enterpriseData?.secondaryActivity || ''],
-      inventoryMethods: [this.enterpriseData?.inventoryMethods || null],
+      inventoryConfigurationType: [
+        this.enterpriseData?.inventoryConfigurationType ||
+          DEFAULT_INVENTORY_CONFIGURATION_TYPE,
+      ],
       branch: [this.enterpriseData?.branch || ''],
       country: [this.getEntityId(this.enterpriseData?.location?.country) || null],
       department: [this.getEntityId(this.enterpriseData?.location?.department) || null],
@@ -206,9 +210,20 @@ export class EditEnterpriseComponent implements OnInit {
     const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
       this.selectedFile = file;
+      this.removeLogo = false;
     } else {
       this.selectedFile = null;
     }
+  }
+
+  /** El logo actual se muestra solo si existe y no se marco quitarlo. */
+  get hasLogo(): boolean {
+    return !!this.enterpriseData?.logo && !this.removeLogo;
+  }
+
+  onRemoveLogo(): void {
+    this.removeLogo = true;
+    this.selectedFile = null;
   }
 
   /** ====================================
@@ -238,6 +253,9 @@ export class EditEnterpriseComponent implements OnInit {
           });
         },
       });
+    } else if (this.removeLogo) {
+      // logo null + removeLogo: el back lo deja en null (logo null solo = no tocar).
+      this.doUpdate(null);
     } else {
       const existing = this.enterpriseData?.logo ?? null;
       // El back devuelve el logo como ruta relativa: se reenvia tal cual para no borrarlo
@@ -267,13 +285,16 @@ export class EditEnterpriseComponent implements OnInit {
       branch: this.enterpriseData?.branch || '',
       email: f.email || this.enterpriseData?.email || '',
       logo: logoUrl,
+      ...(this.removeLogo && !logoUrl ? { removeLogo: true } : {}),
       state: f.state || this.enterpriseData?.state || 'ACTIVE',
       mainActivity:
         f.mainActivity || this.enterpriseData?.mainActivity || undefined,
       secondaryActivity:
         f.secondaryActivity || this.enterpriseData?.secondaryActivity || undefined,
-      inventoryMethods:
-        f.inventoryMethods || this.enterpriseData?.inventoryMethods || undefined,
+      inventoryConfigurationType:
+        f.inventoryConfigurationType ||
+        this.enterpriseData?.inventoryConfigurationType ||
+        undefined,
       taxLiabilities:
         f.taxLiabilities?.length > 0
           ? f.taxLiabilities.map((id: any) => Number(id))

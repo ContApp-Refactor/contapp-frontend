@@ -121,8 +121,9 @@ describe('Render de pantallas de Facturación', () => {
     setup({}, [inv('i2', 'BORRADOR')], []);
     const el = await render(BillingMenuComponent);
     expect(el.querySelector('h1')?.textContent).toContain('Factura de venta');
-    expect(el.textContent).toContain('Nueva factura de venta');
-    expect(el.textContent).not.toContain('Nueva factura de compra');
+    expect(el.textContent).toContain('Nueva venta');
+    expect(el.textContent).toContain('Devoluciones');
+    expect(el.textContent).not.toContain('Nueva compra');
     const menu = TestBed.createComponent(BillingMenuComponent).componentInstance;
     expect(menu.options.map((o) => o.route)).toEqual(['/billing/sale/new', '/billing/sale/list', '/billing/sale/returns']);
   });
@@ -130,8 +131,8 @@ describe('Render de pantallas de Facturación', () => {
     setup({ kind: 'PURCHASE' }, [inv('i2', 'BORRADOR')], []);
     const el = await render(BillingMenuComponent);
     expect(el.querySelector('h1')?.textContent).toContain('Factura de compra');
-    expect(el.textContent).toContain('Nueva factura de compra');
-    expect(el.textContent).not.toContain('Nueva factura de venta');
+    expect(el.textContent).toContain('Nueva compra');
+    expect(el.textContent).not.toContain('Nueva venta');
     const menu = TestBed.createComponent(BillingMenuComponent).componentInstance;
     expect(menu.options.map((o) => o.route)).toEqual(['/billing/purchase/new', '/billing/purchase/list', '/billing/purchase/returns']);
   });

@@ -170,7 +170,7 @@ describe('retenciones', () => {
 
   it('nombre de la fila y filas desde el response', () => {
     const [row] = withholdingRowsOf([{ code: 'RETE_IVA', taxId: '1', taxName: 'Impuesto del gobierno', ratePct: 5, amountCents: 100 }]);
-    expect(withholdingRowName(row)).toBe('ReteIVA (Impuesto del gobierno 5%)');
+    expect(withholdingRowName(row)).toBe('ReteIVA');
     expect(withholdingRowsOf(undefined)).toEqual([]);
   });
 

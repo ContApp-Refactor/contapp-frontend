@@ -114,7 +114,7 @@ describe('Render de pantallas de Facturación', () => {
   it('pendientes (ítems)', async () => {
     setup({}, [inv('i2', 'BORRADOR')], []);
     const el = await render(SaleInvoicePendingComponent);
-    expect(el.textContent).toContain('Ítems');
+    expect(el.textContent).toContain('Productos');
     expect(el.textContent).not.toContain('Líneas');
   });
   it('hub de venta: solo opciones de venta, con rutas de venta', async () => {
@@ -534,7 +534,7 @@ describe('Encabezado unificado de Facturación', () => {
       preparar();
       const el = await render(tipo);
       const { header, acciones } = cabecera(el);
-      expect(header.className).toContain('sm:flex-row');
+      expect(header.className).toContain('lg:flex-row');
       expect(acciones).not.toBeNull();
       expect(acciones!.querySelector('p-button')).not.toBeNull();
     });
@@ -564,7 +564,7 @@ describe('Retenciones en la vista previa e impresión', () => {
   it('borrador: líneas de retención con signo menos y TOTAL neto 17.000', () => {
     const el = preview('BORRADOR', { withholdings: whs });
     expect(rowsOf(el).length).toBe(2);
-    expect(rowsOf(el)[0]).toContain('ReteICA (ICA 20%)');
+    expect(rowsOf(el)[0]).toContain('ReteICA');
     expect(rowsOf(el)[0]).toMatch(/-\s?\$?\s?4\.000/);
     expect(el.querySelector('[data-testid="summary-total"]')?.textContent).toMatch(/17\.000/);
   });

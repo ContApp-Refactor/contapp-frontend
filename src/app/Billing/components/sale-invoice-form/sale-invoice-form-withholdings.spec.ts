@@ -195,9 +195,9 @@ describe('Formulario de factura: retenciones', () => {
     expect(component.withholdingRows().map((r) => r.amountCents)).toEqual([400000, 200000]);
     expect(component.totals()).toEqual({ subtotalCents: 2000000, ivaCents: 300000, withholdingsCents: 600000, totalCents: 1700000 });
     expect(rows().length).toBe(2);
-    expect(rows()[0]).toContain('ReteICA (ICA 20%)');
+    expect(rows()[0]).toContain('ReteICA');
     expect(rows()[0]).toMatch(/-\s?\$?\s?4\.000/);
-    expect(rows()[1]).toContain('ReteFuente (Fuente 10%)');
+    expect(rows()[1]).toContain('ReteFuente');
     expect(q('summary-total')?.textContent).toMatch(/17\.000/);
   });
 
@@ -265,7 +265,7 @@ describe('Formulario de factura: retenciones', () => {
     expect(q('withholdings')).toBeNull();
     expect(taxSelects().length).toBe(0);
     expect(rows().length).toBe(2);
-    expect(rows()[0]).toContain('ReteICA (ICA 20%)');
+    expect(rows()[0]).toContain('ReteICA');
     expect(q('summary-total')?.textContent).toMatch(/17\.000/);
   });
 

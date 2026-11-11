@@ -24,6 +24,7 @@ export interface DocumentKindConfig {
   returnPrefix: string; // prefijo de numeración de la devolución
   counterparty: string; // Cliente / Proveedor
   counterpartyLower: string;
+  newButtonLabel: string; // botón del hub: Nueva venta / Nueva compra
   newInvoiceTitle: string; // documento nuevo (aún sin abrir uno guardado)
   draftInvoiceTitle: string; // borrador existente en edición
   invoiceTitle: string; // factura emitida o anulada
@@ -49,6 +50,7 @@ export const DOCUMENT_KIND_CONFIG: Record<DocumentKind, DocumentKindConfig> = {
     returnPrefix: 'NC-',
     counterparty: 'Cliente',
     counterpartyLower: 'cliente',
+    newButtonLabel: 'Nueva venta',
     newInvoiceTitle: 'Nueva factura de venta',
     draftInvoiceTitle: 'Borrador de factura de venta',
     invoiceTitle: 'Factura de venta',
@@ -72,6 +74,7 @@ export const DOCUMENT_KIND_CONFIG: Record<DocumentKind, DocumentKindConfig> = {
     returnPrefix: 'DC-',
     counterparty: 'Proveedor',
     counterpartyLower: 'proveedor',
+    newButtonLabel: 'Nueva compra',
     newInvoiceTitle: 'Nueva factura de compra',
     draftInvoiceTitle: 'Borrador de factura de compra',
     invoiceTitle: 'Factura de compra',

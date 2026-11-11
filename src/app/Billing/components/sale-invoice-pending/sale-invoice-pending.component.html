@@ -82,7 +82,7 @@
       <!-- Filtros por campo: viven fuera de la tabla y filtran con dt.filter(valor, campo, modo) -->
       <input pInputText type="text" #fName (input)="dt.filter(fName.value, 'counterparty', 'contains')" placeholder="Nombre" aria-label="Filtrar por nombre" class="w-150 text-sm" />
       <input pInputText type="text" #fDate (input)="dt.filter(fDate.value, 'dateText', 'contains')" placeholder="Fecha dd/mm/aaaa" aria-label="Filtrar por fecha" class="w-150 text-sm" />
-      <input pInputText type="number" min="0" #fItems (input)="dt.filter(fItems.value === '' ? null : +fItems.value, 'itemsCount', 'equals')" placeholder="Ítems" aria-label="Filtrar por ítems" class="w-100 text-sm" />
+      <input pInputText type="number" min="0" #fItems (input)="dt.filter(fItems.value === '' ? null : +fItems.value, 'itemsCount', 'equals')" placeholder="Productos" aria-label="Filtrar por productos" class="w-100 text-sm" />
       <input pInputText type="number" min="0" #fTotal (input)="dt.filter(fTotal.value === '' ? null : +fTotal.value, 'totalPesos', 'equals')" placeholder="Total" aria-label="Filtrar por total" class="w-150 text-sm" />
       <input pInputText type="text" #fUpd (input)="dt.filter(fUpd.value, 'updatedText', 'contains')" placeholder="Última edición" aria-label="Filtrar por última edición" class="w-150 text-sm" />
     </div>
@@ -100,7 +100,7 @@
           <tr>
             <th>{{ cfg().counterparty }}</th>
             <th style="width: 9rem">Fecha</th>
-            <th style="width: 7rem" class="text-right">Ítems</th>
+            <th style="width: 7rem" class="text-right">Productos</th>
             <th style="width: 11rem" class="text-right">Total</th>
             <th style="width: 12rem">Última edición</th>
             <th style="width: 20rem"><span class="sr-only">Acciones</span></th>

@@ -87,8 +87,8 @@
 
   <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
     <!-- Título + acciones -->
-    <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-16 mb-20">
-      <div>
+    <div class="flex flex-col lg:flex-row lg:flex-nowrap lg:items-start lg:justify-between gap-16 mb-20">
+      <div class="min-w-0">
         <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
           <span class="border-b-4 border-secondary-light inline-block pb-1">{{
             editable() ? (openedAsNew() ? cfg().newInvoiceTitle : cfg().draftInvoiceTitle) : cfg().invoiceTitle
@@ -117,7 +117,7 @@
         }
       </div>
 
-      <div class="flex flex-wrap items-center gap-8 sm:justify-end">
+      <div class="flex flex-wrap items-center gap-8 lg:justify-end lg:shrink-0">
         <!-- Volver a la pantalla de donde se vino (pendientes, listado o menú) -->
         <p-button
           label="Volver"

@@ -436,10 +436,10 @@
         </section>
       }
 
-      <!-- Detalle -->
-      <div class="text-sm">
+      <!-- Detalle (@container: el layout lado a lado depende del ancho real del bloque, con el menú abierto o cerrado) -->
+      <div class="text-sm @container">
         <!-- Misma grilla que la tabla: el selector de producto queda justo encima de ella, no del resumen -->
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_19rem] gap-24">
+        <div class="grid grid-cols-1 @min-[62rem]:grid-cols-[minmax(0,1fr)_18rem] gap-24">
         <div class="flex flex-wrap items-center justify-between gap-16 mb-12 min-w-0">
           <h3 class="font-bold text-lg text-primary">Detalle de la Factura</h3>
           @if (editable()) {
@@ -481,26 +481,26 @@
         </div>
 
         <!-- Tabla de productos a la izquierda y resumen de totales a su lado (apilados en pantallas angostas) -->
-        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_19rem] gap-24 items-start">
+        <div class="grid grid-cols-1 @min-[62rem]:grid-cols-[minmax(0,1fr)_18rem] gap-24 items-start">
         <div class="overflow-x-auto min-w-0">
           <p-table
             [value]="lines()"
             [rowTrackBy]="trackLine"
-            [tableStyle]="{ 'min-width': '44rem', 'table-layout': 'fixed', width: '100%' }"
-            styleClass="p-datatable-striped"
+            [tableStyle]="{ 'min-width': '40rem', 'table-layout': 'fixed', width: '100%' }"
+            styleClass="p-datatable-striped p-datatable-sm"
           >
             <ng-template pTemplate="header">
               <tr>
-                <!-- Anchos en %: # 4 · Producto 16 · Cant. 13 · Precio cat. 15 · Precio unit. 19 · Impuesto 12 · Subtotal 15 · Papelera 6 -->
+                <!-- Anchos en %: # 4 · Producto 17 · Cant. 13 · Precio cat. 15 · Precio unit. 19 · Impuesto 12 · Subtotal 12 · Papelera 8 -->
                 <th scope="col" style="width: 4%">#</th>
-                <th scope="col" style="width: 16%">Producto</th>
+                <th scope="col" style="width: 17%">Producto</th>
                 <th scope="col" style="width: 13%">Cant.</th>
                 <th scope="col" style="width: 15%" class="text-right">{{ cfg().refPriceLabel }}</th>
                 <th scope="col" style="width: 19%">Precio unitario</th>
                 <th scope="col" style="width: 12%" class="text-right whitespace-nowrap">Impuesto %</th>
-                <th scope="col" style="width: 15%" class="text-right">Subtotal</th>
+                <th scope="col" style="width: 12%" class="text-right">Subtotal</th>
                 @if (editable()) {
-                  <th scope="col" style="width: 6%"></th>
+                  <th scope="col" style="width: 8%"></th>
                 }
               </tr>
             </ng-template>
@@ -598,7 +598,7 @@
           </p-table>
         </div>
         <!-- Totales: al lado de la tabla, un poco más abajo que su encabezado -->
-        <div class="lg:mt-20">
+        <div class="@min-[62rem]:mt-20">
           <app-billing-tax-summary
             part="totals"
             [rows]="taxRows()"

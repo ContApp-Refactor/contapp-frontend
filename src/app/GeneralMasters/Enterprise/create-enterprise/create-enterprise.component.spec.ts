@@ -18,7 +18,7 @@ describe('CreateEnterpriseComponent', () => {
     secondaryActivity: '',
     taxLiabilities: [],
     taxPayerType: 1,
-    inventoryMethod: 'PEPS',
+    inventoryConfigurationType: 'PEPS',
     enterpriseType: 1,
     legalName: 'Empresa SAS',
     address: 'Calle 1 # 2-3',

@@ -3,7 +3,7 @@
 // Estos modelos sirven a facturas de venta Y de compra (ver `kind` y models/document-kind.ts).
 
 import { InvoiceReturnState } from './billing-sale-return.model';
-import { DocumentKind } from './document-kind';
+import { DocumentKind, WithholdingCode } from './document-kind';
 
 export type InvoiceStatus = 'BORRADOR' | 'EMITIDA' | 'ANULADA';
 
@@ -75,6 +75,22 @@ export interface SaleInvoiceLine {
   taxes?: BillingLineTax[];
 }
 
+// Retención de la factura según el back: en borrador usa la tasa vigente del impuesto; en emitida/anulada es el snapshot
+// congelado. El monto es round(subtotal × tasa / 100) sobre el SUBTOTAL completo y RESTA del total.
+export interface BillingWithholding {
+  code: WithholdingCode;
+  taxId: string;
+  taxName: string;
+  ratePct: number;
+  amountCents: number;
+}
+
+// Retención que el front envía al guardar el borrador (reemplazo total del conjunto)
+export interface WithholdingInput {
+  code: WithholdingCode;
+  taxId: string | number;
+}
+
 export interface SaleInvoice {
   id: string;
   number: string | null; // null mientras sea borrador; se asigna al emitir
@@ -96,7 +112,9 @@ export interface SaleInvoice {
   annulReason?: string;
   version?: number | null; // bloqueo optimista: se devuelve en cada respuesta y se reenvía al modificar
   issuer?: BillingIssuer | null; // emisor congelado al emitir; null en borrador
+  verificationCode?: string | null; // string opaco (UUID/CUFE) solo en emitidas/anuladas; el QR lo codifica tal cual
   payment?: BillingPayment | null; // forma de pago (venta y compra); null/ausente en facturas anteriores a este dato
+  withholdings?: BillingWithholding[]; // retenciones (venta y compra); vacío/ausente = sin retenciones
 }
 
 // Lo que el front envía al guardar un borrador (crea si no hay id)
@@ -109,6 +127,7 @@ export interface SaleInvoiceDraftInput {
   lines: SaleInvoiceLineInput[];
   version?: number | null; // versión conocida del borrador (bloqueo optimista); sin ella el back no verifica
   payment?: BillingPayment | null; // venta y compra; null = sin forma de pago todavía
+  withholdings?: WithholdingInput[]; // reemplazo total; vacío/ausente = sin retenciones
 }
 
 // Línea enviada por el front: valores efectivos; las referencias de catálogo
@@ -121,5 +140,6 @@ export type SaleInvoiceLineInput = Omit<SaleInvoiceLine, 'precioCatalogoCents' |
 export interface InvoiceTotals {
   subtotalCents: number;
   ivaCents: number;
-  totalCents: number;
+  withholdingsCents?: number; // suma de las retenciones (siempre 0 en devoluciones); ausente = sin dato
+  totalCents: number; // YA NETO: subtotal + impuestos − retenciones
 }

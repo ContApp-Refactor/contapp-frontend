@@ -16,6 +16,18 @@ export const PAYMENT_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   [PAYMENT_METHOD_INVALID_CODE]: 'El método de pago no existe, está inactivo o no es de esta empresa. Elige otro en la lista.',
 };
 
+// 422: retenciones de la factura
+export const WITHHOLDING_INVALID_CODE = 'BILLING_WITHHOLDING_INVALID';
+export const WITHHOLDING_TAX_INVALID_CODE = 'BILLING_WITHHOLDING_TAX_INVALID';
+export const TOTAL_NEGATIVE_CODE = 'BILLING_TOTAL_NEGATIVE';
+
+export const WITHHOLDING_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  [WITHHOLDING_INVALID_CODE]: 'Alguna retención no es válida. Revisa las retenciones marcadas y sus impuestos (AutoRenta solo aplica en ventas).',
+  [WITHHOLDING_TAX_INVALID_CODE]:
+    'El impuesto elegido en una retención no existe o está inactivo. Elige otro impuesto para esa retención.',
+  [TOTAL_NEGATIVE_CODE]: 'Las retenciones superan el subtotal más los impuestos. Revisa los impuestos elegidos en las retenciones.',
+};
+
 export const CONCURRENT_MODIFICATION_MESSAGE =
   'El documento fue modificado por otra persona o en otra pestaña. Recarga para ver la versión actual.';
 export const DUPLICATE_SUPPLIER_INVOICE_MESSAGE =
@@ -121,6 +133,8 @@ export const billingErrorMessage = (e: unknown): string => {
     if (body?.code && body.code in PAYMENT_ERROR_MESSAGES) {
       return body.message?.trim() || PAYMENT_ERROR_MESSAGES[body.code];
     }
+    // Los mensajes propios son más claros que el técnico del back
+    if (body?.code && body.code in WITHHOLDING_ERROR_MESSAGES) return WITHHOLDING_ERROR_MESSAGES[body.code];
     if (body?.code === IDEMPOTENCY_CONFLICT_CODE) {
       return 'Esta operación ya se envió con datos distintos. Recarga la pantalla e inténtalo de nuevo.';
     }

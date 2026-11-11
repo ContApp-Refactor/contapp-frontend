@@ -27,9 +27,9 @@ export class BillingMenuComponent {
 
   // "Continuar factura pendiente" ya no es un botón: los borradores se listan en la tabla de esta misma pantalla
   options: BillingOption[] = [
-    { title: this.cfg.newInvoiceTitle, icon: this.kind === 'SALE' ? 'pi pi-dollar' : 'pi pi-shopping-cart', route: `${this.cfg.basePath}/new`, primary: true },
+    { title: this.cfg.newButtonLabel, icon: this.kind === 'SALE' ? 'pi pi-dollar' : 'pi pi-shopping-cart', route: `${this.cfg.basePath}/new`, primary: true },
     { title: 'Ver facturas', icon: 'pi pi-list', route: `${this.cfg.basePath}/list`, primary: false },
-    { title: 'Facturas con devolución', icon: 'pi pi-replay', route: `${this.cfg.basePath}/returns`, primary: false },
+    { title: 'Devoluciones', icon: 'pi pi-replay', route: `${this.cfg.basePath}/returns`, primary: false },
   ];
 
   navigateTo(route: string): void {

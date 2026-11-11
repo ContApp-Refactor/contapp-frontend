@@ -1,4 +1,5 @@
-import { InvoiceTotals, SaleInvoice, SaleInvoiceLine } from '../models/billing-sale-invoice.model';
+import { BillingWithholding, InvoiceTotals, SaleInvoice, SaleInvoiceLine } from '../models/billing-sale-invoice.model';
+import { WithholdingCode } from '../models/document-kind';
 
 // Aritmética monetaria en centavos enteros. Solo se redondea una vez por línea (IVA),
 // así los totales siempre cuadran con la suma de las líneas.
@@ -44,6 +45,52 @@ export function calcTotals(lines: SaleInvoiceLine[]): InvoiceTotals {
   return { subtotalCents, ivaCents, totalCents: subtotalCents + ivaCents };
 }
 
+// --- Retenciones: cada una toma la TASA de su impuesto y la aplica al SUBTOTAL completo (antes de impuestos); RESTA ---
+
+// Fila de retención lista para mostrar (formulario, vista previa, impresión)
+export interface WithholdingRow {
+  code: WithholdingCode;
+  label: string; // "ReteIVA"
+  taxName: string; // "Impuesto del gobierno"
+  ratePct: number;
+  amountCents: number; // positivo; se muestra con signo menos
+}
+
+const WITHHOLDING_LABELS: Record<WithholdingCode, string> = {
+  RETE_IVA: 'ReteIVA',
+  RETE_ICA: 'ReteICA',
+  RETE_FUENTE: 'ReteFuente',
+  AUTO_RENTA: 'AutoRenta',
+};
+export const withholdingLabel = (code: WithholdingCode): string => WITHHOLDING_LABELS[code] ?? code;
+
+/** Monto de una retención: round(subtotal × tasa / 100) HALF_UP a centavos (igual que el IVA y TaxRate del back). */
+export const withholdingAmountCents = (subtotalCents: number, ratePct: number): number =>
+  pctOfCents(subtotalCents, ratePct);
+
+/** Texto de la fila: solo el nombre de la retención ("ReteIVA"); el impuesto elegido se ve en su select. */
+export const withholdingRowName = (row: Pick<WithholdingRow, 'label'>): string => row.label;
+
+/** Filas a partir de las retenciones del back (snapshot en emitida/anulada, tasa vigente en borrador). */
+export const withholdingRowsOf = (list: readonly BillingWithholding[] | null | undefined): WithholdingRow[] =>
+  (list ?? []).map((w) => ({
+    code: w.code,
+    label: withholdingLabel(w.code),
+    taxName: w.taxName,
+    ratePct: w.ratePct,
+    amountCents: w.amountCents,
+  }));
+
+export const sumWithholdings = (rows: readonly Pick<WithholdingRow, 'amountCents'>[]): number =>
+  rows.reduce((sum, r) => sum + r.amountCents, 0);
+
+/** Totales netos: total = subtotal + impuestos − retenciones. Sin retenciones devuelve los totales tal cual. */
+export const withTotalsNet = (base: InvoiceTotals, rows: readonly Pick<WithholdingRow, 'amountCents'>[]): InvoiceTotals => {
+  if (rows.length === 0) return base;
+  const withholdingsCents = sumWithholdings(rows);
+  return { ...base, withholdingsCents, totalCents: base.subtotalCents + base.ivaCents - withholdingsCents };
+};
+
 // Una fila del "Detalle de impuestos": un impuesto distinto (nombre + tarifa), la base sobre la que se aplica
 // (suma de los subtotales de las líneas que lo tienen) y su valor (base × tarifa), SIN redondear.
 export interface TaxSummaryRow {
@@ -76,8 +123,10 @@ export function taxSummaryRows(lines: SaleInvoiceLine[], editable: boolean): Tax
 
 // Totales de un documento: en un documento NO editable (emitido/anulado) mandan los `totals` del back;
 // en borrador (o si el back no los envía, p. ej. el mock) se calcula con las líneas.
-export function invoiceTotals(invoice: Pick<SaleInvoice, 'status' | 'lines' | 'totals'>): InvoiceTotals {
-  return invoice.status !== 'BORRADOR' && invoice.totals ? invoice.totals : calcTotals(invoice.lines);
+// En borrador las retenciones (si las hay) se restan del total calculado con las líneas.
+export function invoiceTotals(invoice: Pick<SaleInvoice, 'status' | 'lines' | 'totals' | 'withholdings'>): InvoiceTotals {
+  if (invoice.status !== 'BORRADOR' && invoice.totals) return invoice.totals;
+  return withTotalsNet(calcTotals(invoice.lines), withholdingRowsOf(invoice.withholdings));
 }
 
 // Redondeo a 3 decimales: SOLO para aritmética/visualización de documentos históricos (antes de la integración con

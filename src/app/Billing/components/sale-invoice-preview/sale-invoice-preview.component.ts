@@ -13,7 +13,7 @@ import {
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { buildInvoicePdf, invoicePdfFileName } from '../../utils/invoice-pdf';
-import { calcTotals, lineSubtotalOf, taxSummaryRows } from '../../utils/money';
+import { WithholdingRow, calcTotals, lineSubtotalOf, taxSummaryRows, withTotalsNet } from '../../utils/money';
 import { paymentSummary } from '../../utils/payment';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
 import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
@@ -137,6 +137,9 @@ import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-s
           [subtotalCents]="shownTotals().subtotalCents"
           [taxCents]="shownTotals().ivaCents"
           [totalCents]="shownTotals().totalCents"
+          [withholdings]="withholdings()"
+          [verificationCode]="status() === 'BORRADOR' ? null : verificationCode()"
+          [qrPlaceholder]="status() === 'BORRADOR'"
         ></app-billing-tax-summary>
 
         <!-- Pie -->
@@ -168,6 +171,9 @@ export class SaleInvoicePreviewComponent {
   totals = input<InvoiceTotals | null>(null); // los del back; solo mandan si el documento no es borrador
   issuer = input<BillingIssuer | null>(null); // emisor congelado al emitir (RN-06); null en borrador
   payment = input<BillingPayment | null>(null); // forma de pago (venta y compra); null = sin dato => "—"
+  withholdings = input<WithholdingRow[]>([]); // retenciones a mostrar (con signo menos); vacío = sin retenciones
+
+  verificationCode = input<string | null>(null); // string opaco del back (emitidas/anuladas); null = sin QR (docs viejos)
 
   // El emisor del documento emitido es el congelado por el back; los datos de la empresa en localStorage
   // quedan solo como respaldo (borradores y documentos sin emisor)
@@ -205,7 +211,8 @@ export class SaleInvoicePreviewComponent {
   paymentText = computed(() => paymentSummary(this.payment()));
   shownTotals = computed(() => {
     const server = this.totals();
-    return this.status() !== 'BORRADOR' && server ? server : calcTotals(this.lines());
+    // Emitida/anulada: manda el back (totalCents ya neto). Borrador: se calcula y se restan las retenciones
+    return this.status() !== 'BORRADOR' && server ? server : withTotalsNet(calcTotals(this.lines()), this.withholdings());
   });
   taxRows = computed(() => taxSummaryRows(this.lines(), this.status() === 'BORRADOR'));
   watermark = computed(() => {

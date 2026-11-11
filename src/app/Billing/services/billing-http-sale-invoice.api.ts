@@ -30,6 +30,12 @@ const precioOverride = (l: SaleInvoiceDraftInput['lines'][number]): number | nul
     : l.precioUnitarioCents;
 };
 
+// El back acepta el id del impuesto como número o string; los ids numéricos viajan como número
+const withholdingTaxIdBody = (taxId: string | number): string | number => {
+  const n = typeof taxId === 'number' ? taxId : Number(taxId);
+  return Number.isSafeInteger(n) && String(n) === String(taxId).trim() ? n : taxId;
+};
+
 // Cuerpo del borrador. Regla de precio: "lo editado prevalece; sin editar sigue al catálogo".
 // Una línea sin editar se envía con precio null y el back la sigue al catálogo (se refresca al leer el borrador y se
 // congela al emitir); si el usuario lo editó (`precioEditado`), viaja el valor como override aunque coincida con el
@@ -39,10 +45,12 @@ const precioOverride = (l: SaleInvoiceDraftInput['lines'][number]): number | nul
 //
 // Pago: lo envían ambas facturas (venta y compra): { methodId }.
 export const toDraftBody = (input: SaleInvoiceDraftInput) => {
-  const { payment, ...rest } = input;
+  const { payment, withholdings, ...rest } = input;
   return {
     ...rest,
     payment: paymentBody(payment),
+    // Retenciones: reemplazo total. Ausente = no se toca (el form siempre manda la lista, `[]` las quita)
+    ...(withholdings ? { withholdings: withholdings.map((w) => ({ code: w.code, taxId: withholdingTaxIdBody(w.taxId) })) } : {}),
     lines: input.lines.map((l) => ({
       productId: l.productId,
       cantidad: l.cantidad,

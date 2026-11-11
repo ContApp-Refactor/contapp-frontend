@@ -276,6 +276,7 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
     invoice.status = 'EMITIDA';
     invoice.emittedAt = now;
     invoice.updatedAt = now;
+    invoice.verificationCode = crypto.randomUUID(); // el back lo genera al emitir (string opaco)
     // RN-06: el emisor se congela al emitir (copia de los datos de la empresa en ese momento)
     const enterprise = this.storage.loadEnterpriseData();
     invoice.issuer = {

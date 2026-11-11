@@ -71,7 +71,7 @@ describe('Formulario de factura de venta: solo método de pago (sin cuenta banca
   it('la factura de compra también muestra el select y el enlace', async () => {
     await setup('PURCHASE', { supplierInvoiceNumber: 'F-1' });
     expect(q('payment-method')).not.toBeNull();
-    expect(q('payment-methods-link')?.textContent).toContain('Administrar métodos de pago');
+    expect(q('payment-methods-manage')?.textContent?.replace(/\s+/g, ' ')).toContain('Administrar métodos de pago');
     component.onPaymentMethodChange('9');
     expect(component.payment()).toEqual({ methodId: '9', methodName: 'Transferencia' });
   });
@@ -135,7 +135,7 @@ describe('Formulario de factura de venta: solo método de pago (sin cuenta banca
 
   it('el enlace "Administrar métodos de pago" aparece siempre en borrador, con o sin métodos', async () => {
     await setup('SALE', {});
-    expect(q('payment-methods-link')?.textContent).toContain('Administrar métodos de pago');
+    expect(q('payment-methods-manage')?.textContent?.replace(/\s+/g, ' ')).toContain('Administrar métodos de pago');
     TestBed.resetTestingModule();
     await setup('SALE', {}, []);
     expect(q('payment-methods-link')).not.toBeNull();

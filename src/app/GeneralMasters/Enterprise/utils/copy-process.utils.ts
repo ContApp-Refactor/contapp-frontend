@@ -2,7 +2,7 @@ import { CopyProcess } from '../models/CopyProcess';
 
 /** Texto fijo (fallback) de lo que incluye la copia de seguridad completa. */
 export const BACKUP_INCLUDES_TEXT =
-  'Incluye todo lo de la empresa: configuración, terceros, PUC, impuestos, productos, inventario, contabilidad y tesorería.';
+  'Incluye todo lo de la empresa: configuración, terceros, PUC, impuestos, productos, inventario, facturación, contabilidad, tesorería, estados financieros y libros auxiliares.';
 
 /** Módulos por defecto si GET /copy/modules falla. */
 export const FALLBACK_MODULE_LABELS: string[] = [
@@ -12,8 +12,11 @@ export const FALLBACK_MODULE_LABELS: string[] = [
   'Impuestos',
   'Productos',
   'Inventario',
+  'Facturación',
   'Contabilidad',
   'Tesorería',
+  'Financiero',
+  'Auxiliares',
 ];
 
 const MODULE_LABELS: Record<string, string> = {
@@ -23,11 +26,17 @@ const MODULE_LABELS: Record<string, string> = {
   puc: 'PUC',
   taxes: 'Impuestos',
   products: 'Productos',
+  'notifications.thirdReplicas': 'Terceros (réplicas de notificación)',
   'inventory.replicas': 'Inventario (réplicas de producto)',
+  'inventory.stock': 'Inventario (existencias)',
   'inventory.kardex': 'Kardex',
   'inventory.kardex.movements': 'Kardex (movimientos)',
   'inventory.peps': 'PEPS',
   'inventory.peps.movements': 'PEPS (movimientos)',
+  billing: 'Facturación',
+  'accounting.banking': 'Bancos y medios de pago',
+  'accounting.facture': 'Facturas (histórico)',
+  'accounting.debtPayments': 'Cartera',
   'accounting.ledger': 'Contabilidad',
   'accounting.treasury': 'Tesorería',
   financial: 'Financiero',

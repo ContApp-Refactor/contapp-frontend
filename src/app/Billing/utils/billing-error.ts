@@ -113,6 +113,11 @@ export const isStockError = (e: unknown): boolean => {
 // REJECTED es heterogéneo (calendario contable, registro duplicado, anulación no soportada...): se agrega el detalle del back
 const stockMessage = (code: string, detail: string | undefined): string => {
   const base = STOCK_ERROR_MESSAGES[code];
+  if (code === STOCK_PRODUCT_NOT_AVAILABLE_CODE) {
+    // El back nombra el producto ("El producto 7 (P-7 X) no existe o esta inactivo..."): se muestra cuál es
+    const producto = /^(?:El\s+)?(producto[^]*?)\s+no existe o esta inactivo/i.exec(detail?.trim() ?? '')?.[1];
+    return producto ? `${base} Producto: ${producto}.` : base;
+  }
   if (code !== STOCK_REJECTED_CODE) return base;
   const text = detail?.trim();
   return text ? `${base} Detalle: ${text}` : `${base} ${STOCK_REJECTED_FALLBACK}`;

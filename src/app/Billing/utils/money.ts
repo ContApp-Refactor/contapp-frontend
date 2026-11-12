@@ -103,6 +103,22 @@ export interface TaxSummaryRow {
 // Una línea con `taxes` aporta a cada uno de sus impuestos; una sin desglose pero con `ivaPct` > 0 (documento viejo,
 // IVA por defecto o editado a mano) aporta a una fila única "Iva"; sin impuestos no aporta nada.
 export function taxSummaryRows(lines: SaleInvoiceLine[], editable: boolean): TaxSummaryRow[] {
+  return taxSheetRows(lines, editable).map((g) => ({
+    name: `${g.name} ${g.rate}%`,
+    baseCents: g.baseCents,
+    taxCents: g.taxCents,
+  }));
+}
+
+// Misma agrupación que `taxSummaryRows`, pero con el nombre y la tasa por separado (cuadro IMPUESTOS de la hoja impresa)
+export interface TaxSheetRow {
+  name: string; // "Iva"
+  rate: number; // 19
+  baseCents: number;
+  taxCents: number; // base × tarifa, SIN redondear
+}
+
+export function taxSheetRows(lines: SaleInvoiceLine[], editable: boolean): TaxSheetRow[] {
   const groups = new Map<string, { name: string; rate: number; baseCents: number }>();
   for (const line of lines) {
     const taxes = line.taxes?.length ? line.taxes : line.ivaPct ? [{ name: 'Iva', rate: line.ivaPct }] : [];
@@ -115,11 +131,19 @@ export function taxSummaryRows(lines: SaleInvoiceLine[], editable: boolean): Tax
     }
   }
   return [...groups.values()].map((g) => ({
-    name: `${g.name} ${g.rate}%`,
+    name: g.name,
+    rate: g.rate,
     baseCents: g.baseCents,
     taxCents: (g.baseCents * Math.round(g.rate * 100)) / 10000,
   }));
 }
+
+// Impuestos de UNA línea en centavos (suma de todos sus impuestos), con el mismo redondeo que el total del documento:
+// subtotal de la línea × `ivaPct` (la suma de las tarifas); sin `ivaPct` se suman las tarifas del desglose.
+export const lineTaxCentsOf = (line: SaleInvoiceLine, editable: boolean): number => {
+  const pct = line.ivaPct ?? (line.taxes ?? []).reduce((sum, t) => sum + Number(t.rate), 0);
+  return pctOfCents(lineSubtotalOf(line, editable), pct);
+};
 
 // Totales de un documento: en un documento NO editable (emitido/anulado) mandan los `totals` del back;
 // en borrador (o si el back no los envía, p. ej. el mock) se calcula con las líneas.

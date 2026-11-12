@@ -302,12 +302,15 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Documento del tercero: solo el congelado en documentos no editables (sin dato no se muestra el vivo)
   clientDocument = computed(() => (this.editable() ? null : this.frozenClientDocument()));
   // Tercero que recibe la vista previa: en no editables, con los valores congelados de la respuesta
+  // Contacto de la contraparte que devuelve el back en la factura (en borrador, refrescado en vivo en el GET)
+  clientContact = signal<Pick<BillingClient, 'address' | 'city' | 'phone' | 'email'>>({});
   previewClient = computed<BillingClient | null>(() => {
     const live = this.selectedClient();
-    if (this.editable()) return live;
+    const contact = this.clientContact();
+    if (this.editable()) return live ? { ...live, ...contact } : null;
     const name = this.frozenClientName();
-    if (name === null) return live;
-    return { id: this.clientId() ?? '', name, document: this.frozenClientDocument() ?? '—', category: live?.category };
+    if (name === null) return live ? { ...live, ...contact } : null;
+    return { id: this.clientId() ?? '', name, document: this.frozenClientDocument() ?? '—', category: live?.category, ...contact };
   });
 
   // Devoluciones de esta factura (solo se cargan cuando ya no es borrador)
@@ -1070,6 +1073,12 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.clientId.set(invoice.clientId);
     this.frozenClientName.set(invoice.clientName ?? null);
     this.frozenClientDocument.set(invoice.clientDocument ?? null);
+    this.clientContact.set({
+      address: invoice.clientAddress ?? null,
+      city: invoice.clientCity ?? null,
+      phone: invoice.clientPhone ?? null,
+      email: invoice.clientEmail ?? null,
+    });
     this.issuer.set(invoice.issuer ?? null);
     this.verificationCode.set(invoice.verificationCode ?? null);
     this.supplierInvoiceNumber.set(invoice.supplierInvoiceNumber ?? '');

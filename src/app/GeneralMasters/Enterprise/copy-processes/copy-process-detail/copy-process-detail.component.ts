@@ -7,6 +7,7 @@ import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { EnterpriseService } from '../../services/enterprise.service';
 import { CopyProcess } from '../../models/CopyProcess';
+import { moduleLabel, progressDetail, realProgress } from '../../utils/copy-process.utils';
 
 @Component({
   selector: 'app-copy-process-detail',
@@ -93,10 +94,25 @@ export class CopyProcessDetailComponent implements OnInit, OnDestroy {
   get progreso(): number {
     if (!this.process) return 0;
     if (this.process.estado === 'COMPLETADO') return 100;
+    const real = realProgress(this.process);
+    if (this.process.estado === 'EN_PROCESO' && real !== undefined) return Math.round(real);
     if (this.process.estado === 'EN_PROCESO' && this.process.faseActual) {
       return Math.round((this.process.faseActual / this.FASES.length) * 100);
     }
     return 0;
+  }
+
+  /** Módulos terminados con nombre legible (vacío en procesos viejos). */
+  get modulosCompletadosLabels(): string[] {
+    return (this.process?.modulosCompletados ?? []).map((m) => moduleLabel(m));
+  }
+
+  get moduloActualLabel(): string {
+    return moduleLabel(this.process?.moduloActual);
+  }
+
+  get avanceModulos(): string {
+    return progressDetail(this.process);
   }
 
   get estadoColor(): string {

@@ -524,14 +524,20 @@ export class ListEnterpriseComponent implements OnInit {
     const email = this.newEmail.trim();
     if (!email) return;
 
-    if (!email.endsWith('@unicauca.edu.co')) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Dominio inválido',
-        detail: 'Solo se permiten correos @unicauca.edu.co.',
-      });
-      return;
-    }
+    // ====================================================================
+    // [UNICAUCA] restricción al dominio institucional — se deshabilita para
+    // publicar con dominio propio (unicaucacontapp.app). Restaurar si el
+    // producto vuelve a la universidad.
+    // ====================================================================
+    // if (!email.endsWith('@unicauca.edu.co')) {
+    //   this.messageService.add({
+    //     severity: 'warn',
+    //     summary: 'Dominio inválido',
+    //     detail: 'Solo se permiten correos @unicauca.edu.co.',
+    //   });
+    //   return;
+    // }
+    // ====================== [/UNICAUCA] ======================
 
     if (this.emailList.includes(email)) {
       this.messageService.add({

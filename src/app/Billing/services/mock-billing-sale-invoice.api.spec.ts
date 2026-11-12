@@ -88,7 +88,7 @@ describe('MockBillingSaleInvoiceApi (IVA y datos congelados)', () => {
 
   it('al emitir congela el emisor y el tercero aunque cambien la empresa o el catálogo', async () => {
     const saved = await firstValueFrom(
-      api.saveDraft({ kind: 'SALE', clientId: 'c1', date: '2026-10-01', lines: [line('p1')] as never }),
+      api.saveDraft({ kind: 'SALE', clientId: 'c1', date: '2026-10-01', payment: { methodId: '7' }, lines: [line('p1')] as never }),
     );
     expect(saved.issuer ?? null).toBeNull(); // en borrador no hay emisor
     const emitted = await firstValueFrom(api.emit(saved.id, saved.version));
@@ -126,7 +126,7 @@ describe('MockBillingSaleInvoiceApi (IVA y datos congelados)', () => {
   it('emit refresca el catálogo antes de congelar (precio de las líneas sin override)', async () => {
     const saved = await firstValueFrom(
       api.saveDraft({
-        kind: 'SALE', clientId: 'c1', date: '2026-10-01',
+        kind: 'SALE', clientId: 'c1', date: '2026-10-01', payment: { methodId: '7' },
         lines: [line('p1', { precioCatalogoCents: 1000, precioUnitarioCents: 1000, precioEditado: false })] as never,
       }),
     );
@@ -139,7 +139,7 @@ describe('MockBillingSaleInvoiceApi (IVA y datos congelados)', () => {
 
   it('annul sobre un documento ya ANULADO es idempotente (devuelve el documento, sin verificar la versión)', async () => {
     const saved = await firstValueFrom(
-      api.saveDraft({ kind: 'SALE', clientId: 'c1', date: '2026-10-01', lines: [line('p1')] as never }),
+      api.saveDraft({ kind: 'SALE', clientId: 'c1', date: '2026-10-01', payment: { methodId: '7' }, lines: [line('p1')] as never }),
     );
     const emitted = await firstValueFrom(api.emit(saved.id, saved.version));
     const annulled = await firstValueFrom(api.annul(emitted.id, 'error', emitted.version));
@@ -152,7 +152,7 @@ describe('MockBillingSaleInvoiceApi (IVA y datos congelados)', () => {
 
   it('returnStatus se deriva de las devoluciones emitidas (para ocultar "Devolver factura completa" en las ya devueltas)', async () => {
     const saved = await firstValueFrom(
-      api.saveDraft({ kind: 'SALE', clientId: 'c1', date: '2026-10-01', lines: [line('p1', { cantidad: 2 })] as never }),
+      api.saveDraft({ kind: 'SALE', clientId: 'c1', date: '2026-10-01', payment: { methodId: '7' }, lines: [line('p1', { cantidad: 2 })] as never }),
     );
     expect((await firstValueFrom(api.getById(saved.id))).returnStatus ?? null).toBeNull(); // borrador: sin estado
     const emitted = await firstValueFrom(api.emit(saved.id, saved.version));

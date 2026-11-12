@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, defer, delay, forkJoin, map, of, switchMap } from 'rxjs';
 import {
   BillingClient,
+  BillingPayment,
   BillingProduct,
   InvoiceStatus,
   SaleInvoice,
@@ -9,10 +10,16 @@ import {
 } from '../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../models/document-kind';
 import { BillingCounterpartyCatalog } from './billing-counterparty-catalog';
+import { BillingPaymentCatalog } from './billing-payment-catalog';
 import { BillingProductCatalog } from './billing-product-catalog';
 import { BillingSaleInvoiceApi } from './billing-sale-invoice.api';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
-import { concurrentModificationError } from '../utils/billing-error';
+import {
+  PAYMENT_METHOD_INVALID_CODE,
+  PAYMENT_METHOD_REQUIRED_CODE,
+  concurrentModificationError,
+  paymentApiError,
+} from '../utils/billing-error';
 import { calcTotals, lineSubtotalCents, roundQty } from '../utils/money';
 import { deriveReturnState } from '../utils/sale-return';
 import { hasEmittedReturns, readSaleReturns } from './sale-return-store';
@@ -42,6 +49,8 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
   private readonly catalog = inject(BillingProductCatalog);
   private readonly counterparties = inject(BillingCounterpartyCatalog);
   private readonly storage = inject(LocalStorageMethods);
+  // Opcional: sin catálogo de pago el mock no puede congelar el nombre del método (queda null)
+  private readonly paymentCatalog = inject(BillingPaymentCatalog, { optional: true });
 
   list(status?: InvoiceStatus): Observable<SaleInvoice[]> {
     return defer(() => {
@@ -147,8 +156,15 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       invoice.clientId = client?.id ?? null;
       invoice.clientName = client?.name ?? null;
       invoice.clientDocument = client?.document ?? null;
+      // Contacto de ejemplo cuando el catálogo no lo trae (el back real lo refresca en vivo en el borrador)
+      invoice.clientAddress = client ? (client.address ?? 'CL 6 7 90') : null;
+      invoice.clientCity = client ? (client.city ?? 'Popayán') : null;
+      invoice.clientPhone = client ? (client.phone ?? '3001234567') : null;
+      invoice.clientEmail = client ? (client.email ?? 'contacto@ejemplo.com') : null;
       if (invoice.kind === 'PURCHASE') invoice.supplierInvoiceNumber = input.supplierInvoiceNumber?.trim() || null;
       invoice.date = input.date;
+      // Pago: venta y compra, como el back
+      invoice.payment = this.draftPayment(input.payment);
       const previousLines = invoice.lines;
       invoice.lines = input.lines.map((l, index) => {
         const product = catalog.find((p) => p.id === l.productId);
@@ -215,8 +231,34 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       this.assertDraft(invoice);
       this.assertVersion(invoice, version);
       // Como el back, antes de congelar se refresca el catálogo (precio e IVA de las líneas sin override)
-      return this.refreshed([invoice]).pipe(map(() => this.freeze(all, invoice)), delay(LATENCY_MS));
+      return this.refreshed([invoice]).pipe(
+        switchMap(() => this.freezePaymentMethod(invoice)),
+        map(() => this.freeze(all, invoice)),
+        delay(LATENCY_MS),
+      );
     });
+  }
+
+  // Normaliza el pago del borrador como el back: la cuenta solo se conserva si hay método
+  private draftPayment(payment: BillingPayment | null | undefined): BillingPayment | null {
+    if (!payment) return null;
+    const methodId = payment.methodId ?? null;
+    return { methodId, methodName: null };
+  }
+
+  // Al emitir una venta el método debe existir y estar activo; Se congelan los nombres
+  private freezePaymentMethod(invoice: SaleInvoice): Observable<void> {
+    const payment = invoice.payment;
+    const catalog = this.paymentCatalog;
+    if (!payment?.methodId || !catalog) return of(void 0);
+    return catalog.getPaymentMethods().pipe(
+      switchMap((methods) => {
+        const method = methods.find((m) => m.id === payment.methodId);
+        if (!method) throw paymentApiError(PAYMENT_METHOD_INVALID_CODE);
+        payment.methodName = method.name;
+        return of(void 0);
+      }),
+    );
   }
 
   private freeze(all: SaleInvoice[], invoice: SaleInvoice): SaleInvoice {
@@ -232,11 +274,14 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       throw new Error('Todas las líneas deben tener cantidad mayor a cero.');
     }
 
+    if (!invoice.payment?.methodId) throw paymentApiError(PAYMENT_METHOD_REQUIRED_CODE);
+
     const now = new Date().toISOString();
     invoice.number = this.nextNumber(invoice.kind);
     invoice.status = 'EMITIDA';
     invoice.emittedAt = now;
     invoice.updatedAt = now;
+    invoice.verificationCode = crypto.randomUUID(); // el back lo genera al emitir (string opaco)
     // RN-06: el emisor se congela al emitir (copia de los datos de la empresa en ese momento)
     const enterprise = this.storage.loadEnterpriseData();
     invoice.issuer = {
@@ -245,6 +290,13 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       nit: enterprise?.nit ?? '',
       dv: null,
       active: true,
+      address: 'CL 60 SUR 43 A 97',
+      city: 'Popayán',
+      department: 'Cauca',
+      phone: '(602) 8201234',
+      email: 'facturacion@empresa.com',
+      economicActivity: '1410',
+      logo: null, // el logo real lo sirve el back (/api/enterprises/logos/<key>)
     };
     for (const line of invoice.lines) line.subtotalCents = lineSubtotalCents(line); // congelado por línea, como el back
     invoice.totals = calcTotals(invoice.lines);

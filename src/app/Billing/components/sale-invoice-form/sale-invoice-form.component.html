@@ -30,6 +30,9 @@
       [lines]="lines()"
       [totals]="serverTotals()"
       [issuer]="issuer()"
+      [verificationCode]="verificationCode()"
+      [payment]="payment()"
+      [withholdings]="withholdingRows()"
     />
   </p-dialog>
 
@@ -85,8 +88,8 @@
 
   <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
     <!-- Título + acciones -->
-    <div class="flex flex-wrap items-center justify-between gap-16 mb-12">
-      <div>
+    <div class="flex flex-col lg:flex-row lg:flex-nowrap lg:items-start lg:justify-between gap-16 mb-20">
+      <div class="min-w-0">
         <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
           <span class="border-b-4 border-secondary-light inline-block pb-1">{{
             editable() ? (openedAsNew() ? cfg().newInvoiceTitle : cfg().draftInvoiceTitle) : cfg().invoiceTitle
@@ -115,7 +118,7 @@
         }
       </div>
 
-      <div class="flex flex-wrap items-center gap-8">
+      <div class="flex flex-wrap items-center gap-8 lg:justify-end lg:shrink-0">
         <!-- Volver a la pantalla de donde se vino (pendientes, listado o menú) -->
         <p-button
           label="Volver"
@@ -162,151 +165,283 @@
     @if (loading()) {
       <p class="font-family-sans text-sm text-gray-500">Cargando factura...</p>
     } @else {
-      <!-- Cabecera: número, estado, cliente y fecha -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-16 text-sm mb-24">
-        <div class="flex flex-col">
-          <span class="font-normal text-primary mb-4">Número:</span>
-          <span class="font-semibold">
-            @if (number()) {
-              {{ number() }}
-            } @else {
-              <span class="text-gray-500 font-normal">Se asigna al emitir</span>
+      <!-- Chips: número, estado y guardado automático -->
+      <div class="flex flex-wrap items-center gap-8 text-sm mb-16 font-family-sans" data-testid="invoice-chips">
+        <span class="inline-flex items-center gap-4 px-12 py-4 rounded-full border border-gray-200 bg-gray-50 text-xs">
+          <span class="text-primary">N.º:</span>
+          @if (number()) {
+            <span class="font-semibold">{{ number() }}</span>
+          } @else {
+            <span class="text-gray-500">se asigna al emitir</span>
+          }
+        </span>
+        <app-billing-status-badge [status]="status()" />
+        @if (returnState() !== 'SIN_DEVOLUCION') {
+          <span class="inline-block px-12 py-4 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">{{
+            returnedLabel()
+          }}</span>
+        }
+        @if (editable()) {
+          <span class="text-xs text-gray-500 flex items-center gap-4">
+            @switch (saveState()) {
+              @case ('pending') {
+                <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
+              }
+              @case ('saving') {
+                <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
+              }
+              @case ('saved') {
+                <i class="pi pi-check text-xs"></i> Guardado automático
+              }
+              @case ('error') {
+                <i class="pi pi-exclamation-triangle text-xs text-red-600"></i>
+                <span class="text-red-600">No se pudo guardar</span>
+              }
+              @default {
+                <i class="pi pi-cloud text-xs"></i> Se guarda automáticamente
+              }
             }
           </span>
-        </div>
+        }
+      </div>
 
-        <div class="flex flex-col items-start">
-          <span class="font-normal text-primary mb-4">Estado:</span>
-          <div class="flex items-center gap-12">
-            <app-billing-status-badge [status]="status()" />
-            @if (returnState() !== 'SIN_DEVOLUCION') {
-              <span
-                class="inline-block px-12 py-4 rounded-full text-xs font-semibold font-family-sans bg-amber-100 text-amber-800"
-                >{{ returnedLabel() }}</span
-              >
-            }
+      <!-- Datos de la factura -->
+      <section class="border border-gray-200 rounded-xl bg-white p-16 mb-16 text-sm" aria-labelledby="invoiceDataTitle">
+        <h2 id="invoiceDataTitle" class="font-family-sans font-bold text-sm text-primary mb-12">Datos de la factura</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
+          <div class="flex flex-col">
+            <label for="billingClient" class="font-normal text-primary mb-4">{{ cfg().counterparty }}:</label>
             @if (editable()) {
-              <span class="text-xs text-gray-500 font-family-sans flex items-center gap-4">
-                @switch (saveState()) {
-                  @case ('pending') {
-                    <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
-                  }
-                  @case ('saving') {
-                    <i class="pi pi-spin pi-spinner text-xs"></i> Guardando...
-                  }
-                  @case ('saved') {
-                    <i class="pi pi-check text-xs"></i> Guardado automático
-                  }
-                  @case ('error') {
-                    <i class="pi pi-exclamation-triangle text-xs text-red-600"></i>
-                    <span class="text-red-600">No se pudo guardar</span>
-                  }
-                  @default {
-                    <i class="pi pi-cloud text-xs"></i> Se guarda automáticamente
-                  }
-                }
-              </span>
+              <div class="flex flex-col gap-4">
+                <p-dropdown
+                  inputId="billingClient"
+                  [options]="clientOptions()"
+                  optionLabel="label"
+                  optionValue="id"
+                  [ngModel]="clientId()"
+                  (ngModelChange)="onClientChange($event)"
+                  [placeholder]="'Selecciona un ' + cfg().counterpartyLower + '...'"
+                  [filter]="true"
+                  filterBy="label,name,document"
+                  styleClass="w-full"
+                  size="small"
+                >
+                  <!-- Valor seleccionado y opciones: solo "NIT - Nombre" -->
+                  <ng-template let-client pTemplate="selectedItem">
+                    <span>{{ client.label }}</span>
+                  </ng-template>
+                  <ng-template let-client pTemplate="item">
+                    <span class="font-semibold">{{ client.label }}</span>
+                  </ng-template>
+                </p-dropdown>
+                <span class="text-xs text-gray-500 font-family-sans">
+                  ¿No está el {{ cfg().counterpartyLower }}?
+                  <button
+                    type="button"
+                    class="text-primary underline font-semibold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
+                    [disabled]="busy()"
+                    (click)="createClient()"
+                  >
+                    Crear {{ cfg().counterpartyLower }}
+                  </button>
+                </span>
+              </div>
+            } @else {
+              <span class="font-semibold"
+                >{{ clientName() }}@if (selectedClient()?.category) { <span class="font-normal text-gray-500"> — {{ selectedClient()?.category }}</span> }</span
+              >
+              @if (clientDocument()) {
+                <span class="text-xs text-gray-500 font-family-sans">Documento: {{ clientDocument() }}</span>
+              }
             }
           </div>
-        </div>
 
-        <div class="flex flex-col">
-          <label for="billingClient" class="font-normal text-primary mb-4">{{ cfg().counterparty }}:</label>
-          @if (editable()) {
-            <div class="flex flex-col gap-4">
-              <p-dropdown
-                inputId="billingClient"
-                [options]="clients()"
-                optionLabel="name"
-                optionValue="id"
-                [ngModel]="clientId()"
-                (ngModelChange)="onClientChange($event)"
-                [placeholder]="'Selecciona un ' + cfg().counterpartyLower + '...'"
-                [filter]="true"
-                filterBy="name,document,category"
-                styleClass="w-full md:w-1/2"
-                size="small"
-              >
-                <!-- Valor seleccionado: "Nombre — Categoría" -->
-                <ng-template let-client pTemplate="selectedItem">
-                  <span>{{ client.name }}@if (client.category) { <span class="text-gray-500"> — {{ client.category }}</span> }</span>
-                </ng-template>
-                <ng-template let-client pTemplate="item">
-                  <div class="flex flex-col">
-                    <span class="font-semibold"
-                      >{{ client.name }}@if (client.category) { <span class="font-normal text-gray-500"> — {{ client.category }}</span> }</span
-                    >
-                    <small>{{ client.document }}</small>
-                  </div>
-                </ng-template>
-              </p-dropdown>
-              <span class="text-xs text-gray-500 font-family-sans">
-                ¿No está el {{ cfg().counterpartyLower }}?
-                <button
-                  type="button"
-                  class="text-primary underline font-semibold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
-                  [disabled]="busy()"
-                  (click)="createClient()"
-                >
-                  Crear {{ cfg().counterpartyLower }}
-                </button>
-              </span>
+          @if (kind() === 'PURCHASE') {
+            <div class="flex flex-col">
+              <label for="supplierInvoiceNumber" class="font-normal text-primary mb-4">N.º factura del proveedor *</label>
+              @if (editable()) {
+                <input
+                  id="supplierInvoiceNumber"
+                  type="text"
+                  maxlength="50"
+                  class="h-40 w-full px-12 border border-gray-300 rounded-md text-sm bg-white"
+                  [ngModel]="supplierInvoiceNumber()"
+                  (ngModelChange)="onSupplierInvoiceNumberChange($event)"
+                  placeholder="Ej: FE-12345"
+                  [attr.aria-invalid]="supplierNumberError() ? 'true' : null"
+                />
+                @if (supplierNumberError(); as duplicateMessage) {
+                  <span class="text-xs text-red-600 font-family-sans mt-4" role="alert">{{ duplicateMessage }}</span>
+                }
+              } @else {
+                <span class="font-semibold">{{ supplierInvoiceNumber() || '—' }}</span>
+              }
             </div>
-          } @else {
-            <span class="font-semibold"
-              >{{ clientName() }}@if (selectedClient()?.category) { <span class="font-normal text-gray-500"> — {{ selectedClient()?.category }}</span> }</span
-            >
-            @if (clientDocument()) {
-              <span class="text-xs text-gray-500 font-family-sans">Documento: {{ clientDocument() }}</span>
-            }
           }
-        </div>
 
-        @if (kind() === 'PURCHASE') {
           <div class="flex flex-col">
-            <label for="supplierInvoiceNumber" class="font-normal text-primary mb-4">N.º factura del proveedor *</label>
+            <label for="billingDate" class="font-normal text-primary mb-4">Fecha:</label>
             @if (editable()) {
               <input
-                id="supplierInvoiceNumber"
-                type="text"
-                maxlength="50"
-                class="h-40 w-full md:w-1/2 px-12 border border-gray-300 rounded-md text-sm bg-white"
-                [ngModel]="supplierInvoiceNumber()"
-                (ngModelChange)="onSupplierInvoiceNumberChange($event)"
-                placeholder="Ej: FE-12345"
+                id="billingDate"
+                type="date"
+                class="h-40 w-full px-12 border border-gray-300 rounded-md text-sm bg-white"
+                [ngModel]="date()"
+                (ngModelChange)="onDateChange($event)"
               />
             } @else {
-              <span class="font-semibold">{{ supplierInvoiceNumber() || '—' }}</span>
+              <span class="font-semibold">{{ date() | date: 'dd/MM/yyyy' }}</span>
             }
           </div>
-        }
-
-        <div class="flex flex-col">
-          <label for="billingDate" class="font-normal text-primary mb-4">Fecha:</label>
-          @if (editable()) {
-            <input
-              id="billingDate"
-              type="date"
-              class="h-40 w-full md:w-1/2 px-12 border border-gray-300 rounded-md text-sm bg-white"
-              [ngModel]="date()"
-              (ngModelChange)="onDateChange($event)"
-            />
-          } @else {
-            <span class="font-semibold">{{ date() | date: 'dd/MM/yyyy' }}</span>
-          }
         </div>
 
         @if (annulReason()) {
-          <div class="flex flex-col md:col-span-2">
+          <div class="flex flex-col mt-16">
             <span class="font-normal text-primary mb-4">Motivo de anulación:</span>
             <span>{{ annulReason() }}</span>
           </div>
         }
-      </div>
+      </section>
 
-      <!-- Detalle -->
-      <div class="text-sm">
-        <div class="flex flex-wrap items-center justify-between gap-16 mb-12">
+      <!-- Pago y retenciones: factura de venta y de compra -->
+      @if (hasPayment()) {
+        <section class="border border-gray-200 rounded-xl bg-white p-16 mb-24 text-sm" aria-labelledby="paymentTitle">
+          <h2 id="paymentTitle" class="font-family-sans font-bold text-sm text-primary mb-12">Pago y retenciones</h2>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-16 lg:gap-24 items-start">
+            <div class="flex flex-col" data-testid="payment-method">
+              <label for="paymentMethod" class="font-normal text-primary mb-4"
+                >Método de pago:@if (editable()) { <span> *</span> }</label
+              >
+              @if (editable()) {
+                <p-dropdown
+                  inputId="paymentMethod"
+                  [options]="paymentMethods()"
+                  optionLabel="name"
+                  optionValue="id"
+                  [ngModel]="paymentMethodId()"
+                  (ngModelChange)="onPaymentMethodChange($event)"
+                  [placeholder]="paymentMethodsState() === 'ready' && paymentMethods().length === 0 ? 'Sin métodos de pago' : 'Selecciona un método de pago...'"
+                  [filter]="paymentMethods().length > 8"
+                  filterBy="name"
+                  styleClass="w-full"
+                  size="small"
+                  appendTo="body"
+                ></p-dropdown>
+                <span class="self-start text-xs text-gray-500 font-family-sans mt-4" data-testid="payment-methods-manage">
+                  Administrar
+                  <button
+                    type="button"
+                    class="text-primary underline font-semibold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
+                    data-testid="payment-methods-link"
+                    [disabled]="busy()"
+                    (click)="goToPaymentMethods()"
+                  >
+                    métodos de pago
+                  </button>
+                </span>
+                @if (paymentMethodsState() === 'failed') {
+                  <span class="text-xs text-red-600 font-family-sans mt-4" role="alert" data-testid="payment-methods-failed">
+                    No se pudieron cargar los métodos de pago.
+                    <button
+                      type="button"
+                      class="underline font-semibold cursor-pointer bg-transparent border-0 p-0 text-red-700"
+                      (click)="loadPaymentMethods()"
+                    >
+                      Reintentar
+                    </button>
+                  </span>
+                } @else if (paymentMethodsState() === 'ready' && paymentMethods().length === 0) {
+                  <span class="text-xs text-amber-700 font-family-sans mt-4" role="alert" data-testid="payment-methods-empty">
+                    {{ noPaymentMethodsMessage }}
+                    <button
+                      type="button"
+                      class="underline font-semibold cursor-pointer bg-transparent border-0 p-0 text-primary disabled:opacity-50"
+                      [disabled]="busy()"
+                      (click)="goToPaymentMethods()"
+                    >
+                      Ir a Métodos de Pago
+                    </button>
+                  </span>
+                }
+              } @else {
+                <span class="font-semibold">{{ paymentMethodLabel() }}</span>
+              }
+            </div>
+
+            <!-- Retenciones (solo borrador): se guardan con el borrador y restan del total. En emitida/anulada se ven en los totales -->
+            @if (editable()) {
+              <div class="flex flex-col gap-8 lg:col-span-2" data-testid="withholdings" role="group" aria-label="Retenciones">
+                <span class="font-normal text-primary">Retenciones:</span>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-24 gap-y-8 items-start">
+                  <div class="flex flex-col gap-8">
+                    @for (w of cfg().withholdings.slice(0, 2); track w.code) {
+                      <ng-container *ngTemplateOutlet="withholdingRow; context: { $implicit: w }"></ng-container>
+                    }
+                  </div>
+                  <div class="flex flex-col gap-8">
+                    @for (w of cfg().withholdings.slice(2); track w.code) {
+                      <ng-container *ngTemplateOutlet="withholdingRow; context: { $implicit: w }"></ng-container>
+                    }
+                  </div>
+                </div>
+              </div>
+              <ng-template #withholdingRow let-w>
+                  <div class="flex flex-col sm:flex-row sm:items-start gap-8 sm:gap-12">
+                    <div class="flex items-center gap-8 sm:w-[7.5rem] sm:shrink-0 sm:h-40">
+                      <p-checkbox
+                        [binary]="true"
+                        [inputId]="'withholding-' + w.code"
+                        [attr.data-testid]="'withholding-' + w.code"
+                        [ngModel]="withholdings().includes(w.code)"
+                        (ngModelChange)="toggleWithholding(w.code, $event)"
+                      ></p-checkbox>
+                      <label [for]="'withholding-' + w.code">{{ w.label }}</label>
+                    </div>
+                    @if (withholdings().includes(w.code)) {
+                      @let taxMissing = !withholdingTaxes()[w.code] && taxesState() === 'ready' && taxes().length > 0;
+                      <div class="flex flex-col gap-4 w-full sm:flex-1 sm:min-w-0">
+                        <label class="sr-only" [for]="'withholding-tax-' + w.code">Impuesto para {{ w.label }}</label>
+                        <p-dropdown
+                          [inputId]="'withholding-tax-' + w.code"
+                          [attr.data-testid]="'withholding-tax-' + w.code"
+                          [ariaLabel]="'Impuesto para ' + w.label"
+                          [options]="taxOptions()"
+                          optionLabel="label"
+                          optionValue="id"
+                          [ngModel]="withholdingTaxes()[w.code] ?? null"
+                          (ngModelChange)="onWithholdingTaxChange(w.code, $event)"
+                          [placeholder]="taxesState() === 'loading' ? 'Cargando impuestos...' : taxesState() === 'failed' ? 'No se pudieron cargar los impuestos' : taxes().length === 0 ? noTaxesMessage : 'Selecciona un impuesto...'"
+                          [filter]="true"
+                          filterBy="label"
+                          [styleClass]="taxMissing ? 'w-full p-invalid' : 'w-full'"
+                          size="small"
+                          appendTo="body"
+                        ></p-dropdown>
+                        @if (taxesState() === 'ready' && taxes().length === 0) {
+                          <span class="text-xs text-gray-500 font-family-sans" data-testid="withholding-tax-empty">{{ noTaxesMessage }}</span>
+                        }
+                        @if (taxesState() === 'failed') {
+                          <span class="text-xs text-red-600 font-family-sans" data-testid="withholding-tax-failed">No se pudieron cargar los impuestos</span>
+                        }
+                        @if (taxMissing) {
+                          <span class="text-xs text-red-600 font-family-sans" role="alert" data-testid="missing-tax-hint">
+                            Elige un impuesto
+                          </span>
+                        }
+                      </div>
+                    }
+                  </div>
+              </ng-template>
+            }
+          </div>
+        </section>
+      }
+
+      <!-- Detalle (@container: el layout lado a lado depende del ancho real del bloque, con el menú abierto o cerrado) -->
+      <div class="text-sm @container">
+        <!-- Misma grilla que la tabla: el selector de producto queda justo encima de ella, no del resumen -->
+        <div class="grid grid-cols-1 @min-[62rem]:grid-cols-[minmax(0,1fr)_18rem] gap-24">
+        <div class="flex flex-wrap items-center justify-between gap-16 mb-12 min-w-0">
           <h3 class="font-bold text-lg text-primary">Detalle de la Factura</h3>
           @if (editable()) {
             <div class="flex flex-col items-end gap-4">
@@ -344,25 +479,29 @@
             </div>
           }
         </div>
+        </div>
 
-        <div class="overflow-x-auto">
+        <!-- Tabla de productos a la izquierda y resumen de totales a su lado (apilados en pantallas angostas) -->
+        <div class="grid grid-cols-1 @min-[62rem]:grid-cols-[minmax(0,1fr)_18rem] gap-24 items-start">
+        <div class="overflow-x-auto min-w-0">
           <p-table
             [value]="lines()"
             [rowTrackBy]="trackLine"
-            [tableStyle]="{ 'min-width': '60rem' }"
-            styleClass="p-datatable-striped"
+            [tableStyle]="{ 'min-width': '40rem', 'table-layout': 'fixed', width: '100%' }"
+            styleClass="p-datatable-striped p-datatable-sm"
           >
             <ng-template pTemplate="header">
               <tr>
-                <th scope="col" style="width: 3rem">#</th>
-                <th scope="col" style="min-width: 14rem">Producto</th>
-                <th scope="col" style="width: 9rem">Cant.</th>
-                <th scope="col" style="width: 10rem" class="text-right">{{ cfg().refPriceLabel }}</th>
-                <th scope="col" style="width: 13rem">Precio unitario</th>
-                <th scope="col" style="width: 8rem" class="text-right whitespace-nowrap">Impuesto %</th>
-                <th scope="col" style="width: 10rem" class="text-right">Subtotal</th>
+                <!-- Anchos en %: # 4 · Producto 17 · Cant. 13 · Precio cat. 15 · Precio unit. 19 · Impuesto 12 · Subtotal 12 · Papelera 8 -->
+                <th scope="col" style="width: 4%">#</th>
+                <th scope="col" style="width: 17%">Producto</th>
+                <th scope="col" style="width: 13%">Cant.</th>
+                <th scope="col" style="width: 15%" class="text-right">{{ cfg().refPriceLabel }}</th>
+                <th scope="col" style="width: 19%">Precio unitario</th>
+                <th scope="col" style="width: 12%" class="text-right whitespace-nowrap">Impuesto %</th>
+                <th scope="col" style="width: 12%" class="text-right">Subtotal</th>
                 @if (editable()) {
-                  <th scope="col" style="width: 4rem"></th>
+                  <th scope="col" style="width: 8%"></th>
                 }
               </tr>
             </ng-template>
@@ -383,7 +522,7 @@
                       [min]="0"
                       [step]="1"
                       [minFractionDigits]="0"
-                      [maxFractionDigits]="3"
+                      [maxFractionDigits]="qtyFractionDigits(line.cantidad)"
                       inputStyleClass="w-full"
                     ></p-inputNumber>
                   } @else {
@@ -412,7 +551,7 @@
                   }
                 </td>
                 <td>
-                  @if (editable()) {
+                  @if (editable() && !hasTaxBreakdown(line)) {
                     <p-inputNumber
                       #iva
                       [ngModel]="line.ivaPct"
@@ -429,10 +568,11 @@
                       inputStyleClass="w-full"
                     ></p-inputNumber>
                   } @else {
-                    <div class="text-right">{{ line.ivaPct != null ? line.ivaPct + '%' : '—' }}</div>
+                    <!-- Desglose de impuestos de la categoría (solo lectura) o valor único como siempre -->
+                    <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
                   }
-                  <!-- Referencia de catálogo que resuelve el back: solo en borrador y cuando el IVA difiere -->
-                  @if (editable() && line.ivaCatalogoPct != null && line.ivaPct !== line.ivaCatalogoPct) {
+                  <!-- Referencia de catálogo que resuelve el back: solo en borrador, casilla editable y cuando el IVA difiere -->
+                  @if (editable() && !hasTaxBreakdown(line) && line.ivaCatalogoPct != null && line.ivaPct !== line.ivaCatalogoPct) {
                     <div class="text-gray-500 text-xs mt-4">cat. {{ line.ivaCatalogoPct }}%</div>
                   }
                 </td>
@@ -458,28 +598,29 @@
             </ng-template>
           </p-table>
         </div>
-      </div>
-
-      <!-- Totales -->
-      <div class="flex justify-end mt-20">
-        <div class="w-full md:w-1/3 p-16 text-sm">
-          <div class="flex flex-col gap-12">
-            <div class="flex justify-between">
-              <span class="text-gray-700">Subtotal:</span>
-              <span class="font-semibold">{{ totals().subtotalCents | copCents }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-700">Impuesto:</span>
-              <span class="font-semibold">{{ totals().ivaCents | copCents }}</span>
-            </div>
-            <hr />
-            <div class="flex justify-between text-xl">
-              <span class="font-bold text-primary">TOTAL:</span>
-              <span class="font-extrabold text-primary">{{ totals().totalCents | copCents }}</span>
-            </div>
-          </div>
+        <!-- Totales: al lado de la tabla, un poco más abajo que su encabezado -->
+        <div class="@min-[62rem]:mt-20">
+          <app-billing-tax-summary
+            part="totals"
+            [rows]="taxRows()"
+            [subtotalCents]="totals().subtotalCents"
+            [taxCents]="totals().ivaCents"
+            [totalCents]="totals().totalCents"
+            [withholdings]="withholdingRows()"
+          ></app-billing-tax-summary>
+        </div>
         </div>
       </div>
+
+      <!-- Detalle de impuestos: debajo, como siempre -->
+      <app-billing-tax-summary
+        part="taxes"
+        [rows]="taxRows()"
+        [subtotalCents]="totals().subtotalCents"
+        [taxCents]="totals().ivaCents"
+        [totalCents]="totals().totalCents"
+        [withholdings]="withholdingRows()"
+      ></app-billing-tax-summary>
 
       <!-- Devoluciones de esta factura (solo cuando ya no es borrador) -->
       @if (!editable()) {

@@ -8,6 +8,8 @@ import { InputNumber } from 'primeng/inputnumber';
 import { of } from 'rxjs';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
+import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
+import { BillingTaxCatalog } from '../../services/billing-tax-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { SaleInvoiceFormComponent } from './sale-invoice-form.component';
@@ -38,6 +40,8 @@ describe('Formulario de factura: edición con teclado de cantidad, precio e IVA'
           deleteDraft: () => of(undefined), emit: () => of(draft), annul: () => of(draft) } },
         { provide: BillingSaleReturnApi, useValue: { listByInvoice: () => of([]), getAvailability: () => of([]) } },
         { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
+        { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([]) } },
+        { provide: BillingTaxCatalog, useValue: { getTaxes: () => of([]) } },
         { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([{ id: 'c1', name: 'Cliente Uno', document: '1' }]) } },
       ],
     });
@@ -70,7 +74,8 @@ describe('Formulario de factura: edición con teclado de cantidad, precio e IVA'
     fixture.detectChanges();
   };
 
-  it('se puede teclear "0,5" en la cantidad: el "0" intermedio no se revierte y la fila no se recrea', () => {
+  // Antes se tecleaba "0,5": hoy Inventario solo admite cantidades enteras (mínimo 1)
+  it('se puede teclear una cantidad entera: el "0" intermedio no se revierte y la fila no se recrea', () => {
     const input = cell(3);
     expect(input.value).toBe('2');
     clear(input);
@@ -78,12 +83,32 @@ describe('Formulario de factura: edición con teclado de cantidad, precio e IVA'
     expect(component.lines()[0].cantidad).toBe(2); // el 0 intermedio se ignora (no pisa ni revierte)
     expect(cell(3)).toBe(input); // mismo nodo: la fila/input no se recreó (conserva el foco)
     expect(input.value).toBe('0'); // sigue mostrando lo tecleado
-    type(input, decimalChar() + '5');
-    expect(component.lines()[0].cantidad).toBe(0.5);
+    clear(input);
+    type(input, '7');
+    expect(component.lines()[0].cantidad).toBe(7);
     expect(cell(3)).toBe(input);
     blur(input);
-    expect(component.lines()[0].cantidad).toBe(0.5);
-    expect(cell(3).value).toMatch(/^0[.,]5$/);
+    expect(component.lines()[0].cantidad).toBe(7);
+    expect(cell(3).value).toBe('7');
+  });
+
+  it('no se pueden teclear decimales en la cantidad: queda un entero', () => {
+    const input = cell(3);
+    clear(input);
+    // Con maxFractionDigits=0 el input no tiene separador decimal (_decimalChar vacío): "3,5" / "3.5" no producen fracción
+    expect(decimalChar()).toBe('');
+    type(input, '3.5');
+    blur(input);
+    let cantidad = component.lines()[0].cantidad;
+    expect(Number.isInteger(cantidad)).toBeTrue();
+    expect(cantidad).toBeGreaterThanOrEqual(1);
+    expect(cell(3).value).toBe(field(3).formatValue(cantidad));
+
+    clear(input);
+    type(input, '3,5');
+    blur(input);
+    cantidad = component.lines()[0].cantidad;
+    expect(Number.isInteger(cantidad)).toBeTrue();
   });
 
   it('al salir del campo, una cantidad vacía o 0 vuelve al último valor válido', () => {

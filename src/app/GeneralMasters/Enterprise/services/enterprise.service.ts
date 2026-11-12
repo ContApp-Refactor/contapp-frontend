@@ -3,9 +3,9 @@ import { Observable } from 'rxjs';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { EnterpriseList } from '../models/EnterpriseList';
-import { EnterpriseDetails } from '../models/EnterpriseDetails';
+import { EnterpriseDetails, EnterpriseRequest } from '../models/EnterpriseDetails';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
-import { CopyProcess } from '../models/CopyProcess';
+import { BackupModuleInfo, CopyProcess, RestoreOptions } from '../models/CopyProcess';
 
 @Injectable({
   providedIn: 'root',
@@ -63,7 +63,7 @@ export class EnterpriseService {
 
   /** ==================== PUT EMPRESAS  ==================== */
   createEnterprise(
-    enterprise: EnterpriseDetails,
+    enterprise: EnterpriseRequest,
   ): Observable<EnterpriseDetails> {
     return this.http.post<EnterpriseDetails>(this.apiUrl, enterprise);
   }
@@ -71,7 +71,7 @@ export class EnterpriseService {
   // Actualiza todos los datos de la empresa
   updateEnterprise(
     id: string,
-    enterprise: EnterpriseDetails,
+    enterprise: EnterpriseRequest,
   ): Observable<EnterpriseDetails> {
     return this.http.put<EnterpriseDetails>(
       `${this.apiUrl}update/${id}`,
@@ -160,16 +160,38 @@ export class EnterpriseService {
     return this.http.delete<void>(`${this.apiUrl}copy/processes/${id}`);
   }
 
-  restoreFromBackup(backupRef: string, empresaDestino: string, inplace = false): Observable<CopyProcess> {
-    return this.http.post<CopyProcess>(`${this.apiUrl}copy/restore`, { backupRef, empresaDestino, inplace });
+  /** Módulos que incluye la copia completa (en orden de restauración). */
+  getBackupModules(): Observable<BackupModuleInfo[]> {
+    return this.http.get<BackupModuleInfo[]>(`${this.apiUrl}copy/modules`);
   }
 
-  restoreFromZipUpload(file: File, empresaDestino: string, inplace = false, nombreDestino?: string): Observable<CopyProcess> {
+  restoreFromBackup(
+    backupRef: string,
+    empresaDestino: string,
+    inplace = false,
+    options: RestoreOptions = {},
+  ): Observable<CopyProcess> {
+    const body: Record<string, unknown> = { backupRef, empresaDestino, inplace };
+    if (options.nombreDestino) body['nombreDestino'] = options.nombreDestino;
+    if (options.nitDestino) body['nitDestino'] = options.nitDestino;
+    if (options.skipUnknownModules) body['skipUnknownModules'] = true;
+    return this.http.post<CopyProcess>(`${this.apiUrl}copy/restore`, body);
+  }
+
+  restoreFromZipUpload(
+    file: File,
+    empresaDestino: string,
+    inplace = false,
+    nombreDestino?: string,
+    options: Pick<RestoreOptions, 'nitDestino' | 'skipUnknownModules'> = {},
+  ): Observable<CopyProcess> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('empresaDestino', empresaDestino);
     formData.append('inplace', String(inplace));
     if (nombreDestino) formData.append('nombreDestino', nombreDestino);
+    if (options.nitDestino) formData.append('nitDestino', options.nitDestino);
+    if (options.skipUnknownModules) formData.append('skipUnknownModules', 'true');
     return this.http.post<CopyProcess>(`${this.apiUrl}copy/restore/upload`, formData);
   }
 

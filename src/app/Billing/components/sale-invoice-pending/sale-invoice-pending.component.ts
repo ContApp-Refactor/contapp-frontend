@@ -1,26 +1,25 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ConfirmationService, MessageService, SharedModule } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
-import { DropdownModule } from 'primeng/dropdown';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { TableModule } from 'primeng/table';
 import { firstValueFrom } from 'rxjs';
 import { BillingClient, SaleInvoice, SaleInvoiceLineInput } from '../../models/billing-sale-invoice.model';
-import { DOCUMENT_KIND_CONFIG, DocumentKind, KIND_FILTER_OPTIONS } from '../../models/document-kind';
+import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { billingErrorMessage, isConcurrentModification, skippedToast } from '../../utils/billing-error';
 import { isoDateText, isoDateTimeText } from '../../utils/format';
-import { centsToPesos, invoiceTotals } from '../../utils/money';
-import { BillingKindTagComponent } from '../billing-kind-tag/billing-kind-tag.component';
+import { kindFromRoute } from '../../utils/route-kind';
+import { centsToPesos, invoiceTotals, withholdingRowsOf } from '../../utils/money';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
 const todayIso = (): string => {
@@ -35,14 +34,13 @@ interface PendingRow {
   counterparty: string;
   supplierInvoiceNumber: string;
   dateText: string;
-  kindLabel: string;
   itemsCount: number; // "Ítems": cantidad de productos distintos del borrador
   totalPesos: number;
   totalCents: number;
   updatedText: string;
 }
 
-// Lista los borradores de venta y de compra para retomarlos, duplicarlos o eliminarlos
+// Lista los borradores (de venta o de compra según `data.kind` de la ruta) para retomarlos, duplicarlos o eliminarlos
 @Component({
   selector: 'app-sale-invoice-pending',
   imports: [
@@ -50,7 +48,6 @@ interface PendingRow {
     FormsModule,
     ButtonModule,
     DialogModule,
-    DropdownModule,
     IconFieldModule,
     InputIconModule,
     InputTextModule,
@@ -58,7 +55,6 @@ interface PendingRow {
     ConfirmDialogModule,
     SharedModule,
     CopCentsPipe,
-    BillingKindTagComponent,
     SaleInvoicePreviewComponent,
   ],
   providers: [ConfirmationService],
@@ -67,6 +63,7 @@ interface PendingRow {
 export class SaleInvoicePendingComponent implements OnInit {
   private readonly api = inject(BillingSaleInvoiceApi);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly confirmation = inject(ConfirmationService);
   private readonly messages = inject(MessageService);
   private readonly counterpartyCatalog = inject(BillingCounterpartyCatalog);
@@ -74,28 +71,48 @@ export class SaleInvoicePendingComponent implements OnInit {
   // Borrador que se muestra en el modal "Vista factura" y su contraparte (cliente o proveedor) completa
   previewInvoice = signal<SaleInvoice | null>(null);
   previewClient = signal<BillingClient | null>(null);
+  // Contraparte del catálogo + contacto que trae la factura (si el catálogo no la encuentra se arma con los datos de la factura)
+  previewClientWithContact = computed<BillingClient | null>(() => {
+    const inv = this.previewInvoice();
+    const live = this.previewClient();
+    if (!inv) return live;
+    const contact = {
+      address: inv.clientAddress ?? null,
+      city: inv.clientCity ?? null,
+      phone: inv.clientPhone ?? null,
+      email: inv.clientEmail ?? null,
+    };
+    if (live) return { ...live, ...contact };
+    return inv.clientName
+      ? { id: inv.clientId ?? '', name: inv.clientName, document: inv.clientDocument ?? '', ...contact }
+      : null;
+  });
+  previewWithholdings = computed(() => withholdingRowsOf(this.previewInvoice()?.withholdings));
 
   // true cuando la tabla se muestra dentro del menú de Facturación (sin título de página ni botón volver)
   embedded = input(false);
 
+  // Tipo a listar: el input (cuando va dentro del hub) o `data.kind` de la ruta; solo muestra ese tipo
+  kind = input<DocumentKind | null>(null);
+  activeKind = computed<DocumentKind>(() => this.kind() ?? kindFromRoute(this.route));
+  cfg = computed(() => DOCUMENT_KIND_CONFIG[this.activeKind()]);
+  kindWord = computed(() => this.cfg().tag.toLowerCase()); // venta / compra
+
   drafts = signal<SaleInvoice[]>([]);
   loading = signal(true);
   busy = signal(false);
-  kindFilter = signal<DocumentKind | null>(null);
-  readonly kindOptions = KIND_FILTER_OPTIONS;
   readonly globalFilterFields = [
     'counterparty',
     'supplierInvoiceNumber',
     'dateText',
-    'kindLabel',
     'itemsCount',
     'totalPesos',
     'updatedText',
   ];
 
   filtered = computed(() => {
-    const kind = this.kindFilter();
-    return kind ? this.drafts().filter((d) => d.kind === kind) : this.drafts();
+    const kind = this.activeKind();
+    return this.drafts().filter((d) => d.kind === kind);
   });
 
   // Filas con campos planos para el buscador y los filtros de columna (p-columnFilter)
@@ -107,7 +124,6 @@ export class SaleInvoicePendingComponent implements OnInit {
         counterparty: this.counterpartyOf(draft),
         supplierInvoiceNumber: draft.supplierInvoiceNumber ?? '',
         dateText: isoDateText(draft.date),
-        kindLabel: DOCUMENT_KIND_CONFIG[draft.kind].tag,
         itemsCount: draft.lines.length,
         totalPesos: centsToPesos(totalCents),
         totalCents,
@@ -162,7 +178,7 @@ export class SaleInvoicePendingComponent implements OnInit {
   // `from` deja a la factura saber a qué pantalla volver (el menú o esta misma pantalla)
   continue(invoice: SaleInvoice): void {
     this.router.navigate([DOCUMENT_KIND_CONFIG[invoice.kind].basePath, invoice.id], {
-      state: { from: this.embedded() ? '/billing' : '/billing/pending' },
+      state: { from: this.embedded() ? this.cfg().basePath : `${this.cfg().basePath}/pending` },
     });
   }
 
@@ -190,7 +206,7 @@ export class SaleInvoicePendingComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/billing']);
+    this.router.navigate([this.cfg().basePath]);
   }
 
   // El duplicado es un borrador nuevo (sin id ni número) con fecha de hoy; conserva los valores

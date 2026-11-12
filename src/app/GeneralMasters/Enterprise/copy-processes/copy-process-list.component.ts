@@ -6,11 +6,14 @@ import { DialogModule } from 'primeng/dialog';
 import { ToastModule } from 'primeng/toast';
 import { InputTextModule } from 'primeng/inputtext';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { DropdownModule } from 'primeng/dropdown';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { Router } from '@angular/router';
 import { EnterpriseService } from '../services/enterprise.service';
 import { CopyProcess } from '../models/CopyProcess';
+import { EnterpriseList } from '../models/EnterpriseList';
+import { isV2Process, parseCopyError } from '../utils/copy-process.utils';
 
 @Component({
   selector: 'app-copy-process-list',
@@ -23,6 +26,7 @@ import { CopyProcess } from '../models/CopyProcess';
     ToastModule,
     InputTextModule,
     ProgressSpinnerModule,
+    DropdownModule,
     FormsModule,
   ],
   providers: [MessageService],
@@ -39,8 +43,18 @@ export class CopyProcessListComponent implements OnInit {
   selectedProcess: CopyProcess | null = null;
   empresaDestinoInput = '';
   restoreMode: 'nueva' | 'inplace' | null = null;
+  nitDestinoInput = '';
+  skipUnknownModules = false;
+  /** Mensaje del back si el NIT destino ya existe (409). */
+  restoreNitConflict = '';
+  /** Mensaje del back si el ZIP trae módulos no soportados (422). */
+  unsupportedModuleMessage = '';
 
-  // --- Diálogo de advertencia inplace ---
+  // --- Restaurar sobre una empresa existente (inplace) ---
+  enterprises: EnterpriseList[] = [];
+  enterpriseForInplace: EnterpriseList | null = null;
+  /** Confirmación explícita (checkbox) del borrado de datos. */
+  inplaceConfirmed = false;
   inplaceWarningVisible = false;
 
   // --- Loading durante restore ---
@@ -120,7 +134,13 @@ export class CopyProcessListComponent implements OnInit {
   openRestoreDialog(process: CopyProcess): void {
     this.selectedProcess = process;
     this.empresaDestinoInput = '';
+    this.nitDestinoInput = '';
+    this.skipUnknownModules = false;
+    this.restoreNitConflict = '';
+    this.unsupportedModuleMessage = '';
     this.restoreMode = null;
+    this.enterpriseForInplace = null;
+    this.inplaceConfirmed = false;
     this.inplaceWarningVisible = false;
     this.restoreDialogVisible = true;
   }
@@ -128,57 +148,118 @@ export class CopyProcessListComponent implements OnInit {
   selectRestoreMode(mode: 'nueva' | 'inplace'): void {
     this.restoreMode = mode;
     if (mode === 'inplace') {
-      // Mostrar advertencia antes de confirmar
-      this.restoreDialogVisible = false;
-      this.inplaceWarningVisible = true;
+      this.loadEnterprises();
     }
+  }
+
+  /** Empresas activas del usuario: posibles destinos de "Restaurar sobre una empresa existente". */
+  private loadEnterprises(): void {
+    if (this.enterprises.length > 0) {
+      this.preselectInplaceTarget();
+      return;
+    }
+    this.enterpriseService.getEnterprisesActive('Profesor').subscribe({
+      next: (data) => {
+        this.enterprises = data ?? [];
+        this.preselectInplaceTarget();
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'No se pudieron cargar las empresas',
+        });
+      },
+    });
+  }
+
+  /** Si la empresa de origen del backup sigue existiendo, se propone como destino. */
+  private preselectInplaceTarget(): void {
+    if (this.enterpriseForInplace) return;
+    const origen = this.selectedProcess?.empresaOrigen;
+    this.enterpriseForInplace =
+      this.enterprises.find((e) => String(e.id) === String(origen)) ?? null;
+  }
+
+  /** Muestra la advertencia de borrado antes de restaurar sobre una empresa existente. */
+  startInplaceRestore(): void {
+    if (!this.enterpriseForInplace) return;
+    this.inplaceConfirmed = false;
+    // El diálogo principal queda abierto debajo (su onHide limpia la selección).
+    this.inplaceWarningVisible = true;
   }
 
   cancelInplaceWarning(): void {
     this.inplaceWarningVisible = false;
-    this.restoreDialogVisible = true;
-    this.restoreMode = null;
+    this.inplaceConfirmed = false;
   }
 
   confirmInplaceRestore(): void {
-    if (!this.selectedProcess?.backupRef || !this.selectedProcess.empresaOrigen) return;
+    // Sin la confirmación explícita no se borra nada.
+    if (!this.inplaceConfirmed) return;
+    if (!this.selectedProcess?.backupRef || !this.enterpriseForInplace?.id) return;
 
+    const backupRef = this.selectedProcess.backupRef;
+    const empresaDestino = String(this.enterpriseForInplace.id);
     this.inplaceWarningVisible = false;
     this.restoreInProgress = true;
 
     this.enterpriseService
-      .restoreFromBackup(
-        this.selectedProcess.backupRef,
-        this.selectedProcess.empresaOrigen,
-        true,
-      )
+      .restoreFromBackup(backupRef, empresaDestino, true, { skipUnknownModules: this.skipUnknownModules })
       .subscribe({
         next: () => {
           this.restoreInProgress = false;
+          this.restoreDialogVisible = false;
           this.messageService.add({
             severity: 'success',
-            summary: 'Restauración inplace iniciada',
-            detail: 'La empresa está siendo restaurada sobre sí misma. Revisá los procesos para ver el estado.',
+            summary: 'Restauración iniciada',
+            detail:
+              'La empresa existente está siendo restaurada con los datos de la copia. Revisá los procesos para ver el estado.',
           });
           this.loadProcesses();
         },
         error: (err) => {
           this.restoreInProgress = false;
           const status = err?.status;
-          let detail = 'No se pudo iniciar la restauración';
-          if (status === 409) detail = 'No se pudo eliminar la empresa actual. Intentá de nuevo.';
-          if (status === 422) detail = 'El backup no contiene datos de empresa válidos';
-          if (status === 404) detail = 'Backup no encontrado';
-          this.messageService.add({ severity: 'error', summary: 'Error', detail });
+          let fallback = 'No se pudo iniciar la restauración';
+          if (status === 409) fallback = 'No se pudo restaurar sobre la empresa. Intentá de nuevo.';
+          if (status === 422) fallback = 'El backup no se puede restaurar sobre una empresa existente';
+          if (status === 404) fallback = 'Backup o empresa no encontrados';
+          // El mensaje del back (p. ej. 422 de módulo sin soporte de purga) se muestra tal cual.
+          const detail = parseCopyError(err, fallback).message;
+          this.messageService.add({ severity: 'error', summary: 'Error', detail, life: 8000 });
         },
       });
+  }
+
+  /** Botón "Restaurar" del diálogo principal según el modo elegido. */
+  restoreSelected(): void {
+    if (this.restoreMode === 'inplace') {
+      this.startInplaceRestore();
+    } else {
+      this.confirmRestore();
+    }
+  }
+
+  canRestore(): boolean {
+    if (this.restoreMode === 'nueva') return !!this.empresaDestinoInput.trim();
+    if (this.restoreMode === 'inplace') return !!this.enterpriseForInplace;
+    return false;
   }
 
   confirmRestore(): void {
     if (!this.selectedProcess || !this.empresaDestinoInput.trim()) return;
 
+    this.restoreNitConflict = '';
+    this.unsupportedModuleMessage = '';
+    const nombre = this.empresaDestinoInput.trim();
+
     this.enterpriseService
-      .restoreFromBackup(this.selectedProcess.backupRef!, this.empresaDestinoInput.trim(), false)
+      .restoreFromBackup(this.selectedProcess.backupRef!, nombre, false, {
+        nombreDestino: nombre,
+        nitDestino: this.nitDestinoInput.trim() || undefined,
+        skipUnknownModules: this.skipUnknownModules,
+      })
       .subscribe({
         next: () => {
           this.restoreDialogVisible = false;
@@ -191,11 +272,23 @@ export class CopyProcessListComponent implements OnInit {
         },
         error: (err) => {
           const status = err?.status;
-          let detail = 'No se pudo iniciar la restauración';
-          if (status === 404) detail = 'Backup no encontrado';
-          if (status === 422) detail = 'El backup está corrupto o es inválido';
-          if (status === 400) detail = 'Datos de restauración inválidos';
-          this.messageService.add({ severity: 'error', summary: 'Error', detail });
+          let fallback = 'No se pudo iniciar la restauración';
+          if (status === 404) fallback = 'Backup no encontrado';
+          if (status === 422) fallback = 'El backup está corrupto o es inválido';
+          if (status === 400) fallback = 'Datos de restauración inválidos';
+          const e = parseCopyError(err, fallback);
+          if (e.kind === 'NIT_EXISTS') {
+            // Se deja el diálogo abierto para que el usuario cambie NIT/nombre
+            this.restoreNitConflict = e.message;
+            return;
+          }
+          if (e.kind === 'UNSUPPORTED_MODULE') {
+            // Requiere confirmación explícita (checkbox) antes de reintentar con skipUnknownModules
+            this.unsupportedModuleMessage = e.message;
+            this.skipUnknownModules = false;
+            return;
+          }
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: e.message, life: 8000 });
         },
       });
   }
@@ -204,7 +297,18 @@ export class CopyProcessListComponent implements OnInit {
     this.restoreDialogVisible = false;
     this.selectedProcess = null;
     this.empresaDestinoInput = '';
+    this.nitDestinoInput = '';
+    this.skipUnknownModules = false;
+    this.restoreNitConflict = '';
+    this.unsupportedModuleMessage = '';
     this.restoreMode = null;
+    this.enterpriseForInplace = null;
+    this.inplaceConfirmed = false;
+  }
+
+  /** Informativo: ver {@link isV2Process}. Ya no restringe la restauración sobre empresa existente. */
+  isV2(process: CopyProcess | null): boolean {
+    return isV2Process(process);
   }
 
   /* ==================== ELIMINAR PROCESO ==================== */

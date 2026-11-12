@@ -7,6 +7,7 @@ import { BillingSaleInvoiceApi, InvoiceListResult } from './billing-sale-invoice
 import { BillingDocumentKindRegistry, INVOICE_BASE } from './billing-document-kind-registry';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
 import { IDEMPOTENCY_HEADER, IdempotencyKeyStore } from './idempotency-key.store';
+import { paymentBody } from '../utils/payment';
 
 const KINDS: DocumentKind[] = ['SALE', 'PURCHASE'];
 
@@ -29,22 +30,36 @@ const precioOverride = (l: SaleInvoiceDraftInput['lines'][number]): number | nul
     : l.precioUnitarioCents;
 };
 
+// El back acepta el id del impuesto como número o string; los ids numéricos viajan como número
+const withholdingTaxIdBody = (taxId: string | number): string | number => {
+  const n = typeof taxId === 'number' ? taxId : Number(taxId);
+  return Number.isSafeInteger(n) && String(n) === String(taxId).trim() ? n : taxId;
+};
+
 // Cuerpo del borrador. Regla de precio: "lo editado prevalece; sin editar sigue al catálogo".
 // Una línea sin editar se envía con precio null y el back la sigue al catálogo (se refresca al leer el borrador y se
 // congela al emitir); si el usuario lo editó (`precioEditado`), viaja el valor como override aunque coincida con el
 // catálogo. El IVA sigue la misma regla: el back es la fuente de verdad (lo resuelve desde la categoría del producto) y
 // solo viaja ivaPct cuando el usuario lo editó.
 // Sin dato (null) nunca se envía un valor inventado.
-export const toDraftBody = (input: SaleInvoiceDraftInput) => ({
-  ...input,
-  lines: input.lines.map((l) => ({
-    productId: l.productId,
-    cantidad: l.cantidad,
-    precioUnitarioCents: precioOverride(l),
-    ivaPct: ivaOverride(l),
-  })),
-  version: input.version ?? null, // bloqueo optimista: el back lo verifica solo si viene
-});
+//
+// Pago: lo envían ambas facturas (venta y compra): { methodId }.
+export const toDraftBody = (input: SaleInvoiceDraftInput) => {
+  const { payment, withholdings, ...rest } = input;
+  return {
+    ...rest,
+    payment: paymentBody(payment),
+    // Retenciones: reemplazo total. Ausente = no se toca (el form siempre manda la lista, `[]` las quita)
+    ...(withholdings ? { withholdings: withholdings.map((w) => ({ code: w.code, taxId: withholdingTaxIdBody(w.taxId) })) } : {}),
+    lines: input.lines.map((l) => ({
+      productId: l.productId,
+      cantidad: l.cantidad,
+      precioUnitarioCents: precioOverride(l),
+      ivaPct: ivaOverride(l),
+    })),
+    version: input.version ?? null, // bloqueo optimista: el back lo verifica solo si viene
+  };
+};
 
 // Más recientes primero (el listado mezcla ventas y compras)
 const byUpdatedDesc = (a: SaleInvoice, b: SaleInvoice): number =>

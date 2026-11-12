@@ -48,6 +48,29 @@
           }
         </div>
 
+        <!-- Clasificación (HU1 Maestros Comerciales) -->
+        <div class="md:col-span-2 flex flex-col gap-3 mt-24">
+          <span class="font-semibold text-primary">Clasificación</span>
+          <div class="flex flex-wrap gap-x-8 gap-y-3">
+            <div class="flex items-center gap-2">
+              <p-checkbox formControlName="sellable" inputId="sellable" [binary]="true"></p-checkbox>
+              <label for="sellable" class="font-semibold text-primary">Vendible</label>
+            </div>
+            <div class="flex items-center gap-2">
+              <p-checkbox formControlName="purchasable" inputId="purchasable" [binary]="true"></p-checkbox>
+              <label for="purchasable" class="font-semibold text-primary">Comprable</label>
+            </div>
+            <div class="flex items-center gap-2">
+              <p-checkbox formControlName="inventoryable" inputId="inventoryable" [binary]="true"></p-checkbox>
+              <label for="inventoryable" class="font-semibold text-primary">Inventariable</label>
+            </div>
+          </div>
+          <small class="font-family-sans text-sm">
+            Los inventariables tienen uso en el kardex: control de entradas, salidas y valoración según el
+            sistema de inventario configurado en la empresa.
+          </small>
+        </div>
+
       </div>
 
       <!-- 3. BOTONES DE ACCIÓN -->

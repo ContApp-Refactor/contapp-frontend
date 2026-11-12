@@ -9,6 +9,7 @@ import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { TextareaModule } from 'primeng/textarea';
+import { CheckboxModule } from 'primeng/checkbox';
 
 import { ProductTypeService } from '../../Services/product-type.service';
 import { LocalStorageMethods } from '../../../../../Shared/Methods/local-storage.method';
@@ -23,6 +24,7 @@ import { LocalStorageMethods } from '../../../../../Shared/Methods/local-storage
     CardModule,
     InputTextModule,
     TextareaModule,
+    CheckboxModule,
     ButtonModule,
     ToastModule
   ],
@@ -42,7 +44,11 @@ export class ProductTypeCreationComponent implements OnInit {
   ) {
     this.productTypeForm = this.formBuilder.group({
       name: ['', [Validators.required, Validators.maxLength(100)]],
-      description: ['', [Validators.required, Validators.maxLength(500)]]
+      description: ['', [Validators.required, Validators.maxLength(500)]],
+      // Clasificación HU1: vendible/comprable por defecto; inventariable es explícito (habilita kardex)
+      sellable: [true],
+      purchasable: [true],
+      inventoryable: [false]
     });
   }
 

@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { LocalStorageMethods } from '../../Shared/Methods/local-storage.method';
 import { MockBillingCounterpartyCatalog } from './mock-billing-counterparty-catalog';
 import { InventoryBillingCounterpartyCatalog } from './inventory-billing-counterparty-catalog.service';
-import { InventoryBillingProductCatalog, resolveCategoryIva } from './inventory-billing-product-catalog.service';
+import { InventoryBillingProductCatalog, resolveCategoryIva, resolveCategoryTaxes } from './inventory-billing-product-catalog.service';
 
 const configure = (service: unknown) =>
   TestBed.configureTestingModule({
@@ -101,6 +101,15 @@ describe('InventoryBillingProductCatalog (IVA desde la categoría)', () => {
     expect(result.map((p) => p.priceCents)).toEqual([10000, 5000, 2000]);
   });
 
+  it('en COMPRA la vista previa sigue saliendo de cost (el último precio de compra lo resuelve el back al guardar) sin pedir más datos', () => {
+    let result: { priceCents: number }[] = [];
+    catalog.getProducts('PURCHASE').subscribe((r) => (result = r));
+    httpMock.expectOne((r) => r.url === '/api/products/findActivate').flush(products);
+    httpMock.expectOne((r) => r.url === '/api/categories/findActivate').flush(categories);
+    httpMock.expectOne('/api/tax/active/ent-1').flush(taxes);
+    expect(result.map((p) => p.priceCents)).toEqual([10000, 5000, 2000]);
+  });
+
   it('si falla categorías o impuestos el catálogo sigue, con el IVA sin dato (null) y no 0', () => {
     let result: { ivaPct: number | null }[] = [];
     catalog.getProducts('PURCHASE').subscribe((r) => (result = r));
@@ -173,6 +182,53 @@ describe('InventoryBillingProductCatalog (resolución de IVA con retenciones y v
       { id: 5, code: 'IVA0', description: 'IVA excluido', interest: 0 },
     ]);
     expect(result.map((p) => p.ivaPct)).toEqual([20, 25, 19]);
+    httpMock.verify();
+  });
+});
+
+describe('Desglose de impuestos de la categoría (vista previa, misma regla que el back)', () => {
+  const tax = (id: number, code: string | null, description: string, interest: number | null) => ({ id, code, description, interest });
+
+  it('3 impuestos => 3 elementos con nombre del maestro y tarifa, en orden; la suma no cambia (26)', () => {
+    const ofCategory = [tax(1, 'Ica', 'impuesto Salud', 6), tax(2, 'SalD', 'impuesto Salud', 8), tax(3, 'Iva', 'Impuesto del gobierno', 12)];
+    expect(resolveCategoryTaxes(ofCategory)).toEqual([
+      { name: 'Ica', rate: 6 },
+      { name: 'SalD', rate: 8 },
+      { name: 'Iva', rate: 12 },
+    ]);
+    expect(resolveCategoryIva(ofCategory)).toBe(26);
+  });
+  it('sin código usa la descripción; sin tarifa cuenta 0', () => {
+    expect(resolveCategoryTaxes([tax(1, ' ', 'Impuesto al consumo', 8), tax(2, 'IVA0', '', null)])).toEqual([
+      { name: 'Impuesto al consumo', rate: 8 },
+      { name: 'IVA0', rate: 0 },
+    ]);
+  });
+  it('sin impuestos o suma fuera de 0..100 => sin desglose (el back usa su valor por defecto)', () => {
+    expect(resolveCategoryTaxes([])).toEqual([]);
+    expect(resolveCategoryTaxes([tax(1, 'A', '', 60), tax(2, 'B', '', 50)])).toEqual([]);
+  });
+  it('getProducts entrega el desglose por producto; sin categoría queda vacío', () => {
+    configure(InventoryBillingProductCatalog);
+    const catalog = TestBed.inject(InventoryBillingProductCatalog);
+    const httpMock = TestBed.inject(HttpTestingController);
+    let result: { ivaPct: number | null; taxes?: { name: string; rate: number }[] }[] = [];
+    catalog.getProducts('SALE').subscribe((r) => (result = r));
+    httpMock.expectOne((r) => r.url === '/api/products/findActivate').flush({
+      content: [
+        { id: 1, code: 'A', name: 'A', cost: 1, categoryId: 1 },
+        { id: 2, code: 'B', name: 'B', cost: 1, categoryId: null },
+      ],
+    });
+    httpMock.expectOne((r) => r.url === '/api/categories/findActivate').flush({ content: [{ id: 1, taxes: [1, 2] }] });
+    httpMock.expectOne('/api/tax/active/ent-1').flush([
+      { id: 1, code: 'Iva', description: 'IVA', interest: 19 },
+      { id: 2, code: 'Ica', description: 'ICA', interest: 6 },
+    ]);
+    expect(result[0].ivaPct).toBe(25);
+    expect(result[0].taxes).toEqual([{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: 6 }]);
+    expect(result[1].ivaPct).toBeNull();
+    expect(result[1].taxes).toEqual([]);
     httpMock.verify();
   });
 });

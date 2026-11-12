@@ -136,6 +136,7 @@ export class MockBillingSaleReturnApi extends BillingSaleReturnApi {
           cantidadDevuelta: l.cantidad,
           precioUnitarioCents: a.precioUnitarioCents,
           ivaPct: a.ivaPct,
+          ...(a.taxes?.length ? { taxes: a.taxes } : {}), // hereda el desglose de la línea original
         };
       });
       saleReturn.date = input.date;

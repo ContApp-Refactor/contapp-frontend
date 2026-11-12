@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { safeReturnTo } from '../../../../Billing/utils/return-trail';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
@@ -45,6 +46,7 @@ export class PaymentMethodsEditComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.returnTo = safeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'));
     this.id = Number(this.route.snapshot.paramMap.get('id'));
     const entData = localStorage.getItem('entData');
     const enterpriseId = entData ? JSON.parse(entData).id : '';
@@ -127,8 +129,15 @@ export class PaymentMethodsEditComponent implements OnInit {
       }));
   }
 
+  // Ruta segura para "Volver a factura" (solo si llegó con ?returnTo=/billing/...)
+  returnTo: string | null = null;
+
+  goBackToInvoice() {
+    if (this.returnTo) this.router.navigateByUrl(this.returnTo);
+  }
+
   goBack() {
-    this.router.navigate(['/gen-masters/payment-methods/list']);
+    this.router.navigate(['/gen-masters/payment-methods/list'], { queryParamsHandling: 'preserve' });
   }
 
   hasChanges(): boolean {

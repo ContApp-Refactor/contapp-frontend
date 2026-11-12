@@ -673,16 +673,54 @@ export class SaleInvoiceCreationComponent {
           life: 5000
         });
       },
-      (error) => {
+      async (error) => {
         this.isSavingPdf = false;
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'Ha ocurrido un error al crear la factura.',
+          detail: await this.saveInvoiceErrorDetail(
+            error,
+            'Ha ocurrido un error al crear la factura.',
+          ),
           life: 5000
         });
       }
     );
+  }
+
+  /**
+   * Devuelve el mensaje exacto que devolvió la API (p. ej. "Insufficient stock.
+   * Requested:40, Available:0."); solo usa un texto genérico si la respuesta
+   * no trae mensaje.
+   *
+   * Ojo: el servicio pide la respuesta con responseType 'blob', así que el
+   * cuerpo de error llega como Blob y hay que leerlo y parsearlo a mano.
+   */
+  private async saveInvoiceErrorDetail(
+    error: unknown,
+    fallback = 'Ha ocurrido un error al crear la factura.',
+  ): Promise<string> {
+    const body = (error as { error?: unknown })?.error;
+
+    if (typeof body === 'object' && body !== null) {
+      const message = (body as { message?: string }).message;
+      if (typeof message === 'string' && message.trim()) {
+        return message.trim();
+      }
+    }
+
+    if (body instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await body.text()) as { message?: string };
+        if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+          return parsed.message.trim();
+        }
+      } catch {
+        // cuerpo no JSON (p. ej. HTML de error): se usa el texto genérico
+      }
+    }
+
+    return fallback;
   }
 
   /**
@@ -773,12 +811,15 @@ export class SaleInvoiceCreationComponent {
           life: 5000
         });
       },
-      (error) => {
+      async (error) => {
         this.isLoadingPdfPreview = false;
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail: 'Ha ocurrido un error al generar la vista previa de la factura.',
+          detail: await this.saveInvoiceErrorDetail(
+            error,
+            'Ha ocurrido un error al generar la vista previa de la factura.',
+          ),
           life: 5000
         });
       }

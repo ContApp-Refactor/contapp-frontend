@@ -646,7 +646,9 @@ export class PurchaseInvoiceCreationComponent implements OnInit, OnDestroy {
 
   private resolveDueDate(): string | undefined {
     const due = this.dueDate ?? this.addDays(this.currentDate, Math.max(this.paymentTermDays, 1));
-    return this.stripTime(due).toISOString().split('T')[0];
+    // formatLocalDate usa los componentes locales; toISOString() convertiría a UTC
+    // y podía correr la fecha un día hacia atrás.
+    return this.formatLocalDate(due);
   }
 
   private resolveIssueDate(): string {

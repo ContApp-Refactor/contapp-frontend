@@ -2,17 +2,33 @@ import { firstValueFrom } from 'rxjs';
 import { ReturnAvailabilityLine, SaleReturn } from '../models/billing-sale-return.model';
 import { BillingSaleReturnApi } from '../services/billing-sale-return.api';
 import { isUnknownOutcome } from '../services/idempotency-key.store';
+import { billingErrorMessage, isStockError } from './billing-error';
+import { wholeQty } from './money';
 
 // Devolución completa de una factura: "anular" una factura emitida = devolver todo lo que quede disponible.
 // Sirve a venta y a compra (el adaptador de devoluciones ya resuelve el tipo por la factura).
 
-/** La factura no tiene nada más para devolver (ya se devolvió por completo). */
+export const NOTHING_TO_RETURN_MESSAGE = 'Esta factura ya fue devuelta por completo: no queda nada disponible para devolver.';
+// Documento histórico con decimales: queda menos de una unidad por línea y Inventario solo admite cantidades enteras
+export const ONLY_FRACTION_LEFT_MESSAGE =
+  'Solo quedan fracciones de unidad por devolver en esta factura y Inventario solo admite cantidades enteras: no se puede devolver más.';
+
+/** La factura no tiene nada más (entero) para devolver. */
 export class NothingToReturnError extends Error {
-  constructor() {
-    super('Esta factura ya fue devuelta por completo: no queda nada disponible para devolver.');
+  constructor(message = NOTHING_TO_RETURN_MESSAGE) {
+    super(message);
     this.name = 'NothingToReturnError';
   }
 }
+
+export const FULL_RETURN_NOT_EMITTED_SUFFIX = 'No se emitió ninguna devolución; puedes corregirlo y reintentar.';
+
+/**
+ * Mensaje del toast cuando falla "Devolver factura completa". Ante un error de Inventario (BILLING_STOCK_*) la emisión
+ * se revirtió en el back y el borrador creado por esta operación se descarta: se aclara que no quedó devolución emitida.
+ */
+export const fullReturnErrorMessage = (e: unknown): string =>
+  isStockError(e) ? `${billingErrorMessage(e)} ${FULL_RETURN_NOT_EMITTED_SUFFIX}` : billingErrorMessage(e);
 
 const todayIso = (): string => {
   const d = new Date();
@@ -20,9 +36,15 @@ const todayIso = (): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
-/** Líneas con todo lo disponible por línea de la factura (descarta las que ya no tienen cantidad). */
+/**
+ * Líneas con todo lo disponible (ENTERO) por línea de la factura; descarta las que no tienen al menos una unidad.
+ * Inventario solo admite cantidades enteras: en una factura histórica con decimales (p. ej. disponible 2.5) se devuelve
+ * la parte entera (2) y la fracción restante queda sin devolver.
+ */
 export function fullReturnLines(availability: ReturnAvailabilityLine[]): { lineNo: number; cantidad: number }[] {
-  return availability.filter((a) => a.available > 0).map((a) => ({ lineNo: a.lineNo, cantidad: a.available }));
+  return availability
+    .map((a) => ({ lineNo: a.lineNo, cantidad: wholeQty(a.available) }))
+    .filter((l) => l.cantidad > 0);
 }
 
 // Borradores de devolución que ya tiene la factura (se resuelven antes de crear otro)
@@ -58,7 +80,10 @@ export async function returnWholeInvoice(
 ): Promise<SaleReturn> {
   const availability = await firstValueFrom(api.getAvailability(invoiceId));
   const lines = fullReturnLines(availability);
-  if (lines.length === 0) throw new NothingToReturnError();
+  if (lines.length === 0) {
+    const onlyFractions = availability.some((a) => a.available > 0);
+    throw new NothingToReturnError(onlyFractions ? ONLY_FRACTION_LEFT_MESSAGE : NOTHING_TO_RETURN_MESSAGE);
+  }
 
   const [existing, ...extras] = await draftsOf(api, invoiceId);
   for (const extra of extras) await firstValueFrom(api.deleteDraft(extra.id, extra.version));

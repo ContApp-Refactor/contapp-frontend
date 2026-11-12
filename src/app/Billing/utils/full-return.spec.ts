@@ -2,7 +2,13 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { SaleReturn } from '../models/billing-sale-return.model';
 import { BillingSaleReturnApi } from '../services/billing-sale-return.api';
-import { returnWholeInvoice } from './full-return';
+import {
+  NOTHING_TO_RETURN_MESSAGE,
+  NothingToReturnError,
+  ONLY_FRACTION_LEFT_MESSAGE,
+  fullReturnLines,
+  returnWholeInvoice,
+} from './full-return';
 
 const availability = [
   { lineNo: 1, productId: 'a', productName: 'A', sold: 3, returned: 1, available: 2, precioUnitarioCents: 100, ivaPct: 0 },
@@ -106,10 +112,60 @@ describe('returnWholeInvoice', () => {
     });
   });
 
+  describe('cantidades enteras (Inventario) con facturas históricas con decimales', () => {
+    const fractional = [
+      { lineNo: 1, productId: 'a', productName: 'A', sold: 3.5, returned: 1, available: 2.5, precioUnitarioCents: 100, ivaPct: 0 },
+      { lineNo: 2, productId: 'b', productName: 'B', sold: 0.75, returned: 0, available: 0.75, precioUnitarioCents: 100, ivaPct: 0 },
+      { lineNo: 3, productId: 'c', productName: 'C', sold: 4, returned: 0, available: 4, precioUnitarioCents: 100, ivaPct: 0 },
+    ];
+
+    it('fullReturnLines ofrece la parte entera del disponible y descarta las líneas con menos de una unidad', () => {
+      expect(fullReturnLines(fractional)).toEqual([
+        { lineNo: 1, cantidad: 2 },
+        { lineNo: 3, cantidad: 4 },
+      ]);
+    });
+
+    it('envía al back solo cantidades enteras', async () => {
+      api.getAvailability.and.returnValue(of(fractional));
+      await run();
+      const sent = api.saveDraft.calls.mostRecent().args[0];
+      expect(sent.lines.every((l: { cantidad: number }) => Number.isInteger(l.cantidad))).toBeTrue();
+    });
+
+    it('si solo quedan fracciones de unidad, informa que no se puede devolver más (sin crear borrador)', async () => {
+      api.getAvailability.and.returnValue(of([{ ...fractional[1] }]));
+      await expectAsync(run()).toBeRejectedWith(new NothingToReturnError(ONLY_FRACTION_LEFT_MESSAGE));
+      expect(api.saveDraft).not.toHaveBeenCalled();
+    });
+
+    it('sin nada disponible mantiene el mensaje de "devuelta por completo"', async () => {
+      api.getAvailability.and.returnValue(of(availability.map((a) => ({ ...a, available: 0 }))));
+      await expectAsync(run()).toBeRejectedWith(new NothingToReturnError(NOTHING_TO_RETURN_MESSAGE));
+    });
+  });
+
+  it('si la emisión falla por Inventario (422 BILLING_STOCK_*) propaga ESE error y elimina el borrador creado', async () => {
+    const stock = new HttpErrorResponse({ status: 422, error: { code: 'BILLING_STOCK_INSUFFICIENT', message: 'x' } });
+    api.emit.and.returnValue(throwError(() => stock));
+    await expectAsync(run()).toBeRejectedWith(stock);
+    expect(api.deleteDraft).toHaveBeenCalledOnceWith('r1');
+  });
+
   it('un borrador creado por esta operación sí se elimina si falla la emisión', async () => {
     api.emit.and.returnValue(throwError(() => new Error('falló')));
     await expectAsync(run()).toBeRejectedWithError('falló');
     expect(api.deleteDraft).toHaveBeenCalledOnceWith('r1');
     expect(api.saveDraft).toHaveBeenCalledTimes(1); // nada que restaurar
+  });
+});
+
+describe('fullReturnLines con desglose de impuestos', () => {
+  it('el desglose de la línea original no viaja en el cuerpo: solo lineNo y cantidad (el back lo hereda)', () => {
+    const withTaxes = availability.map((a) => ({ ...a, ivaPct: 25, taxes: [{ name: 'Iva', rate: 19 }, { name: 'Ica', rate: 6 }] }));
+    expect(fullReturnLines(withTaxes)).toEqual([
+      { lineNo: 1, cantidad: 2 },
+      { lineNo: 2, cantidad: 1 },
+    ]);
   });
 });

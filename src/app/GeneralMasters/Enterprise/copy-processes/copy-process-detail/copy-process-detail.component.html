@@ -64,6 +64,17 @@
 
       <p-progressBar [value]="progreso" [showValue]="true" class="mb-5"></p-progressBar>
 
+      @if (avanceModulos) {
+        <p class="text-sm text-gray-600 mb-3" role="status">{{ avanceModulos }}</p>
+      }
+      @if (modulosCompletadosLabels.length) {
+        <ul class="flex flex-wrap gap-2 mb-5" aria-label="Módulos completados">
+          @for (label of modulosCompletadosLabels; track label) {
+            <li class="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">{{ label }}</li>
+          }
+        </ul>
+      }
+
       <div class="flex flex-col gap-3">
         @for (fase of FASES; track fase.numero) {
           <div class="flex items-start gap-3 p-3 rounded-lg transition"

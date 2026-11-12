@@ -28,42 +28,48 @@
         [number]="inv.number"
         [status]="inv.status"
         [date]="inv.date"
-        [client]="previewClient()"
+        [client]="previewClientWithContact()"
+        [issuer]="inv.issuer ?? null"
+        [payment]="inv.payment ?? null"
         [supplierInvoiceNumber]="inv.supplierInvoiceNumber ?? null"
         [lines]="inv.lines"
         [totals]="inv.totals ?? null"
+        [withholdings]="previewWithholdings()"
+        [verificationCode]="inv.verificationCode ?? null"
       />
     }
   </p-dialog>
 
   <div [class]="embedded() ? 'w-full font-medium' : 'm-10 w-full font-medium bg-white rounded-3xl p-10'">
-    <div class="flex flex-wrap items-start justify-between gap-16" [class.mb-12]="embedded()">
+    <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-16" [class.mb-12]="embedded()">
       <div>
         @if (embedded()) {
           <h2 class="font-family-titillium font-bold text-xl text-primary m-0">Facturas pendientes</h2>
-          <p class="font-family-sans font-normal text-sm mt-4">Tus borradores de venta y compra. Continúa, duplica o elimina.</p>
+          <p class="font-family-sans font-normal text-sm mt-4">Tus borradores de {{ kindWord() }}. Continúa, duplica o elimina.</p>
         } @else {
           <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
             <span class="border-b-4 border-secondary-light inline-block pb-1">Continuar factura pendiente</span>
           </h1>
           <p class="font-family-sans font-normal text-sm mt-12 mb-20">
-            Estos son tus borradores de venta y compra. Selecciona uno para continuar editándolo.
+            Estos son tus borradores de {{ kindWord() }}. Selecciona uno para continuar editándolo.
           </p>
         }
       </div>
-      <!-- Volver al menú de Facturación (no aplica cuando la tabla va dentro del propio menú) -->
+      <!-- Volver al hub del tipo (no aplica cuando la tabla va dentro del propio menú) -->
       @if (!embedded()) {
-        <p-button
-          label="Volver"
-          icon="pi pi-arrow-left"
-          styleClass="p-button-outlined"
-          ariaLabel="Volver al menú de Facturación"
-          (click)="goBack()"
-        ></p-button>
+        <div class="flex flex-wrap items-center gap-8 sm:justify-end">
+          <p-button
+            label="Volver"
+            icon="pi pi-arrow-left"
+            styleClass="p-button-outlined"
+            [ariaLabel]="'Volver a ' + cfg().invoiceTitle"
+            (click)="goBack()"
+          ></p-button>
+        </div>
       }
     </div>
 
-    <!-- Barra de filtros: buscador general, tipo y filtros por campo -->
+    <!-- Barra de filtros: buscador general y filtros por campo -->
     <div class="flex flex-wrap items-center gap-8 mb-16">
       <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
         <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
@@ -76,20 +82,10 @@
           class="w-full text-sm"
         />
       </p-iconfield>
-      <p-dropdown
-        [options]="kindOptions"
-        optionLabel="label"
-        optionValue="value"
-        [ngModel]="kindFilter()"
-        (ngModelChange)="kindFilter.set($event)"
-        styleClass="w-150"
-        size="small"
-        ariaLabel="Filtrar por tipo"
-      ></p-dropdown>
       <!-- Filtros por campo: viven fuera de la tabla y filtran con dt.filter(valor, campo, modo) -->
       <input pInputText type="text" #fName (input)="dt.filter(fName.value, 'counterparty', 'contains')" placeholder="Nombre" aria-label="Filtrar por nombre" class="w-150 text-sm" />
       <input pInputText type="text" #fDate (input)="dt.filter(fDate.value, 'dateText', 'contains')" placeholder="Fecha dd/mm/aaaa" aria-label="Filtrar por fecha" class="w-150 text-sm" />
-      <input pInputText type="number" min="0" #fItems (input)="dt.filter(fItems.value === '' ? null : +fItems.value, 'itemsCount', 'equals')" placeholder="Ítems" aria-label="Filtrar por ítems" class="w-100 text-sm" />
+      <input pInputText type="number" min="0" #fItems (input)="dt.filter(fItems.value === '' ? null : +fItems.value, 'itemsCount', 'equals')" placeholder="Productos" aria-label="Filtrar por productos" class="w-100 text-sm" />
       <input pInputText type="number" min="0" #fTotal (input)="dt.filter(fTotal.value === '' ? null : +fTotal.value, 'totalPesos', 'equals')" placeholder="Total" aria-label="Filtrar por total" class="w-150 text-sm" />
       <input pInputText type="text" #fUpd (input)="dt.filter(fUpd.value, 'updatedText', 'contains')" placeholder="Última edición" aria-label="Filtrar por última edición" class="w-150 text-sm" />
     </div>
@@ -105,10 +101,9 @@
       >
         <ng-template pTemplate="header">
           <tr>
-            <th style="width: 7rem">Tipo</th>
-            <th>Cliente / Proveedor</th>
+            <th>{{ cfg().counterparty }}</th>
             <th style="width: 9rem">Fecha</th>
-            <th style="width: 7rem" class="text-right">Ítems</th>
+            <th style="width: 7rem" class="text-right">Productos</th>
             <th style="width: 11rem" class="text-right">Total</th>
             <th style="width: 12rem">Última edición</th>
             <th style="width: 20rem"><span class="sr-only">Acciones</span></th>
@@ -116,7 +111,6 @@
         </ng-template>
         <ng-template pTemplate="body" let-row>
           <tr>
-            <td><app-billing-kind-tag [kind]="row.draft.kind" /></td>
             <td>
               {{ row.counterparty }}
               @if (row.draft.supplierInvoiceNumber) {
@@ -163,7 +157,7 @@
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="7" class="text-center p-20">
+            <td colspan="6" class="text-center p-20">
               <i class="pi pi-file-edit text-primary text-2xl"></i>
               <p class="mt-8">No tienes facturas pendientes.</p>
               <p class="text-xs text-gray-500 mt-4">Los borradores se guardan solos al crear una factura.</p>

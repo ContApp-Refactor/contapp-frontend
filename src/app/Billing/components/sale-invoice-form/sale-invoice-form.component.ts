@@ -1,4 +1,4 @@
-import { DatePipe, Location } from '@angular/common';
+import { DatePipe, Location, NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ConfirmationService, MessageService, SharedModule } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 import { DropdownModule } from 'primeng/dropdown';
@@ -16,28 +17,52 @@ import { Subject, debounceTime, finalize, firstValueFrom } from 'rxjs';
 import {
   BillingClient,
   BillingIssuer,
+  BillingPayment,
+  BillingPaymentMethod,
   BillingProduct,
+  BillingWithholding,
   INVOICE_STATUS_LABEL,
   InvoiceStatus,
   InvoiceTotals,
   SaleInvoice,
   SaleInvoiceLine,
+  WithholdingInput,
 } from '../../models/billing-sale-invoice.model';
 import { ReturnAvailabilityLine, SaleReturn } from '../../models/billing-sale-return.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingCounterpartyCatalog } from '../../services/billing-counterparty-catalog';
+import { BillingPaymentCatalog } from '../../services/billing-payment-catalog';
+import { BillingTax, BillingTaxCatalog } from '../../services/billing-tax-catalog';
 import { BillingProductCatalog } from '../../services/billing-product-catalog';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { SaleReturnPreviewComponent } from '../sale-return-preview/sale-return-preview.component';
 import { RETURNED_INVOICE_LABEL, deriveReturnState, returnOrdinals, returnTotals } from '../../utils/sale-return';
-import { billingErrorMessage, isConcurrentModification } from '../../utils/billing-error';
+import { billingErrorMessage, isConcurrentModification, isDuplicateSupplierInvoice } from '../../utils/billing-error';
 import { isoDateText } from '../../utils/format';
-import { NothingToReturnError, returnWholeInvoice } from '../../utils/full-return';
+import { NO_PAYMENT_METHODS_MESSAGE } from '../../utils/payment';
+import { NothingToReturnError, fullReturnErrorMessage, returnWholeInvoice } from '../../utils/full-return';
 import { buildReturnQuery } from '../../utils/return-trail';
-import { calcTotals, centsToPesos, lineSubtotalOf, pesosToCents, roundQty } from '../../utils/money';
+import {
+  MIN_QUANTITY,
+  calcTotals,
+  centsToPesos,
+  isWholeQty,
+  lineSubtotalOf,
+  pesosToCents,
+  taxSummaryRows,
+  WithholdingRow,
+  withholdingAmountCents,
+  withholdingLabel,
+  withholdingRowsOf,
+  withTotalsNet,
+  wholeQty,
+} from '../../utils/money';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
+import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-summary.component';
+import { hasTaxBreakdown, sameTaxes } from '../../utils/tax-breakdown';
 import { SaleInvoicePreviewComponent } from '../sale-invoice-preview/sale-invoice-preview.component';
 
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
@@ -55,8 +80,8 @@ interface ReturnRow {
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
-// Cantidad mínima de una línea: el back exige cantidad > 0 (hasta 3 decimales) también en borrador (si no, el autosave falla)
-const MIN_QUANTITY = 0.001;
+// Cantidad mínima de una línea: MIN_QUANTITY (1). Inventario solo admite cantidades ENTERAS y el back exige cantidad > 0
+// también en borrador (si no, el autosave falla).
 
 const todayIso = (): string => {
   const d = new Date();
@@ -72,8 +97,10 @@ const todayIso = (): string => {
   imports: [
     FormsModule,
     ButtonModule,
+    CheckboxModule,
     ConfirmDialogModule,
     DatePipe,
+    NgTemplateOutlet,
     SharedModule,
     DialogModule,
     DropdownModule,
@@ -82,6 +109,8 @@ const todayIso = (): string => {
     TableModule,
     CopCentsPipe,
     BillingStatusBadgeComponent,
+    BillingTaxBreakdownComponent,
+    BillingTaxSummaryComponent,
     SaleInvoicePreviewComponent,
     SaleReturnPreviewComponent,
   ],
@@ -92,6 +121,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   private readonly api = inject(BillingSaleInvoiceApi);
   private readonly catalog = inject(BillingProductCatalog);
   private readonly counterpartyCatalog = inject(BillingCounterpartyCatalog);
+  private readonly paymentCatalog = inject(BillingPaymentCatalog);
+  private readonly taxCatalog = inject(BillingTaxCatalog);
   private readonly returnApi = inject(BillingSaleReturnApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -117,10 +148,124 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   lines = signal<SaleInvoiceLine[]>([]);
   annulReason = signal<string | null>(null);
 
+  // Pago (facturas de venta y compra): método y, si lo exige, cuenta
+  // El método de pago aplica a ambas facturas (venta y compra); este form no sirve devoluciones.
+  hasPayment = computed(() => this.kind() === 'SALE' || this.kind() === 'PURCHASE');
+  readonly noPaymentMethodsMessage = NO_PAYMENT_METHODS_MESSAGE;
+
+  // Retenciones: casillas marcadas + impuesto elegido por cada una. Solo las marcadas CON impuesto se guardan, restan del
+  // total y viajan al back; una marcada sin impuesto no cuenta y bloquea "Emitir".
+  withholdings = signal<string[]>([]);
+  toggleWithholding(code: string, checked: boolean): void {
+    const before = this.withholdingsKey();
+    this.withholdings.update((cur) => {
+      const rest = cur.filter((c) => c !== code);
+      return checked ? [...rest, code] : rest;
+    });
+    // Al desmarcar se limpia el impuesto elegido; al marcar arranca sin selección
+    this.withholdingTaxes.update((cur) => ({ ...cur, [code]: null }));
+    this.markDirtyIfWithholdingsChanged(before);
+  }
+  withholdingTaxes = signal<Record<string, string | null>>({}); // código de retención -> id de impuesto
+  taxes = signal<BillingTax[]>([]);
+  taxesState = signal<'loading' | 'ready' | 'failed'>('loading');
+  readonly noTaxesMessage = 'No hay impuestos creados en la empresa';
+  // Impuestos de retenciones restauradas del borrador (por si ya no están en el catálogo): así el select no queda vacío
+  private restoredTaxes = signal<Record<string, { id: string; name: string; rate: number }>>({});
+  taxOptions = computed(() => {
+    const label = (name: string, rate: number | null | undefined) => (rate != null ? `${name} - ${rate}%` : name);
+    const options = this.taxes().map((t) => ({ id: t.id, label: label(t.name, t.rate) }));
+    if (this.taxesState() === 'loading') return options;
+    for (const r of Object.values(this.restoredTaxes())) {
+      if (!options.some((o) => o.id === r.id)) options.push({ id: r.id, label: label(r.name, r.rate) });
+    }
+    return options;
+  });
+  onWithholdingTaxChange(code: string, taxId: string | null): void {
+    const before = this.withholdingsKey();
+    this.withholdingTaxes.update((cur) => ({ ...cur, [code]: taxId }));
+    this.markDirtyIfWithholdingsChanged(before);
+  }
+  // Lo que se envía al guardar: solo las casillas marcadas que ya tienen impuesto
+  withholdingPayload = computed<WithholdingInput[]>(() =>
+    this.cfg()
+      .withholdings.filter((w) => this.withholdings().includes(w.code) && !!this.withholdingTaxes()[w.code])
+      .map((w) => ({ code: w.code, taxId: this.withholdingTaxes()[w.code]! })),
+  );
+  // Casillas marcadas que aún no tienen impuesto (bloquean la emisión)
+  withholdingsMissingTax = computed(() =>
+    this.cfg().withholdings.filter((w) => this.withholdings().includes(w.code) && !this.withholdingTaxes()[w.code]),
+  );
+  private withholdingsKey(): string {
+    return JSON.stringify(this.withholdingPayload());
+  }
+  // Marcar/desmarcar o cambiar el impuesto es un cambio del borrador como cualquier otro, pero solo si cambia lo que se guarda
+  private markDirtyIfWithholdingsChanged(before: string): void {
+    if (this.withholdingsKey() !== before) this.markDirty();
+  }
+  // Respuesta del back (retenciones y subtotal con que se calcularon): fuente de verdad mientras el subtotal local coincida
+  private serverWithholdings = signal<BillingWithholding[]>([]);
+  private serverSubtotal = signal<number | null>(null);
+  // Filas a mostrar. No editable: el snapshot congelado del back. Borrador: cálculo local en vivo
+  // round(subtotal × tasa / 100) para verlas antes de guardar; cuando el back respondió con el mismo subtotal y la misma
+  // selección, sus valores mandan.
+  withholdingRows = computed<WithholdingRow[]>(() => {
+    if (!this.editable()) return withholdingRowsOf(this.serverWithholdings());
+    const subtotal = calcTotals(this.lines()).subtotalCents;
+    const fromServer = this.serverSubtotal() === subtotal ? this.serverWithholdings() : [];
+    return this.withholdingPayload().map((p) => {
+      const taxId = String(p.taxId);
+      const srv = fromServer.find((s) => s.code === p.code && String(s.taxId) === taxId);
+      if (srv) return withholdingRowsOf([srv])[0];
+      const tax = this.taxes().find((t) => t.id === taxId);
+      const restored = this.restoredTaxes()[p.code];
+      const ratePct = tax?.rate ?? (restored?.id === taxId ? restored.rate : 0);
+      return {
+        code: p.code,
+        label: withholdingLabel(p.code),
+        taxName: tax?.name ?? (restored?.id === taxId ? restored.name : ''),
+        ratePct,
+        amountCents: withholdingAmountCents(subtotal, ratePct),
+      };
+    });
+  });
+  // Impuestos de la empresa: se cargan una sola vez (no por casilla)
+  loadTaxes(): void {
+    this.taxesState.set('loading');
+    this.taxCatalog
+      .getTaxes()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (list) => {
+          this.taxes.set(list);
+          this.taxesState.set('ready');
+        },
+        error: () => this.taxesState.set('failed'),
+      });
+  }
+  paymentMethodId = signal<string | null>(null);
+  paymentMethodName = signal<string | null>(null); // congelado por el back al emitir
+  paymentMethods = signal<BillingPaymentMethod[]>([]);
+  paymentMethodsState = signal<'loading' | 'ready' | 'failed'>('loading');
+  selectedPaymentMethod = computed(() => this.paymentMethods().find((m) => m.id === this.paymentMethodId()) ?? null);
+  // Nombre del método: el congelado al emitir; en borrador, el del catálogo vivo
+  paymentMethodLabel = computed(
+    () =>
+      this.paymentMethodName() ??
+      this.selectedPaymentMethod()?.name ??
+      (this.paymentMethodId() ? `N.º ${this.paymentMethodId()}` : '—'),
+  );
+  // Pago actual del formulario: lo que se guarda y lo que ve la vista previa/PDF
+  payment = computed<BillingPayment | null>(() => {
+    if (!this.hasPayment() || !this.paymentMethodId()) return null;
+    return { methodId: this.paymentMethodId(), methodName: this.paymentMethodLabel() };
+  });
+
   // UI
   loading = signal(true);
   busy = signal(false);
   saveState = signal<SaveState>('idle');
+  supplierNumberError = signal<string | null>(null); // N.º de factura del proveedor repetido (se muestra bajo el campo)
   previewVisible = signal(false);
   selectedProductId: string | null = null;
 
@@ -128,13 +273,27 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   editable = computed(() => this.status() === 'BORRADOR');
   // Totales que calculó el back (solo se usan en documentos no editables; en borrador se calcula localmente)
   serverTotals = signal<InvoiceTotals | null>(null);
-  totals = computed(() => (this.editable() ? calcTotals(this.lines()) : (this.serverTotals() ?? calcTotals(this.lines()))));
+  // Borrador: subtotal + impuestos − retenciones (local); emitida/anulada: los del back (totalCents ya neto)
+  totals = computed(() =>
+    this.editable()
+      ? withTotalsNet(calcTotals(this.lines()), this.withholdingRows())
+      : (this.serverTotals() ?? withTotalsNet(calcTotals(this.lines()), this.withholdingRows())),
+  );
+  taxRows = computed(() => taxSummaryRows(this.lines(), this.editable()));
+  /** Opciones del selector: "NIT - Nombre" (solo el nombre si el tercero no tiene documento). */
+  clientOptions = computed(() =>
+    this.clients().map((c) => {
+      const doc = (c.document ?? '').toString().trim();
+      return { ...c, label: doc ? `${doc} - ${c.name}` : c.name };
+    }),
+  );
   selectedClient = computed(() => this.clients().find((c) => c.id === this.clientId()) ?? null);
   // Datos congelados por el back en documentos emitidos/anulados (RN-06): el tercero y el emisor no cambian aunque
   // cambie el catálogo. En borrador el tercero sigue siendo el del catálogo vivo.
   frozenClientName = signal<string | null>(null);
   frozenClientDocument = signal<string | null>(null);
   issuer = signal<BillingIssuer | null>(null);
+  verificationCode = signal<string | null>(null); // código de verificación del back (QR de la vista previa)
   clientName = computed(() =>
     this.editable()
       ? (this.selectedClient()?.name ?? '—')
@@ -143,12 +302,15 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Documento del tercero: solo el congelado en documentos no editables (sin dato no se muestra el vivo)
   clientDocument = computed(() => (this.editable() ? null : this.frozenClientDocument()));
   // Tercero que recibe la vista previa: en no editables, con los valores congelados de la respuesta
+  // Contacto de la contraparte que devuelve el back en la factura (en borrador, refrescado en vivo en el GET)
+  clientContact = signal<Pick<BillingClient, 'address' | 'city' | 'phone' | 'email'>>({});
   previewClient = computed<BillingClient | null>(() => {
     const live = this.selectedClient();
-    if (this.editable()) return live;
+    const contact = this.clientContact();
+    if (this.editable()) return live ? { ...live, ...contact } : null;
     const name = this.frozenClientName();
-    if (name === null) return live;
-    return { id: this.clientId() ?? '', name, document: this.frozenClientDocument() ?? '—', category: live?.category };
+    if (name === null) return live ? { ...live, ...contact } : null;
+    return { id: this.clientId() ?? '', name, document: this.frozenClientDocument() ?? '—', category: live?.category, ...contact };
   });
 
   // Devoluciones de esta factura (solo se cargan cuando ya no es borrador)
@@ -175,7 +337,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     }),
   );
   // El botón "Devolución" solo aparece en una EMITIDA con algo aún devolvible
-  canReturn = computed(() => this.status() === 'EMITIDA' && this.availability().some((a) => a.available > 0));
+  // (al menos una unidad ENTERA: en una factura histórica con decimales una fracción < 1 ya no se puede devolver)
+  canReturn = computed(() => this.status() === 'EMITIDA' && this.availability().some((a) => wholeQty(a.available) >= MIN_QUANTITY));
   returnOrdinalMap = computed(() => returnOrdinals(this.returns()));
   previewReturn = signal<SaleReturn | null>(null);
   returnState = computed(() => deriveReturnState(this.lines(), this.returns()));
@@ -208,6 +371,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.kind.set(this.route.snapshot.data['kind'] ?? 'SALE');
     this.loadProducts();
     this.loadCounterparties();
+    this.loadPaymentMethods();
+    this.loadTaxes();
 
     this.autosave$
       .pipe(debounceTime(AUTOSAVE_DEBOUNCE_MS), takeUntilDestroyed(this.destroyRef))
@@ -229,6 +394,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
             this.kind.set(invoice.kind);
             this.loadProducts();
             this.loadCounterparties();
+            this.loadPaymentMethods();
           }
           this.applyInvoice(invoice);
           this.loading.set(false);
@@ -236,7 +402,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.toast('error', 'Factura no encontrada', 'No existe la factura solicitada.');
-          this.router.navigate(['/billing']);
+          this.router.navigate([this.cfg().basePath]);
         },
       });
   }
@@ -252,6 +418,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Fallo del autosave: queda el estado "error" y se avisa UNA vez por racha de fallos (no en cada intento)
   private onAutosaveError(e: unknown): void {
     this.saveState.set('error');
+    this.noteDuplicateSupplierNumber(e);
     if (isConcurrentModification(e)) {
       this.fail('No se pudo guardar', e);
       return;
@@ -347,7 +514,9 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         this.loadReturns(id, this.status()); // la tabla y la disponibilidad reflejan lo que ya devolvió otro
         return;
       }
-      this.toast('error', 'No se pudo devolver', this.errorMessage(e));
+      // Si Inventario rechazó la emisión no quedó ninguna devolución emitida (el borrador de esta operación se descarta):
+      // el diálogo sigue abierto para reintentar
+      this.toast('error', 'No se pudo devolver', fullReturnErrorMessage(e));
       // El servidor pudo confirmar la devolución aunque la respuesta falló (p. ej. timeout): se recarga el estado real
       this.loadReturns(id, this.status());
     } finally {
@@ -384,12 +553,46 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       .subscribe((c) => this.clients.set(c));
   }
 
+  // Métodos de pago activos de la empresa (venta y compra). Un fallo NO es lo mismo que "no hay métodos": se avisa distinto
+  loadPaymentMethods(): void {
+    if (!this.hasPayment()) return;
+    this.paymentMethodsState.set('loading');
+    this.paymentCatalog
+      .getPaymentMethods()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (methods) => {
+          this.paymentMethods.set(methods);
+          this.paymentMethodsState.set('ready');
+        },
+        error: () => this.paymentMethodsState.set('failed'),
+      });
+  }
+
+  /** Atajo a Métodos de Pago: asegura el borrador guardado y abre el maestro (al volver a la pestaña se recarga la lista). */
+  async goToPaymentMethods(): Promise<void> {
+    if (!this.editable() || this.busy()) return;
+    this.busy.set(true);
+    try {
+      await this.persist();
+      const returnTo = `${this.cfg().basePath}/${this.invoiceId() ?? 'new'}`;
+      await this.router.navigate(['/gen-masters/payment-methods/list'], {
+        queryParams: buildReturnQuery(returnTo),
+      });
+    } catch (e) {
+      this.fail('No se pudo guardar el borrador', e);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   // Al volver de crear/editar productos (pestaña o ventana recupera el foco) se recarga
   @HostListener('window:focus')
   @HostListener('document:visibilitychange')
   onReturnToWindow(): void {
     if (document.visibilityState !== 'visible' || !this.editable()) return;
     this.loadProducts();
+    this.loadPaymentMethods(); // por si se crearon métodos de pago en otra pestaña
     this.refreshDraft();
   }
 
@@ -468,6 +671,13 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
 
   onSupplierInvoiceNumberChange(value: string): void {
     this.supplierInvoiceNumber.set(value ?? '');
+    this.supplierNumberError.set(null); // el usuario corrige el número: se reintenta con el autosave
+    this.markDirty();
+  }
+
+  onPaymentMethodChange(id: string | null): void {
+    this.paymentMethodId.set(id);
+    this.paymentMethodName.set(null);
     this.markDirty();
   }
 
@@ -497,6 +707,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
           ivaCatalogoPct: product.ivaPct,
           ivaPct: product.ivaPct,
           ivaEditado: false,
+          // Desglose de vista previa (impuestos de la categoría): con elementos la celda es de solo lectura
+          taxes: product.taxes ?? [],
         },
       ]);
       this.markDirty();
@@ -504,11 +716,11 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.selectedProductId = null;
   }
 
-  // El back exige cantidad > 0 (aun en borrador) y admite hasta 3 decimales: el mínimo es MIN_QUANTITY (0.001).
-  // Una cantidad vacía, ≤ 0 o que redondea a 0 vuelve al último valor válido (para quitar la línea está el tacho),
-  // así el autosave no falla por una línea en 0.
+  // Inventario solo admite cantidades ENTERAS y el back exige cantidad > 0 (aun en borrador): el mínimo es MIN_QUANTITY (1).
+  // Un valor con decimales se toma por su parte entera; uno vacío, ≤ 0 o menor a 1 vuelve al último valor válido (para
+  // quitar la línea está el tacho), así el autosave no falla por una línea en 0.
   setQuantity(index: number, value: number | null): void {
-    const rounded = value == null ? NaN : roundQty(value);
+    const rounded = value == null ? NaN : wholeQty(value);
     if (rounded >= MIN_QUANTITY) {
       this.updateLine(index, { cantidad: rounded });
       return;
@@ -541,17 +753,17 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // p-inputNumber emite el modelo en CADA tecla. Si se validara/revirtiera ahí, un valor intermedio ("0" camino a
   // "0,5", o el campo vacío) se pisaría y la fila se recrearía perdiendo el foco. Por eso mientras se teclea solo se
   // aplica un valor ya válido (un intermedio inválido se ignora y el campo conserva lo tecleado) y la normalización
-  // (mínimo 0.001, vacío -> último válido / catálogo) ocurre al salir del campo (onBlur).
+  // (entero, mínimo 1, vacío -> último válido / catálogo) ocurre al salir del campo (onBlur).
 
   onQuantityInput(index: number, value: number | null): void {
-    const rounded = value == null ? NaN : roundQty(value);
-    if (rounded >= MIN_QUANTITY) this.updateLine(index, { cantidad: rounded });
+    // Solo un entero ≥ 1 se aplica mientras se teclea
+    if (value != null && isWholeQty(value) && value >= MIN_QUANTITY) this.updateLine(index, { cantidad: wholeQty(value) });
   }
 
   commitQuantity(index: number, field: InputNumber): void {
     const current = this.lines()[index]?.cantidad;
     if (current === undefined) return;
-    const typed = field.value == null ? NaN : roundQty(field.value);
+    const typed = field.value == null ? NaN : wholeQty(field.value);
     if (typed >= MIN_QUANTITY) {
       if (typed !== current) this.updateLine(index, { cantidad: typed });
       this.showInputValue(field, typed);
@@ -586,6 +798,10 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     field.writeValue(value);
     field.input.nativeElement.value = value == null ? '' : field.formatValue(value);
   }
+
+  // Regla de presentación: con impuestos de categoría el desglose es de SOLO LECTURA; sin ellos (IVA por defecto, documento
+  // viejo o IVA editado a mano) queda la casilla editable de % como siempre
+  readonly hasTaxBreakdown = hasTaxBreakdown;
 
   // Las filas se identifican por producto (no por referencia del objeto): editar una línea no recrea su fila ni el input
   readonly trackLine = (_: number, line: SaleInvoiceLine): string => line.productId;
@@ -650,8 +866,8 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       typeof from === 'string' && from.startsWith('/billing')
         ? from
         : this.status() === 'BORRADOR'
-          ? '/billing'
-          : '/billing/list';
+          ? this.cfg().basePath
+          : `${this.cfg().basePath}/list`;
     this.router.navigate([target]);
   }
 
@@ -694,7 +910,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
       this.writes++;
       if (id) await firstValueFrom(this.api.deleteDraft(id, this.version));
       this.toast('success', 'Borrador eliminado', 'El borrador fue eliminado.');
-      this.router.navigate(['/billing']);
+      this.router.navigate([this.cfg().basePath]);
     } catch (e) {
       this.fail('No se pudo eliminar', e);
     } finally {
@@ -707,8 +923,30 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     if (this.kind() === 'PURCHASE' && !this.supplierInvoiceNumber().trim()) {
       return 'Debes ingresar el N.º de factura del proveedor.';
     }
+    const paymentError = this.paymentEmitError();
+    if (paymentError) return paymentError;
+    const missingTax = this.withholdingsMissingTax()[0];
+    if (missingTax) return `Elige el impuesto de ${missingTax.label}.`;
     if (this.lines().length === 0) return 'Agrega al menos un ítem a la factura.';
     if (this.lines().some((l) => !(l.cantidad > 0))) return 'Todos los ítems deben tener cantidad mayor a cero.';
+    // Un borrador histórico puede traer decimales: Inventario los rechazaría al emitir
+    if (this.lines().some((l) => !isWholeQty(l.cantidad))) {
+      return 'Inventario solo admite cantidades enteras: corrige las cantidades con decimales antes de emitir.';
+    }
+    if (this.totals().totalCents < 0) {
+      return 'Las retenciones superan el subtotal más los impuestos. Revisa los impuestos elegidos en las retenciones.';
+    }
+    return null;
+  }
+
+  // Método de pago obligatorio al emitir una VENTA; el back lo vuelve a validar
+  private paymentEmitError(): string | null {
+    if (!this.hasPayment()) return null;
+    if (this.paymentMethodsState() === 'ready' && this.paymentMethods().length === 0) return NO_PAYMENT_METHODS_MESSAGE;
+    if (!this.paymentMethodId()) return 'Selecciona el método de pago.';
+    if (this.paymentMethodsState() === 'ready' && !this.selectedPaymentMethod()) {
+      return 'El método de pago elegido ya no está activo. Selecciona otro.';
+    }
     return null;
   }
 
@@ -748,12 +986,17 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
             supplierInvoiceNumber: this.supplierInvoiceNumber(),
             date: this.date(),
             lines: this.lines(),
+            payment: this.payment(),
+            withholdings: this.withholdingPayload(), // reemplazo total; [] quita las retenciones
             version: this.version, // la de la respuesta anterior (la cadena serializa los guardados)
           }),
         );
         this.writes++; // la escritura terminó: un GET que salió antes ya no es confiable
         this.version = saved.version ?? null;
+        this.serverWithholdings.set(saved.withholdings ?? []);
+        this.serverSubtotal.set(saved.totals?.subtotalCents ?? null);
         this.autosaveFailing = false;
+        this.supplierNumberError.set(null);
         this.adoptSavedLine(saved);
         if (!this.invoiceId()) {
           this.invoiceId.set(saved.id);
@@ -780,7 +1023,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   }
 
   // El back es la fuente de verdad del IVA y de los precios sin editar: tras guardar, cada línea toma ivaPct /
-  // ivaCatalogoPct / ivaEditado y precioCatalogoCents / precioEditado de la respuesta, y el precio unitario solo si la
+  // ivaCatalogoPct / ivaEditado / taxes (desglose) y precioCatalogoCents / precioEditado de la respuesta, y el precio unitario solo si la
   // línea sigue al catálogo (`precioEditado` false; un override del usuario no se pisa). Todo salvo que el usuario haya
   // vuelto a editar mientras se guardaba (ese cambio queda pendiente y manda).
   private adoptSavedLine(saved: SaleInvoice): void {
@@ -799,6 +1042,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         ivaPct: pick(s.ivaPct, l.ivaPct),
         ivaCatalogoPct: pick(s.ivaCatalogoPct, l.ivaCatalogoPct),
         ivaEditado: pick(s.ivaEditado, l.ivaEditado),
+        taxes: pick(s.taxes, l.taxes),
         precioCatalogoCents: pick(s.precioCatalogoCents, l.precioCatalogoCents),
         precioEditado,
         precioUnitarioCents:
@@ -808,6 +1052,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
         next.ivaPct !== l.ivaPct ||
         next.ivaCatalogoPct !== l.ivaCatalogoPct ||
         next.ivaEditado !== l.ivaEditado ||
+        !sameTaxes(next.taxes, l.taxes) ||
         next.lineNo !== l.lineNo ||
         next.precioCatalogoCents !== l.precioCatalogoCents ||
         next.precioEditado !== l.precioEditado ||
@@ -828,15 +1073,40 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
     this.clientId.set(invoice.clientId);
     this.frozenClientName.set(invoice.clientName ?? null);
     this.frozenClientDocument.set(invoice.clientDocument ?? null);
+    this.clientContact.set({
+      address: invoice.clientAddress ?? null,
+      city: invoice.clientCity ?? null,
+      phone: invoice.clientPhone ?? null,
+      email: invoice.clientEmail ?? null,
+    });
     this.issuer.set(invoice.issuer ?? null);
+    this.verificationCode.set(invoice.verificationCode ?? null);
     this.supplierInvoiceNumber.set(invoice.supplierInvoiceNumber ?? '');
     this.date.set(invoice.date);
     this.lines.set(invoice.lines);
     this.serverTotals.set(invoice.totals ?? null);
+    const payment = invoice.payment ?? null;
+    this.paymentMethodId.set(payment?.methodId ?? null);
+    this.paymentMethodName.set(payment?.methodName ?? null);
+    this.applyWithholdings(invoice);
     this.version = invoice.version ?? null;
     this.annulReason.set(invoice.annulReason ?? null);
     this.dirty = false;
     this.saveState.set(invoice.status === 'BORRADOR' ? 'saved' : 'idle');
+  }
+
+  // Restaura casillas y selects desde las retenciones del back (el id del impuesto se empareja como texto con el catálogo)
+  private applyWithholdings(invoice: SaleInvoice): void {
+    const list = invoice.withholdings ?? [];
+    // Una casilla marcada SIN impuesto no existe en el back: un refresco no debe desmarcarla
+    const unsaved = this.withholdings().filter((c) => !this.withholdingTaxes()[c] && !list.some((w) => w.code === c));
+    this.withholdings.set([...list.map((w) => w.code as string), ...(invoice.status === 'BORRADOR' ? unsaved : [])]);
+    this.withholdingTaxes.set(Object.fromEntries(list.map((w) => [w.code, String(w.taxId)])));
+    this.restoredTaxes.set(
+      Object.fromEntries(list.map((w) => [w.code, { id: String(w.taxId), name: w.taxName, rate: w.ratePct }])),
+    );
+    this.serverWithholdings.set(list);
+    this.serverSubtotal.set(invoice.totals?.subtotalCents ?? null);
   }
 
   private toast(severity: 'success' | 'warn' | 'error', summary: string, detail: string): void {
@@ -849,8 +1119,14 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
 
   // Toast de error; ante un 409 por bloqueo optimista además se recarga la versión vigente del documento
   private fail(summary: string, e: unknown): void {
+    this.noteDuplicateSupplierNumber(e);
     this.toast('error', summary, this.errorMessage(e));
     if (isConcurrentModification(e)) this.reloadDocument();
+  }
+
+  // Un duplicado no rompe la pantalla: el borrador conserva lo ya guardado y el mensaje queda visible bajo el campo
+  private noteDuplicateSupplierNumber(e: unknown): void {
+    if (isDuplicateSupplierInvoice(e)) this.supplierNumberError.set(this.errorMessage(e));
   }
 
   private reloadDocument(): void {
@@ -871,4 +1147,7 @@ export class SaleInvoiceFormComponent implements OnInit, OnDestroy {
   // Helpers expuestos a la plantilla
   lineSubtotal = (line: SaleInvoiceLine): number => lineSubtotalOf(line, this.editable());
   toPesos = centsToPesos;
+  // Decimales a mostrar en el input de cantidad: 0 (enteros); una cantidad histórica con decimales se muestra tal cual
+  // (con maxFractionDigits=0 se vería redondeada) hasta que el usuario la corrija
+  qtyFractionDigits = (cantidad: number): number => (isWholeQty(cantidad) ? 0 : 3);
 }

@@ -88,6 +88,28 @@ export const flattenModernColors = (root: HTMLElement): void => {
 };
 
 /**
+ * html2canvas dibuja el texto con otras métricas que el navegador y lo baja dentro de las cajas con fondo
+ * (cabeceras azules de tablas y recuadro del título). Se fija un line-height en px (el computado, que es
+ * el que ve el usuario) y se compensa el desfase moviendo el texto con position:relative.
+ */
+export const alinearTextoDeCabeceras = (root: HTMLElement): void => {
+  const view = root.ownerDocument.defaultView;
+  if (!view) return;
+  const cajas = root.querySelectorAll<HTMLElement>('thead th, .bg-primary');
+  for (const caja of Array.from(cajas)) {
+    const estilo = view.getComputedStyle(caja);
+    const tamano = parseFloat(estilo.fontSize) || 12;
+    caja.style.lineHeight = `${Math.round(tamano * 1.2)}px`;
+    // Menos padding arriba y más abajo: sube el texto sin mover el fondo ni cambiar la altura de la caja
+    const desfase = Math.round(tamano * 0.3);
+    const arriba = parseFloat(estilo.paddingTop) || 0;
+    const abajo = parseFloat(estilo.paddingBottom) || 0;
+    caja.style.paddingTop = `${Math.max(0, arriba - desfase)}px`;
+    caja.style.paddingBottom = `${abajo + desfase}px`;
+  }
+};
+
+/**
  * Captura `element` y arma un PDF A4 vertical con márgenes de 10 mm. Si la hoja es más alta que una página,
  * se corta en tantas páginas como hagan falta sin deformar la imagen.
  */
@@ -105,6 +127,7 @@ export const buildInvoicePdf = async (element: HTMLElement): Promise<jsPDF> => {
       clonado.style.borderColor = 'transparent';
       clonado.style.borderRadius = '0';
       flattenModernColors(clonado);
+      alinearTextoDeCabeceras(clonado);
     },
   });
 

@@ -156,6 +156,11 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       invoice.clientId = client?.id ?? null;
       invoice.clientName = client?.name ?? null;
       invoice.clientDocument = client?.document ?? null;
+      // Contacto de ejemplo cuando el catálogo no lo trae (el back real lo refresca en vivo en el borrador)
+      invoice.clientAddress = client ? (client.address ?? 'CL 6 7 90') : null;
+      invoice.clientCity = client ? (client.city ?? 'Popayán') : null;
+      invoice.clientPhone = client ? (client.phone ?? '3001234567') : null;
+      invoice.clientEmail = client ? (client.email ?? 'contacto@ejemplo.com') : null;
       if (invoice.kind === 'PURCHASE') invoice.supplierInvoiceNumber = input.supplierInvoiceNumber?.trim() || null;
       invoice.date = input.date;
       // Pago: venta y compra, como el back
@@ -285,6 +290,13 @@ export class MockBillingSaleInvoiceApi extends BillingSaleInvoiceApi {
       nit: enterprise?.nit ?? '',
       dv: null,
       active: true,
+      address: 'CL 60 SUR 43 A 97',
+      city: 'Popayán',
+      department: 'Cauca',
+      phone: '(602) 8201234',
+      email: 'facturacion@empresa.com',
+      economicActivity: '1410',
+      logo: null, // el logo real lo sirve el back (/api/enterprises/logos/<key>)
     };
     for (const line of invoice.lines) line.subtotalCents = lineSubtotalCents(line); // congelado por línea, como el back
     invoice.totals = calcTotals(invoice.lines);

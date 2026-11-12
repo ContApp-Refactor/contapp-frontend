@@ -6,9 +6,14 @@ import { of, throwError } from 'rxjs';
 import { HttpResponse, HttpHeaders } from '@angular/common/http';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { CopyProcess } from '../models/CopyProcess';
+import { registerLocaleData } from '@angular/common';
+import localeEs from '@angular/common/locales/es';
+
+// La plantilla usa date:'es'; el spec debe registrar el locale (si no, NG0701).
+registerLocaleData(localeEs, 'es');
 
 const mockProcess: CopyProcess = {
-  id: 'proc-1',
+  idProceso: 'proc-1',
   tipo: 'BACKUP',
   estado: 'COMPLETADO',
   empresaOrigen: 'uuid-origen',
@@ -28,7 +33,9 @@ describe('CopyProcessListComponent', () => {
     const enterpriseSpy = jasmine.createSpyObj('EnterpriseService', [
       'getCopyProcesses', 'downloadCopyProcessBackup', 'restoreFromBackup',
     ]);
-    const messageSpy = jasmine.createSpyObj('MessageService', ['add']);
+    // MessageService real con `add` espiado: <p-toast> necesita los observables internos.
+    const messageSpy = new MessageService();
+    spyOn(messageSpy, 'add');
 
     enterpriseSpy.getCopyProcesses.and.returnValue(of([mockProcess]));
 
@@ -38,7 +45,12 @@ describe('CopyProcessListComponent', () => {
         { provide: EnterpriseService, useValue: enterpriseSpy },
         { provide: MessageService, useValue: messageSpy },
       ],
-    }).compileComponents();
+    })
+      // El componente declara providers: [MessageService]; hay que sustituirlo a nivel de componente
+      .overrideComponent(CopyProcessListComponent, {
+        set: { providers: [{ provide: MessageService, useValue: messageSpy }] },
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(CopyProcessListComponent);
     component = fixture.componentInstance;
@@ -126,6 +138,41 @@ describe('CopyProcessListComponent', () => {
     expect(messageService.add).toHaveBeenCalledWith(
       jasmine.objectContaining({ severity: 'error', detail: jasmine.stringContaining('corrupto') }),
     );
+  });
+
+  it('409 ENTERPRISE_NIT_ALREADY_EXISTS — deja el diálogo abierto con el mensaje del back', () => {
+    enterpriseService.restoreFromBackup.and.returnValue(throwError(() => ({
+      status: 409,
+      error: { code: 'ENTERPRISE_NIT_ALREADY_EXISTS', message: 'Ya tienes una empresa con NIT 900123456.' },
+    })));
+    component.restoreDialogVisible = true;
+    component.selectedProcess = mockProcess;
+    component.empresaDestinoInput = 'empresa';
+    component.confirmRestore();
+    expect(component.restoreNitConflict).toContain('900123456');
+    expect(component.restoreDialogVisible).toBeTrue();
+  });
+
+  it('422 BACKUP_UNSUPPORTED_MODULE — pide confirmación y reintenta con skipUnknownModules', () => {
+    enterpriseService.restoreFromBackup.and.returnValues(
+      throwError(() => ({ status: 422, error: { code: 'BACKUP_UNSUPPORTED_MODULE', message: "La copia incluye 'billing'" } })),
+      of({ ...mockProcess, tipo: 'RESTORE' }),
+    );
+    component.selectedProcess = mockProcess;
+    component.empresaDestinoInput = 'empresa';
+    component.confirmRestore();
+    expect(component.unsupportedModuleMessage).toContain('billing');
+    expect(component.skipUnknownModules).toBeFalse();
+    component.skipUnknownModules = true;
+    component.confirmRestore();
+    expect(enterpriseService.restoreFromBackup.calls.mostRecent().args[3]).toEqual(
+      jasmine.objectContaining({ skipUnknownModules: true }),
+    );
+  });
+
+  it('proceso con campos de módulo se considera v2 (informativo; la restauración en el lugar ya no depende de esto)', () => {
+    expect(component.isV2(mockProcess)).toBeFalse();
+    expect(component.isV2({ ...mockProcess, modulosTotales: 8, moduloActual: 'taxes' })).toBeTrue();
   });
 
   it('cancelar restauración limpia el estado (REQ-UI-RESTORE-01)', () => {

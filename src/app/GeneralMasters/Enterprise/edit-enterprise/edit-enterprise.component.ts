@@ -51,6 +51,8 @@ export class EditEnterpriseComponent implements OnInit {
   enterpriseForm!: FormGroup;
   personType: 'juridica' | 'natural' = 'juridica';
   selectedFile: File | null = null;
+  /** Intencion explicita de quitar el logo actual (se cancela al elegir un archivo nuevo). */
+  removeLogo: boolean = false;
   loading: boolean = false;
   enterpriseData: EnterpriseDetails | null = null;
   enterpriseId: string = '';
@@ -170,7 +172,7 @@ export class EditEnterpriseComponent implements OnInit {
       phone: [this.enterpriseData?.phone?.replace(/^\+57 /, '') || ''],
       email: [this.enterpriseData?.email || ''],
       subjects: [
-        this.enterpriseData?.subjects?.map((subject) => this.getEntityId(subject.id)) || [],
+        this.enterpriseData?.subjects?.map((subject) => subject.id) || [],
       ],
     });
 
@@ -208,9 +210,20 @@ export class EditEnterpriseComponent implements OnInit {
     const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
       this.selectedFile = file;
+      this.removeLogo = false;
     } else {
       this.selectedFile = null;
     }
+  }
+
+  /** El logo actual se muestra solo si existe y no se marco quitarlo. */
+  get hasLogo(): boolean {
+    return !!this.enterpriseData?.logo && !this.removeLogo;
+  }
+
+  onRemoveLogo(): void {
+    this.removeLogo = true;
+    this.selectedFile = null;
   }
 
   /** ====================================
@@ -240,9 +253,13 @@ export class EditEnterpriseComponent implements OnInit {
           });
         },
       });
+    } else if (this.removeLogo) {
+      // logo null + removeLogo: el back lo deja en null (logo null solo = no tocar).
+      this.doUpdate(null);
     } else {
       const existing = this.enterpriseData?.logo ?? null;
-      this.doUpdate(existing?.startsWith('http') ? existing : null);
+      // El back devuelve el logo como ruta relativa: se reenvia tal cual para no borrarlo
+      this.doUpdate(existing);
     }
   }
 
@@ -254,10 +271,11 @@ export class EditEnterpriseComponent implements OnInit {
         : `+57 ${f.phone}`
       : this.enterpriseData?.phone || '';
 
-    const subjectsIds =
-      f.subjects?.length > 0
-        ? f.subjects
-        : this.enterpriseData?.subjects?.map((subject) => this.getEntityId(subject.id)) || [];
+    // El control arranca con los ids de la empresa: lo que haya en el form es lo que se envia.
+    // Vaciar la seleccion envia [] (el back quita todas); solo si no existe el control se reenvian las actuales.
+    const subjectsIds: string[] = Array.isArray(f.subjects)
+      ? f.subjects
+      : this.enterpriseData?.subjects?.map((subject) => subject.id) || [];
 
     const updatedData: any = {
       name: f.name || this.enterpriseData?.name || '',
@@ -267,6 +285,7 @@ export class EditEnterpriseComponent implements OnInit {
       branch: this.enterpriseData?.branch || '',
       email: f.email || this.enterpriseData?.email || '',
       logo: logoUrl,
+      ...(this.removeLogo && !logoUrl ? { removeLogo: true } : {}),
       state: f.state || this.enterpriseData?.state || 'ACTIVE',
       mainActivity:
         f.mainActivity || this.enterpriseData?.mainActivity || undefined,

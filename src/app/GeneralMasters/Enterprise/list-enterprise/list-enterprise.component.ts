@@ -14,6 +14,17 @@ import { EnterpriseList } from '../models/EnterpriseList';
 import { HeaderComponent } from '../../../Core/Components/Header/header.component';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
+import {
+  BACKUP_INCLUDES_TEXT,
+  FALLBACK_MODULE_LABELS,
+  CopyErrorKind,
+  classifyProcessError,
+  moduleLabel,
+  parseCopyError,
+  progressDetail,
+  realProgress,
+} from '../utils/copy-process.utils';
+import { CopyProcess } from '../models/CopyProcess';
 
 import {
   LocalStorageMethods,
@@ -106,6 +117,30 @@ export class ListEnterpriseComponent implements OnInit {
   // Modal de nombre al crear empresa nueva desde backup
   showImportNameModal: boolean = false;
   importNameInput: string = '';
+  /** NIT destino opcional (para evitar el 409 ENTERPRISE_NIT_ALREADY_EXISTS). */
+  importNitInput: string = '';
+  /** Mensaje del back cuando el NIT ya existe; se muestra en el modal de nombre. */
+  importNitConflictMessage: string = '';
+
+  /** Confirmación explícita (checkbox) del borrado en "Restaurar sobre una empresa existente". */
+  importInplaceConfirmed: boolean = false;
+
+  // 422 módulo desconocido: confirmación explícita para omitirlos (skipUnknownModules)
+  showSkipUnknownModal: boolean = false;
+  skipUnknownMessage: string = '';
+  private lastImportRequest: { inplace: boolean; nombre?: string; nit?: string } | null = null;
+
+  // Diálogo previo a exportar/duplicar: qué incluye la copia
+  readonly backupIncludesText = BACKUP_INCLUDES_TEXT;
+  showCopyInfoModal: boolean = false;
+  copyInfoAction: 'export' | 'duplicate' | null = null;
+  copyInfoEnterprise: EnterpriseList | null = null;
+  backupModuleLabels: string[] = FALLBACK_MODULE_LABELS;
+
+  // Detalle de avance por módulo en los modales de carga
+  exportDetail: string = '';
+  importDetail: string = '';
+  duplicateDetail: string = '';
 
   constructor(
     private enterpriseService: EnterpriseService,
@@ -198,12 +233,12 @@ export class ListEnterpriseComponent implements OnInit {
       {
         label: 'Duplicar',
         icon: 'pi pi-copy',
-        command: () => this.duplicateEnterprise(this.selectedEnterpriseForMenu!),
+        command: () => this.openCopyInfo('duplicate', this.selectedEnterpriseForMenu!),
       },
       {
         label: 'Exportar',
         icon: 'pi pi-download',
-        command: () => this.startExport(this.selectedEnterpriseForMenu!),
+        command: () => this.openCopyInfo('export', this.selectedEnterpriseForMenu!),
       },
       {
         label: 'Compartir',
@@ -303,11 +338,55 @@ export class ListEnterpriseComponent implements OnInit {
     this.router.navigate(['/enterprise/edit']);
   }
 
+  /** Abre el diálogo que explica qué incluye la copia antes de exportar/duplicar. */
+  openCopyInfo(action: 'export' | 'duplicate', enterprise: EnterpriseList) {
+    if (!enterprise?.id) return;
+    this.copyInfoAction = action;
+    this.copyInfoEnterprise = enterprise;
+    this.showCopyInfoModal = true;
+    this.enterpriseService.getBackupModules().subscribe({
+      next: (modules) => {
+        const labels = [...(modules ?? [])]
+          .sort((a, b) => a.order - b.order)
+          .map((m) => moduleLabel(m.key))
+          .filter((l, i, arr) => !!l && arr.indexOf(l) === i);
+        this.backupModuleLabels = labels.length ? labels : FALLBACK_MODULE_LABELS;
+      },
+      error: () => {
+        this.backupModuleLabels = FALLBACK_MODULE_LABELS;
+      },
+    });
+  }
+
+  cancelCopyInfo() {
+    this.showCopyInfoModal = false;
+    this.copyInfoAction = null;
+    this.copyInfoEnterprise = null;
+  }
+
+  confirmCopyInfo() {
+    const enterprise = this.copyInfoEnterprise;
+    const action = this.copyInfoAction;
+    this.cancelCopyInfo();
+    if (!enterprise || !action) return;
+    if (action === 'duplicate') this.duplicateEnterprise(enterprise);
+    else this.startExport(enterprise);
+  }
+
+  /** Progreso real (campo `progreso`) o, si falta, el estimado por fase. */
+  private computeProgress(p: CopyProcess, base: number, perPhase: number, max: number): number | undefined {
+    const real = realProgress(p);
+    if (real !== undefined) return Math.min(real, max);
+    if (p.faseActual) return Math.min(base + p.faseActual * perPhase, max);
+    return undefined;
+  }
+
   duplicateEnterprise(enterprise: EnterpriseList) {
     if (!enterprise.id) return;
 
     this.duplicateEnterpriseName = enterprise.name || 'empresa';
     this.duplicateProgress = 0;
+    this.duplicateDetail = '';
     this.showDuplicateLoadingModal = true;
 
     const destinationName = `${enterprise.name} (copia)`;
@@ -319,8 +398,10 @@ export class ListEnterpriseComponent implements OnInit {
         const poll = setInterval(() => {
           this.enterpriseService.getCopyProcessStatus(process.idProceso).subscribe({
             next: (updated) => {
-              if (updated.estado === 'EN_PROCESO' && updated.faseActual) {
-                this.duplicateProgress = Math.min(5 + (updated.faseActual * 22), 95);
+              if (updated.estado === 'EN_PROCESO') {
+                const pr = this.computeProgress(updated, 5, 22, 95);
+                if (pr !== undefined) this.duplicateProgress = pr;
+                this.duplicateDetail = progressDetail(updated);
               }
 
               if (updated.estado === 'COMPLETADO') {
@@ -342,20 +423,23 @@ export class ListEnterpriseComponent implements OnInit {
                   severity: 'error',
                   summary: 'Error al duplicar',
                   detail: updated.errorResumen || `El proceso terminó con estado: ${updated.estado}`,
+                  life: 8000,
                 });
               }
             },
-            error: () => {
+            error: (err) => {
               clearInterval(poll);
               this.showDuplicateLoadingModal = false;
-              this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo consultar el estado del proceso.' });
+              const e = parseCopyError(err, 'No se pudo consultar el estado del proceso.');
+              this.messageService.add({ severity: 'error', summary: 'Error', detail: e.message });
             },
           });
         }, 2000);
       },
-      error: () => {
+      error: (err) => {
         this.showDuplicateLoadingModal = false;
-        this.messageService.add({ severity: 'error', summary: 'Error al duplicar', detail: 'No se pudo iniciar el proceso de duplicación.' });
+        const e = parseCopyError(err, 'No se pudo iniciar el proceso de duplicación.');
+        this.messageService.add({ severity: 'error', summary: 'Error al duplicar', detail: e.message, life: 8000 });
       },
     });
   }
@@ -706,16 +790,21 @@ export class ListEnterpriseComponent implements OnInit {
     this.selectedZipFile = null;
     this.importMode = 'nueva';
     this.enterpriseForInplaceRestore = null;
+    this.importInplaceConfirmed = false;
+    this.importNitInput = '';
+    this.importNitConflictMessage = '';
   }
 
   proceedImport(): void {
     if (this.importMode === 'inplace') {
       if (!this.enterpriseForInplaceRestore) return;
+      this.importInplaceConfirmed = false;
       this.showImportOptionsModal = false;
       this.showImportInplaceWarning = true;
     } else {
       const filename = this.selectedZipFile?.name ?? '';
       this.importNameInput = filename.replace(/-backup\.zip$/i, '').replace(/\.zip$/i, '');
+      this.importNitConflictMessage = '';
       this.showImportOptionsModal = false;
       this.showImportNameModal = true;
     }
@@ -729,7 +818,56 @@ export class ListEnterpriseComponent implements OnInit {
   confirmImportWithName(): void {
     if (!this.importNameInput.trim()) return;
     this.showImportNameModal = false;
-    this.confirmImport(false, this.importNameInput.trim());
+    this.confirmImport(false, this.importNameInput.trim(), this.importNitInput.trim() || undefined);
+  }
+
+  /** Cierra el modal de nombre/NIT destino sin importar y limpia el archivo. */
+  cancelImportNameAndClose(): void {
+    this.showImportNameModal = false;
+    this.importNitConflictMessage = '';
+    this.closeImportOptionsModal();
+  }
+
+  /** 422 módulo desconocido: el usuario acepta omitirlos y reintenta. */
+  confirmSkipUnknownModules(): void {
+    const last = this.lastImportRequest;
+    this.showSkipUnknownModal = false;
+    if (!last) return;
+    this.confirmImport(last.inplace, last.nombre, last.nit, true);
+  }
+
+  cancelSkipUnknownModules(): void {
+    this.showSkipUnknownModal = false;
+    this.lastImportRequest = null;
+    this.closeImportOptionsModal();
+  }
+
+  /** Maneja un error (HTTP o de proceso) de importación con tratamiento por tipo. */
+  private handleImportError(kind: CopyErrorKind, message: string): void {
+    this.showImportLoadingModal = false;
+    // Restaurar sobre una empresa existente: el modal de nombre/NIT es solo para empresa nueva.
+    if (this.lastImportRequest?.inplace && kind === 'NIT_EXISTS') {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'NIT en uso',
+        detail: message,
+        life: 8000,
+      });
+      return;
+    }
+    if (kind === 'NIT_EXISTS') {
+      // Ofrecer cambiar el NIT/nombre destino
+      this.importNitConflictMessage = message;
+      this.showImportNameModal = true;
+      return;
+    }
+    // PURGE_UNSUPPORTED (422) cae al aviso final con el mensaje del back (nombre del módulo), sin ofrecer omitirlo.
+    if (kind === 'UNSUPPORTED_MODULE') {
+      this.skipUnknownMessage = message;
+      this.showSkipUnknownModal = true;
+      return;
+    }
+    this.messageService.add({ severity: 'error', summary: 'Error de importación', detail: message, life: 8000 });
   }
 
   cancelImportInplaceWarning(): void {
@@ -738,22 +876,30 @@ export class ListEnterpriseComponent implements OnInit {
   }
 
   confirmImportInplace(): void {
+    // Sin la confirmación explícita no se borra nada.
+    if (!this.importInplaceConfirmed) return;
     this.showImportInplaceWarning = false;
     this.confirmImport(true);
   }
 
-  confirmImport(inplace = false, nombreDestino?: string): void {
+  confirmImport(inplace = false, nombreDestino?: string, nitDestino?: string, skipUnknownModules = false): void {
     if (!this.selectedZipFile) return;
+
+    this.lastImportRequest = { inplace, nombre: nombreDestino, nit: nitDestino };
 
     const empresaDestino = inplace
       ? String(this.enterpriseForInplaceRestore?.id ?? crypto.randomUUID())
       : crypto.randomUUID();
 
     this.importProgress = 10;
+    this.importDetail = '';
     this.showImportLoadingModal = true;
 
     this.enterpriseService
-      .restoreFromZipUpload(this.selectedZipFile, empresaDestino, inplace, nombreDestino)
+      .restoreFromZipUpload(this.selectedZipFile, empresaDestino, inplace, nombreDestino, {
+        nitDestino,
+        skipUnknownModules,
+      })
       .subscribe({
         next: (process) => {
           this.importProgress = 20;
@@ -761,8 +907,10 @@ export class ListEnterpriseComponent implements OnInit {
           const pollingInterval = setInterval(() => {
             this.enterpriseService.getCopyProcessStatus(process.idProceso).subscribe({
               next: (updated) => {
-                if (updated.estado === 'EN_PROCESO' && updated.faseActual) {
-                  this.importProgress = Math.min(20 + (updated.faseActual * 18), 90);
+                if (updated.estado === 'EN_PROCESO') {
+                  const pr = this.computeProgress(updated, 20, 18, 95);
+                  if (pr !== undefined) this.importProgress = pr;
+                  this.importDetail = progressDetail(updated);
                 }
                 if (updated.estado === 'COMPLETADO') {
                   clearInterval(pollingInterval);
@@ -776,7 +924,7 @@ export class ListEnterpriseComponent implements OnInit {
                       severity: 'success',
                       summary: 'Importación completada',
                       detail: inplace
-                        ? 'La empresa fue restaurada sobre sí misma correctamente.'
+                        ? 'La empresa existente fue restaurada con los datos de la copia correctamente.'
                         : 'La empresa fue restaurada correctamente.',
                     });
                     this.getEnterprises();
@@ -788,33 +936,22 @@ export class ListEnterpriseComponent implements OnInit {
                   updated.estado === 'CANCELADO'
                 ) {
                   clearInterval(pollingInterval);
-                  this.showImportLoadingModal = false;
-                  this.messageService.add({
-                    severity: 'error',
-                    summary: 'Error de importación',
-                    detail: updated.errorResumen || `El proceso terminó con estado: ${updated.estado}`,
-                  });
+                  const detail = updated.errorResumen || `El proceso terminó con estado: ${updated.estado}`;
+                  this.handleImportError(classifyProcessError(updated.errorResumen), detail);
                 }
               },
-              error: () => {
+              error: (err) => {
                 clearInterval(pollingInterval);
                 this.showImportLoadingModal = false;
-                this.messageService.add({
-                  severity: 'error',
-                  summary: 'Error',
-                  detail: 'No se pudo consultar el estado del proceso.',
-                });
+                const e = parseCopyError(err, 'No se pudo consultar el estado del proceso.');
+                this.messageService.add({ severity: 'error', summary: 'Error', detail: e.message });
               },
             });
           }, 2000);
         },
         error: (err) => {
-          this.showImportLoadingModal = false;
-          this.messageService.add({
-            severity: 'error',
-            summary: 'Error de importación',
-            detail: 'No se pudo subir el archivo ZIP.',
-          });
+          const e = parseCopyError(err, 'No se pudo subir el archivo ZIP.');
+          this.handleImportError(e.kind, e.message);
           console.error('Error al importar ZIP:', err);
         },
       });
@@ -842,6 +979,7 @@ export class ListEnterpriseComponent implements OnInit {
 
     this.exportEnterpriseName = enterprise.name || 'empresa';
     this.exportProgress = 0;
+    this.exportDetail = '';
     this.showExportLoadingModal = true;
     this.showExportErrorModal = false;
 
@@ -857,8 +995,10 @@ export class ListEnterpriseComponent implements OnInit {
           this.enterpriseService.getCopyProcessStatus(process.idProceso).subscribe({
             next: (updatedProcess) => {
               // Progreso real basado en faseActual (1-4 fases = 20-95%)
-              if (updatedProcess.estado === 'EN_PROCESO' && updatedProcess.faseActual) {
-                this.exportProgress = Math.min(20 + (updatedProcess.faseActual * 18), 90);
+              if (updatedProcess.estado === 'EN_PROCESO') {
+                const pr = this.computeProgress(updatedProcess, 20, 18, 95);
+                if (pr !== undefined) this.exportProgress = pr;
+                this.exportDetail = progressDetail(updatedProcess);
               }
 
               if (updatedProcess.estado === 'COMPLETADO') {
@@ -893,7 +1033,7 @@ export class ListEnterpriseComponent implements OnInit {
               this.messageService.add({
                 severity: 'error',
                 summary: 'Error',
-                detail: 'No se pudo consultar el estado del proceso.',
+                detail: parseCopyError(err, 'No se pudo consultar el estado del proceso.').message,
               });
             },
           });
@@ -907,7 +1047,7 @@ export class ListEnterpriseComponent implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: 'Error de exportación',
-          detail: 'No se pudo iniciar el proceso de backup.',
+          detail: parseCopyError(err, 'No se pudo iniciar el proceso de backup.').message,
         });
       },
     });

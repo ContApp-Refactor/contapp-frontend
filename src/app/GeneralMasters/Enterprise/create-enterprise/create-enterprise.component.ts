@@ -136,7 +136,7 @@ export class CreateEnterpriseComponent implements OnInit {
       country: [null],
       department: [null, Validators.required],
       city: [null, Validators.required],
-      subject: [null as number | null],
+      subjects: [[] as string[]],
       inventoryConfigurationType: [
         DEFAULT_INVENTORY_CONFIGURATION_TYPE,
         Validators.required,
@@ -354,7 +354,7 @@ export class CreateEnterpriseComponent implements OnInit {
         country: f.country,
       },
 
-      subjects: f.subject ? [f.subject] : [],
+      subjects: Array.isArray(f.subjects) ? f.subjects : [],
     };
 
     this.enterpriseService.createEnterprise(enterpriseDetailsApi).subscribe({

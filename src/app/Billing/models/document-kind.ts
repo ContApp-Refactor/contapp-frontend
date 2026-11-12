@@ -30,7 +30,8 @@ export interface DocumentKindConfig {
   invoiceTitle: string; // factura emitida o anulada
   headerHint: string; // texto guía del borrador
   refPriceLabel: string; // columna de referencia del catálogo (precio de venta o costo)
-  previewTitle: string; // encabezado de la vista previa de la factura
+  previewTitle: string; // encabezado de la vista previa de la factura (también nombra el archivo PDF)
+  sheetTitle: string; // título del recuadro de la hoja de la factura
   invoiceFooter: string; // pie de la vista previa de una factura emitida
   returnTitle: string; // título de la devolución (con número)
   newReturnTitle: string;
@@ -57,6 +58,7 @@ export const DOCUMENT_KIND_CONFIG: Record<DocumentKind, DocumentKindConfig> = {
     headerHint: 'Completa el cliente y los ítems.',
     refPriceLabel: 'Precio catálogo',
     previewTitle: 'FACTURA DE VENTA',
+    sheetTitle: 'FACTURA ELECTRÓNICA DE VENTA',
     invoiceFooter: 'Gracias por su compra.',
     returnTitle: 'Devolución',
     newReturnTitle: 'Nueva devolución',
@@ -81,6 +83,7 @@ export const DOCUMENT_KIND_CONFIG: Record<DocumentKind, DocumentKindConfig> = {
     headerHint: 'Completa el proveedor, el N.º de factura del proveedor y los ítems.',
     refPriceLabel: 'Costo catálogo',
     previewTitle: 'FACTURA DE COMPRA',
+    sheetTitle: 'FACTURA ELECTRÓNICA DE COMPRA',
     invoiceFooter: 'Factura de compra registrada.',
     returnTitle: 'Devolución de compra',
     newReturnTitle: 'Nueva devolución de compra',

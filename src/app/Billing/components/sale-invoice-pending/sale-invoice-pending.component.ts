@@ -71,6 +71,22 @@ export class SaleInvoicePendingComponent implements OnInit {
   // Borrador que se muestra en el modal "Vista factura" y su contraparte (cliente o proveedor) completa
   previewInvoice = signal<SaleInvoice | null>(null);
   previewClient = signal<BillingClient | null>(null);
+  // Contraparte del catálogo + contacto que trae la factura (si el catálogo no la encuentra se arma con los datos de la factura)
+  previewClientWithContact = computed<BillingClient | null>(() => {
+    const inv = this.previewInvoice();
+    const live = this.previewClient();
+    if (!inv) return live;
+    const contact = {
+      address: inv.clientAddress ?? null,
+      city: inv.clientCity ?? null,
+      phone: inv.clientPhone ?? null,
+      email: inv.clientEmail ?? null,
+    };
+    if (live) return { ...live, ...contact };
+    return inv.clientName
+      ? { id: inv.clientId ?? '', name: inv.clientName, document: inv.clientDocument ?? '', ...contact }
+      : null;
+  });
   previewWithholdings = computed(() => withholdingRowsOf(this.previewInvoice()?.withholdings));
 
   // true cuando la tabla se muestra dentro del menú de Facturación (sin título de página ni botón volver)

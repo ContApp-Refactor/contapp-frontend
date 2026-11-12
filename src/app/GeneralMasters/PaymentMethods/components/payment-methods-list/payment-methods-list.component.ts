@@ -1,7 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { safeReturnTo } from '../../../../Billing/utils/return-trail';
 import { PaymentMethodsServiceService, PageResponse } from '../../services/payment-methods-service.service';
 import { PaymentMethodsValidationMessagesService } from '../../services/payment-methods-validation-messages.service';
 import { ChartAccountService } from '../../../AccountCatalogue/services/chart-account.service';
@@ -77,6 +78,7 @@ export class PaymentMethodsListComponent implements OnInit {
     private readonly confirmationService: ConfirmationService,
     private readonly localStorageMethod: LocalStorageMethods,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     public readonly paymentMethodsValidationMessagesService: PaymentMethodsValidationMessagesService,
     private readonly helpCenterService: HelpCenterService
   ) {
@@ -84,6 +86,7 @@ export class PaymentMethodsListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.returnTo = safeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'));
     this.enterpriseId = this.localStorageMethod.getIdEnterprise();
     if (this.enterpriseId) {
       this.loadAccountingAccounts();
@@ -187,13 +190,20 @@ export class PaymentMethodsListComponent implements OnInit {
     }
   }
 
+  // Ruta segura para "Volver a factura" (solo si llegó con ?returnTo=/billing/...)
+  returnTo: string | null = null;
+
+  goBackToInvoice(): void {
+    if (this.returnTo) this.router.navigateByUrl(this.returnTo);
+  }
+
   navigateToCreate(): void {
-    this.router.navigate(['/gen-masters/payment-methods/create']);
+    this.router.navigate(['/gen-masters/payment-methods/create'], { queryParamsHandling: 'preserve' });
   }
 
   navigateToEdit(paymentMethod: PaymentMethod): void {
     if (!paymentMethod.id) return;
-    this.router.navigate(['/gen-masters/payment-methods/edit', paymentMethod.id]);
+    this.router.navigate(['/gen-masters/payment-methods/edit', paymentMethod.id], { queryParamsHandling: 'preserve' });
   }
 
   confirmDelete(paymentMethod: PaymentMethod): void {

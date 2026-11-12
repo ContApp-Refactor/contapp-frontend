@@ -17,9 +17,11 @@ import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
 import { BillingSaleInvoiceApi } from '../../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../../services/billing-sale-return.api';
 import { billingErrorMessage, isConcurrentModification } from '../../utils/billing-error';
-import { roundQty } from '../../utils/money';
+import { ONLY_FRACTION_LEFT_MESSAGE } from '../../utils/full-return';
+import { MIN_QUANTITY, isWholeQty, wholeQty } from '../../utils/money';
 import { calcReturnTotals, returnLineSubtotalOf } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 
 type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
@@ -54,6 +56,7 @@ const todayIso = (): string => {
     TableModule,
     CopCentsPipe,
     BillingStatusBadgeComponent,
+    BillingTaxBreakdownComponent,
   ],
   providers: [ConfirmationService],
   templateUrl: './sale-return-form.component.html',
@@ -95,7 +98,8 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
   editable = computed(() => this.status() === 'BORRADOR');
   totals = computed(() => (this.editable() ? calcReturnTotals(this.rows()) : (this.serverTotals() ?? calcReturnTotals(this.rows()))));
   // "Devolver todo" tiene sentido si queda algo por devolver que aún no esté en las casillas
-  canReturnAll = computed(() => this.rows().some((r) => r.available > r.cantidadDevuelta));
+  // (en unidades enteras: una fracción < 1 de una factura histórica no cuenta)
+  canReturnAll = computed(() => this.rows().some((r) => wholeQty(r.available) > r.cantidadDevuelta));
 
   private dirty = false;
   private version: number | null = null; // versión del borrador según la última respuesta del back (bloqueo optimista)
@@ -144,8 +148,13 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
       .subscribe({
         next: ([invoice, availability]) => {
           this.kind.set(invoice.kind); // la factura manda sobre la ruta
-          if (!availability.some((a) => a.available > 0)) {
-            this.toast('warn', 'Sin cantidades disponibles', 'Esta factura ya fue devuelta por completo.');
+          if (!availability.some((a) => wholeQty(a.available) >= MIN_QUANTITY)) {
+            const onlyFractions = availability.some((a) => a.available > 0);
+            this.toast(
+              'warn',
+              'Sin cantidades disponibles',
+              onlyFractions ? ONLY_FRACTION_LEFT_MESSAGE : 'Esta factura ya fue devuelta por completo.',
+            );
             this.router.navigate([this.cfg().basePath, invoiceId]);
             return;
           }
@@ -181,6 +190,7 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
               next: (availability) => {
+                let adjusted = false;
                 this.rows.set(
                   availability.map((a) => {
                     // Se enlaza por lineNo de la factura original (sourceLineNo); sin él (datos antiguos) por producto
@@ -188,10 +198,22 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
                       saleReturn.lines.find((l) =>
                         l.sourceLineNo != null ? l.sourceLineNo === a.lineNo : l.productId === a.productId,
                       )?.cantidadDevuelta ?? 0;
-                    return { ...a, cantidadDevuelta: Math.min(saved, a.available) };
+                    const capped = Math.min(saved, a.available);
+                    // Borrador histórico con decimales: se lleva a la parte entera (Inventario solo admite enteros)
+                    const whole = Math.min(wholeQty(capped), this.maxReturnable(a));
+                    if (whole !== capped) adjusted = true;
+                    return { ...a, cantidadDevuelta: whole };
                   }),
                 );
                 this.loading.set(false);
+                if (adjusted) {
+                  this.toast(
+                    'warn',
+                    'Cantidades ajustadas',
+                    'Inventario solo admite cantidades enteras: las cantidades con decimales del borrador se ajustaron a la parte entera.',
+                  );
+                  this.markDirty(); // se guarda el ajuste
+                }
               },
               error: (e) => {
                 this.toast('error', 'No se pudo cargar la disponibilidad', this.errorMessage(e));
@@ -201,7 +223,7 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.toast('error', 'Devolución no encontrada', 'No existe la devolución solicitada.');
-          if (!reload) this.router.navigate(['/billing/returns']);
+          if (!reload) this.router.navigate([`${this.cfg().basePath}/returns`]);
         },
       });
   }
@@ -218,22 +240,30 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
     this.markDirty();
   }
 
-  // La cantidad se limita a [0, disponible] y admite hasta 3 decimales; 0 = no se devuelve esa línea (no se envía al back)
+  // Inventario solo admite cantidades ENTERAS: la cantidad se limita a [0, parte entera del disponible] y un valor con
+  // decimales se toma por su parte entera; 0 = no se devuelve esa línea (no se envía al back)
   setQuantity(index: number, value: number | null): void {
     this.rows.update((rows) =>
       rows.map((r, i) =>
-        i === index ? { ...r, cantidadDevuelta: Math.min(r.available, Math.max(0, roundQty(value ?? 0))) } : r,
+        i === index ? { ...r, cantidadDevuelta: Math.min(this.maxReturnable(r), Math.max(0, wholeQty(value ?? 0))) } : r,
       ),
     );
     this.markDirty();
   }
 
-  // Una sola acción: llena todas las casillas con lo disponible. Después se puede ajustar cada cantidad a mano.
+  // Una sola acción: llena todas las casillas con lo disponible (entero). Después se puede ajustar cada cantidad a mano.
+  // En una factura histórica con decimales (disponible 2.5) se ofrece la parte entera (2): la fracción no se puede devolver.
   returnAll(): void {
     if (!this.editable() || !this.canReturnAll()) return;
-    this.rows.update((rows) => rows.map((r) => ({ ...r, cantidadDevuelta: r.available })));
+    this.rows.update((rows) => rows.map((r) => ({ ...r, cantidadDevuelta: this.maxReturnable(r) })));
     this.markDirty();
   }
+
+  /** Máximo que se puede devolver en la fila: la parte entera de lo disponible. */
+  maxReturnable = (row: Pick<ReturnRow, 'available'>): number => wholeQty(row.available);
+
+  // Decimales a mostrar en la casilla: 0 (enteros); un borrador histórico con decimales se muestra tal cual
+  qtyFractionDigits = (cantidad: number): number => (isWholeQty(cantidad) ? 0 : 3);
 
   // --- acciones ---
 
@@ -315,6 +345,10 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
 
   private validateForEmit(): string | null {
     if (!this.rows().some((r) => r.cantidadDevuelta > 0)) return 'Indica la cantidad a devolver de al menos un producto.';
+    // Un borrador histórico puede traer decimales: Inventario los rechazaría al emitir
+    if (this.rows().some((r) => !isWholeQty(r.cantidadDevuelta))) {
+      return 'Inventario solo admite cantidades enteras: corrige las cantidades con decimales antes de emitir.';
+    }
     if (!this.reason().trim()) return 'El motivo de la devolución es obligatorio.';
     return null;
   }
@@ -405,6 +439,7 @@ export class SaleReturnFormComponent implements OnInit, OnDestroy {
           precioUnitarioCents: l.precioUnitarioCents,
           ivaPct: l.ivaPct,
           ...(l.subtotalCents != null ? { subtotalCents: l.subtotalCents } : {}),
+          ...(l.taxes?.length ? { taxes: l.taxes } : {}), // desglose heredado de la línea original
         })),
       );
     }

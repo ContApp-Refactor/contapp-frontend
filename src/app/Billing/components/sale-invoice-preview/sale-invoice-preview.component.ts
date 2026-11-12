@@ -1,18 +1,42 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
-import { BillingClient, BillingIssuer, InvoiceStatus, InvoiceTotals, SaleInvoiceLine } from '../../models/billing-sale-invoice.model';
+import {
+  BillingClient,
+  BillingIssuer,
+  BillingPayment,
+  InvoiceStatus,
+  InvoiceTotals,
+  SaleInvoiceLine,
+} from '../../models/billing-sale-invoice.model';
 import { DOCUMENT_KIND_CONFIG, DocumentKind } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
-import { calcTotals, lineSubtotalOf } from '../../utils/money';
+import { buildInvoicePdf, invoicePdfFileName } from '../../utils/invoice-pdf';
+import { WithholdingRow, calcTotals, lineSubtotalOf, taxSummaryRows, withTotalsNet } from '../../utils/money';
+import { paymentSummary } from '../../utils/payment';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
+import { BillingTaxSummaryComponent } from '../billing-tax-summary/billing-tax-summary.component';
 
 // Vista previa de la factura tal como se vería impresa. Solo lectura: recibe el estado
 // actual del formulario por inputs y no emite nada.
 @Component({
   selector: 'app-sale-invoice-preview',
-  imports: [CopCentsPipe, BillingStatusBadgeComponent],
+  imports: [ButtonModule, CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent, BillingTaxSummaryComponent],
   template: `
+    <!-- Acciones arriba a la derecha, fuera de la hoja (#sheet): no entran en el PDF -->
+    <div class="mx-auto mb-12 flex justify-end" style="max-width: 800px">
+      <p-button
+        label="Imprimir"
+        icon="pi pi-print"
+        [loading]="printing()"
+        [disabled]="printing()"
+        (onClick)="print()"
+      ></p-button>
+    </div>
     <div
+      #sheet
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
       style="max-width: 800px"
     >
@@ -65,6 +89,10 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
           @if (kind() === 'PURCHASE') {
             <p class="text-gray-600">N.º factura del proveedor: {{ supplierInvoiceNumber() || '—' }}</p>
           }
+          <!-- Método de pago: facturas de venta y compra (dentro de la hoja, así sale también en el PDF) -->
+          @if (kind() === 'SALE' || kind() === 'PURCHASE') {
+            <p class="text-gray-600" data-testid="preview-payment">Método de pago: {{ paymentText() }}</p>
+          }
         </div>
 
         <!-- Líneas -->
@@ -86,7 +114,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
                 <td class="p-8">{{ line.productName }}</td>
                 <td class="p-8 text-right">{{ line.cantidad }}</td>
                 <td class="p-8 text-right">{{ line.precioUnitarioCents | copCents }}</td>
-                <td class="p-8 text-right">{{ line.ivaPct != null ? line.ivaPct + '%' : '—' }}</td>
+                <td class="p-8 text-right">
+                  <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
+                </td>
                 <td class="p-8 text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
               </tr>
             } @empty {
@@ -101,22 +131,16 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
         </table>
 
         <!-- Totales -->
-        <div class="flex justify-end mt-16">
-          <div class="w-full flex flex-col gap-8" style="max-width: 280px">
-            <div class="flex justify-between">
-              <span class="text-gray-600">Subtotal:</span>
-              <span class="font-semibold">{{ shownTotals().subtotalCents | copCents }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-600">Impuesto:</span>
-              <span class="font-semibold">{{ shownTotals().ivaCents | copCents }}</span>
-            </div>
-            <div class="flex justify-between items-center p-8 rounded-md bg-gray-100 text-lg">
-              <span class="font-bold text-primary">TOTAL:</span>
-              <span class="font-extrabold text-primary">{{ shownTotals().totalCents | copCents }}</span>
-            </div>
-          </div>
-        </div>
+        <app-billing-tax-summary
+          variant="print"
+          [rows]="taxRows()"
+          [subtotalCents]="shownTotals().subtotalCents"
+          [taxCents]="shownTotals().ivaCents"
+          [totalCents]="shownTotals().totalCents"
+          [withholdings]="withholdings()"
+          [verificationCode]="status() === 'BORRADOR' ? null : verificationCode()"
+          [qrPlaceholder]="status() === 'BORRADOR'"
+        ></app-billing-tax-summary>
 
         <!-- Pie -->
         <p class="mt-32 pt-12 border-t border-gray-200 text-center text-xs text-gray-500">
@@ -146,6 +170,10 @@ export class SaleInvoicePreviewComponent {
   lines = input.required<SaleInvoiceLine[]>();
   totals = input<InvoiceTotals | null>(null); // los del back; solo mandan si el documento no es borrador
   issuer = input<BillingIssuer | null>(null); // emisor congelado al emitir (RN-06); null en borrador
+  payment = input<BillingPayment | null>(null); // forma de pago (venta y compra); null = sin dato => "—"
+  withholdings = input<WithholdingRow[]>([]); // retenciones a mostrar (con signo menos); vacío = sin retenciones
+
+  verificationCode = input<string | null>(null); // string opaco del back (emitidas/anuladas); null = sin QR (docs viejos)
 
   // El emisor del documento emitido es el congelado por el back; los datos de la empresa en localStorage
   // quedan solo como respaldo (borradores y documentos sin emisor)
@@ -158,11 +186,35 @@ export class SaleInvoicePreviewComponent {
     return issuer.nit ? (issuer.dv ? `${issuer.nit}-${issuer.dv}` : issuer.nit) : '';
   });
 
+  private readonly messages = inject(MessageService, { optional: true });
+  private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
+  readonly printing = signal(false);
+  // Constructor del PDF; se expone para poder sustituirlo en pruebas
+  pdfBuilder = buildInvoicePdf;
+
+  // Genera y descarga el PDF de la hoja tal como se ve (incluida la marca de agua). No toca el estado de la factura.
+  async print(): Promise<void> {
+    if (this.printing()) return;
+    this.printing.set(true);
+    try {
+      const pdf = await this.pdfBuilder(this.sheet().nativeElement);
+      pdf.save(invoicePdfFileName(this.cfg().previewTitle, this.number()));
+    } catch (error) {
+      console.error('No se pudo generar el PDF de la factura', error);
+      this.messages?.add({ severity: 'error', summary: 'Imprimir', detail: 'No se pudo generar el PDF. Inténtalo de nuevo.' });
+    } finally {
+      this.printing.set(false);
+    }
+  }
+
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.kind()]);
+  paymentText = computed(() => paymentSummary(this.payment()));
   shownTotals = computed(() => {
     const server = this.totals();
-    return this.status() !== 'BORRADOR' && server ? server : calcTotals(this.lines());
+    // Emitida/anulada: manda el back (totalCents ya neto). Borrador: se calcula y se restan las retenciones
+    return this.status() !== 'BORRADOR' && server ? server : withTotalsNet(calcTotals(this.lines()), this.withholdings());
   });
+  taxRows = computed(() => taxSummaryRows(this.lines(), this.status() === 'BORRADOR'));
   watermark = computed(() => {
     const s = this.status();
     return s === 'BORRADOR' ? 'Borrador' : s === 'ANULADA' ? 'Anulada' : null;

@@ -2,7 +2,7 @@
 // de nota crédito (NC-) en ventas o nota débito (DC-) en compras. Los montos se guardan en CENTAVOS (enteros).
 // Estos modelos sirven a devoluciones de venta Y de compra (ver `kind`).
 
-import { BillingIssuer, InvoiceStatus, InvoiceTotals } from './billing-sale-invoice.model';
+import { BillingIssuer, BillingLineTax, InvoiceStatus, InvoiceTotals } from './billing-sale-invoice.model';
 import { DocumentKind } from './document-kind';
 
 // Estado de devolución de una factura. Se CALCULA (ver utils/sale-return.ts), nunca se guarda.
@@ -17,6 +17,7 @@ export interface SaleReturnLine {
   precioUnitarioCents: number; // congelado de la línea original
   ivaPct: number; // congelado de la línea original
   subtotalCents?: number; // del back: subtotal de la línea; en devoluciones no editables manda sobre el cálculo local
+  taxes?: BillingLineTax[]; // desglose heredado de la línea original; vacío/ausente => valor único ivaPct
 }
 
 export interface SaleReturn {
@@ -55,6 +56,7 @@ export interface ReturnAvailabilityLine {
   available: number; // sold - returned
   precioUnitarioCents: number;
   ivaPct: number;
+  taxes?: BillingLineTax[]; // desglose de la línea original que heredará la devolución
 }
 
 // Lo que el front envía al guardar un borrador (crea si no hay id)

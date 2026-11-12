@@ -31,6 +31,8 @@ export abstract class BillingSaleReturnApi {
 
   /** BORRADOR -> EMITIDA: valida y asigna el número consecutivo (NC- venta, DC- compra). Emitir dos veces devuelve el documento. */
   abstract emit(id: string, version?: number | null): Observable<SaleReturn>;
+  // PENDIENTE DE DECISION (nota 15): la UI ya no ofrece anular una devolucion. Se conserva el contrato y el endpoint del
+  // back hasta confirmar si se elimina o se deja; no lo uses desde pantallas sin esa confirmacion.
   /** EMITIDA -> ANULADA: requiere motivo. Libera las cantidades devueltas. */
   abstract annul(id: string, reason: string, version?: number | null): Observable<SaleReturn>;
 }

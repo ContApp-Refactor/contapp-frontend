@@ -1,18 +1,33 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { MessageService } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
 import { LocalStorageMethods } from '../../../Shared/Methods/local-storage.method';
 import { SaleReturn } from '../../models/billing-sale-return.model';
 import { DOCUMENT_KIND_CONFIG } from '../../models/document-kind';
 import { CopCentsPipe } from '../../pipes/cop-cents.pipe';
+import { buildInvoicePdf, invoicePdfFileName } from '../../utils/invoice-pdf';
 import { returnLineSubtotalOf, returnTotals } from '../../utils/sale-return';
 import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-status-badge.component';
+import { BillingTaxBreakdownComponent } from '../billing-tax-breakdown/billing-tax-breakdown.component';
 
 // Vista previa de la devolución (nota crédito) tal como se vería impresa. Solo lectura.
 @Component({
   selector: 'app-sale-return-preview',
-  imports: [DatePipe, CopCentsPipe, BillingStatusBadgeComponent],
+  imports: [DatePipe, ButtonModule, CopCentsPipe, BillingStatusBadgeComponent, BillingTaxBreakdownComponent],
   template: `
+    <!-- Acciones arriba a la derecha, fuera de la hoja (#sheet): no entran en el PDF -->
+    <div class="mx-auto mb-12 flex justify-end" style="max-width: 800px">
+      <p-button
+        label="Imprimir"
+        icon="pi pi-print"
+        [loading]="printing()"
+        [disabled]="printing()"
+        (onClick)="print()"
+      ></p-button>
+    </div>
     <div
+      #sheet
       class="relative mx-auto w-full overflow-hidden bg-white text-gray-800 font-family-sans text-sm border border-gray-300 rounded-md shadow-md p-32"
       style="max-width: 800px"
     >
@@ -93,7 +108,9 @@ import { BillingStatusBadgeComponent } from '../billing-status-badge/billing-sta
                 <td class="p-8">{{ line.productName }}</td>
                 <td class="p-8 text-right">{{ line.cantidadDevuelta }}</td>
                 <td class="p-8 text-right">{{ line.precioUnitarioCents | copCents }}</td>
-                <td class="p-8 text-right">{{ line.ivaPct }}%</td>
+                <td class="p-8 text-right">
+                  <app-billing-tax-breakdown [taxes]="line.taxes" [rate]="line.ivaPct"></app-billing-tax-breakdown>
+                </td>
                 <td class="p-8 text-right font-semibold">{{ lineSubtotal(line) | copCents }}</td>
               </tr>
             } @empty {
@@ -154,6 +171,27 @@ export class SaleReturnPreviewComponent {
     if (!issuer) return this.enterprise?.nit || '';
     return issuer.nit ? (issuer.dv ? `${issuer.nit}-${issuer.dv}` : issuer.nit) : '';
   });
+
+  private readonly messages = inject(MessageService, { optional: true });
+  private readonly sheet = viewChild.required<ElementRef<HTMLElement>>('sheet');
+  readonly printing = signal(false);
+  // Constructor del PDF; se expone para poder sustituirlo en pruebas
+  pdfBuilder = buildInvoicePdf;
+
+  // Genera y descarga el PDF de la hoja tal como se ve (incluida la marca de agua). No toca el estado de la devolución.
+  async print(): Promise<void> {
+    if (this.printing()) return;
+    this.printing.set(true);
+    try {
+      const pdf = await this.pdfBuilder(this.sheet().nativeElement);
+      pdf.save(invoicePdfFileName(this.cfg().returnPreviewTitle, this.saleReturn().number));
+    } catch (error) {
+      console.error('No se pudo generar el PDF de la devolución', error);
+      this.messages?.add({ severity: 'error', summary: 'Imprimir', detail: 'No se pudo generar el PDF. Inténtalo de nuevo.' });
+    } finally {
+      this.printing.set(false);
+    }
+  }
 
   cfg = computed(() => DOCUMENT_KIND_CONFIG[this.saleReturn().kind]);
   noteShortCapitalized = computed(() => {

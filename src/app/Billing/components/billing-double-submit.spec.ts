@@ -7,6 +7,8 @@ import { SaleInvoice } from '../models/billing-sale-invoice.model';
 import { SaleReturn } from '../models/billing-sale-return.model';
 import { BillingCounterpartyCatalog } from '../services/billing-counterparty-catalog';
 import { BillingProductCatalog } from '../services/billing-product-catalog';
+import { BillingPaymentCatalog } from '../services/billing-payment-catalog';
+import { BillingTaxCatalog } from '../services/billing-tax-catalog';
 import { BillingSaleInvoiceApi } from '../services/billing-sale-invoice.api';
 import { BillingSaleReturnApi } from '../services/billing-sale-return.api';
 import { SaleInvoiceFormComponent } from './sale-invoice-form/sale-invoice-form.component';
@@ -22,6 +24,8 @@ const providersFor = (invoiceApi: unknown, returnApi: unknown) => [
   { provide: BillingSaleInvoiceApi, useValue: invoiceApi },
   { provide: BillingSaleReturnApi, useValue: returnApi },
   { provide: BillingProductCatalog, useValue: { getProducts: () => of([]) } },
+  { provide: BillingPaymentCatalog, useValue: { getPaymentMethods: () => of([]) } },
+  { provide: BillingTaxCatalog, useValue: { getTaxes: () => of([]) } },
   { provide: BillingCounterpartyCatalog, useValue: { getCounterparties: () => of([]) } },
   { provide: Router, useValue: { navigate: jasmine.createSpy('navigate') } },
   { provide: Location, useValue: { replaceState: () => undefined, back: () => undefined } },
@@ -145,24 +149,42 @@ describe('Doble envío en el formulario de factura', () => {
     expect(component.lines()[0].cantidad).toBe(3);
     component.setQuantity(0, -4);
     expect(component.lines()[0].cantidad).toBe(3);
-    component.setQuantity(0, 0.0004); // redondea a 0 con 3 decimales
+    component.setQuantity(0, 0.0004); // menos de una unidad
     expect(component.lines()[0].cantidad).toBe(3);
-    component.setQuantity(0, 2.5); // el back admite hasta 3 decimales
-    expect(component.lines()[0].cantidad).toBe(2.5);
+    component.setQuantity(0, 2.5); // Inventario solo admite enteros: se toma la parte entera
+    expect(component.lines()[0].cantidad).toBe(2);
     component.setQuantity(0, 1.23456);
-    expect(component.lines()[0].cantidad).toBe(1.235);
+    expect(component.lines()[0].cantidad).toBe(1);
   });
 
-  it('admite vender menos de una unidad: el mínimo es 0.001', () => {
+  // Antes: "admite vender menos de una unidad: el mínimo es 0.001". Hoy Inventario solo admite cantidades enteras.
+  it('NO admite vender menos de una unidad: el mínimo es 1 y las cantidades son enteras', () => {
     component.lines.set([
       { productId: 'p', productName: 'P', cantidad: 3, precioCatalogoCents: 100, precioUnitarioCents: 100, ivaCatalogoPct: 0, ivaPct: 0 },
     ]);
     component.setQuantity(0, 0.5);
-    expect(component.lines()[0].cantidad).toBe(0.5);
+    expect(component.lines()[0].cantidad).toBe(3); // vuelve al último válido
     component.setQuantity(0, 0.001);
-    expect(component.lines()[0].cantidad).toBe(0.001);
-    component.setQuantity(0, 0.0015); // redondea a 0.002 (3 decimales)
-    expect(component.lines()[0].cantidad).toBe(0.002);
+    expect(component.lines()[0].cantidad).toBe(3);
+    component.setQuantity(0, 1);
+    expect(component.lines()[0].cantidad).toBe(1);
+    component.setQuantity(0, 1.999);
+    expect(component.lines()[0].cantidad).toBe(1);
+  });
+
+  it('un borrador histórico con decimales se muestra tal cual pero no se puede emitir hasta corregirlo', () => {
+    component.lines.set([
+      { productId: 'p', productName: 'P', cantidad: 2.5, precioCatalogoCents: 100, precioUnitarioCents: 100, ivaCatalogoPct: 0, ivaPct: 0 },
+    ]);
+    expect(component.qtyFractionDigits(2.5)).toBe(3); // no se muestra redondeado a "3"
+    expect(component.qtyFractionDigits(2)).toBe(0);
+    component.paymentMethods.set([{ id: '7', name: 'Efectivo' }]);
+    component.paymentMethodId.set('7');
+    component.confirmEmit();
+    const call = messages.add.calls.mostRecent().args[0];
+    expect(call.severity).toBe('warn');
+    expect(call.detail).toContain('cantidades enteras');
+    expect(invoiceApi.emit).not.toHaveBeenCalled();
   });
 
   it('revertir una cantidad inválida no marca el documento como sucio (no dispara guardado)', () => {
@@ -251,12 +273,13 @@ describe('Doble envío en el formulario de factura', () => {
 
   it('durante el tecleo un valor intermedio inválido no se aplica ni se revierte; al salir se normaliza', () => {
     component.lines.set([ivaLine({ cantidad: 3, ivaCatalogoPct: 19, ivaPct: 5, ivaEditado: true })] as never);
-    component.onQuantityInput(0, 0); // "0" camino a "0,5"
+    component.onQuantityInput(0, 0); // "0" camino a "0,5" / "05"
     component.onQuantityInput(0, null); // campo vacío
+    component.onQuantityInput(0, 0.5); // fracción: Inventario solo admite enteros, no se aplica
     expect(component.lines()[0].cantidad).toBe(3);
     expect(component.saveState()).toBe('idle'); // no se marcó sucio
-    component.onQuantityInput(0, 0.5);
-    expect(component.lines()[0].cantidad).toBe(0.5);
+    component.onQuantityInput(0, 5);
+    expect(component.lines()[0].cantidad).toBe(5);
 
     component.onIvaInput(0, null); // vacío intermedio: se ignora hasta salir del campo
     expect(component.lines()[0].ivaPct).toBe(5);
@@ -445,6 +468,65 @@ describe('Doble envío en el formulario de factura', () => {
     await deleting;
     expect(invoiceApi.deleteDraft).toHaveBeenCalledOnceWith('creado', null);
   });
+
+  // --- Inventario: si falla al emitir, el back revierte y el documento sigue en BORRADOR sin número ---
+  describe('error de Inventario al emitir (BILLING_STOCK_*)', () => {
+    const stockError = async (status: number, code: string, message = 'x') => {
+      const { HttpErrorResponse } = await import('@angular/common/http');
+      return new HttpErrorResponse({ status, error: { code, message } });
+    };
+    const emit = () => (component as unknown as { emit: () => Promise<void> }).emit();
+
+    beforeEach(() => {
+      (component as unknown as { applyInvoice: (i: SaleInvoice) => void }).applyInvoice({ ...draft, version: 2 });
+      invoiceApi.saveDraft.and.returnValue(of({ ...draft, version: 2 }));
+    });
+
+    it('422: NO marca la factura como emitida, muestra el mensaje y permite reintentar', async () => {
+      const err = await stockError(422, 'BILLING_STOCK_INSUFFICIENT');
+      invoiceApi.emit.and.returnValue(throwError(() => err));
+      await emit();
+
+      expect(component.status()).toBe('BORRADOR');
+      expect(component.number()).toBeNull();
+      expect(component.editable()).toBeTrue();
+      expect(component.busy()).toBeFalse(); // el botón "Emitir" vuelve a estar habilitado
+      const call = messages.add.calls.mostRecent().args[0];
+      expect(call.severity).toBe('error');
+      expect(call.summary).toBe('No se pudo emitir');
+      expect(call.detail).toContain('No hay existencias suficientes en Inventario');
+      expect(invoiceApi.getById).not.toHaveBeenCalled(); // 422: la respuesta es definitiva, no hace falta recargar
+
+      // Reintento (p. ej. tras registrar la entrada de mercancía): ahora sí se emite
+      invoiceApi.emit.and.returnValue(of({ ...draft, status: 'EMITIDA', number: 'FV-9', version: 3 }));
+      spyOn(component as unknown as { loadReturns: () => void }, 'loadReturns');
+      await emit();
+      expect(invoiceApi.emit).toHaveBeenCalledTimes(2);
+      expect(component.status()).toBe('EMITIDA');
+      expect(component.number()).toBe('FV-9');
+    });
+
+    it('REJECTED muestra el detalle del back', async () => {
+      const err = await stockError(422, 'BILLING_STOCK_REJECTED', 'La fecha 2026-10-27 está fuera del calendario contable.');
+      invoiceApi.emit.and.returnValue(throwError(() => err));
+      await emit();
+      expect(messages.add.calls.mostRecent().args[0].detail).toBe(
+        'Inventario rechazó el movimiento. Detalle: La fecha 2026-10-27 está fuera del calendario contable.',
+      );
+      expect(component.status()).toBe('BORRADOR');
+    });
+
+    it('503 BILLING_STOCK_UNAVAILABLE: avisa, recarga el estado real (sigue en borrador) y permite reintentar', async () => {
+      const err = await stockError(503, 'BILLING_STOCK_UNAVAILABLE');
+      invoiceApi.emit.and.returnValue(throwError(() => err));
+      invoiceApi.getById.and.returnValue(of({ ...draft, version: 2 }));
+      await emit();
+      expect(messages.add.calls.mostRecent().args[0].detail).toContain('Inventario no está disponible');
+      expect(invoiceApi.getById).toHaveBeenCalledOnceWith('i1');
+      expect(component.status()).toBe('BORRADOR');
+      expect(component.busy()).toBeFalse();
+    });
+  });
 });
 
 describe('Doble envío en el formulario de devolución', () => {
@@ -562,15 +644,41 @@ describe('Doble envío en el formulario de devolución', () => {
     ]);
   });
 
-  it('acepta cantidades decimales (hasta 3) sin exigir enteros', () => {
+  // Antes: "acepta cantidades decimales (hasta 3) sin exigir enteros". Hoy Inventario solo admite enteros; la factura
+  // histórica con decimales (disponible 2.5) sigue mostrándose y se puede devolver hasta su parte entera (2).
+  it('solo admite cantidades enteras: toma la parte entera y limita a la parte entera de lo disponible', () => {
     component.status.set('BORRADOR');
     component.rows.set([
       { lineNo: 1, productId: 'a', productName: 'A', sold: 2.5, returned: 0, available: 2.5, cantidadDevuelta: 0, precioUnitarioCents: 100, ivaPct: 0 },
     ]);
     component.setQuantity(0, 1.25);
-    expect(component.rows()[0].cantidadDevuelta).toBe(1.25);
+    expect(component.rows()[0].cantidadDevuelta).toBe(1);
     component.setQuantity(0, 9);
-    expect(component.rows()[0].cantidadDevuelta).toBe(2.5); // se limita a lo disponible
+    expect(component.rows()[0].cantidadDevuelta).toBe(2); // se limita a la parte entera de lo disponible
+    expect(component.maxReturnable(component.rows()[0])).toBe(2);
+  });
+
+  it('"Devolver todo" en una factura histórica con decimales ofrece la parte entera de lo disponible', () => {
+    component.status.set('BORRADOR');
+    component.rows.set([
+      { lineNo: 1, productId: 'a', productName: 'A', sold: 2.5, returned: 0, available: 2.5, cantidadDevuelta: 0, precioUnitarioCents: 100, ivaPct: 0 },
+      { lineNo: 2, productId: 'b', productName: 'B', sold: 0.5, returned: 0, available: 0.5, cantidadDevuelta: 0, precioUnitarioCents: 100, ivaPct: 0 },
+    ]);
+    expect(component.canReturnAll()).toBeTrue();
+    component.returnAll();
+    expect(component.rows().map((r) => r.cantidadDevuelta)).toEqual([2, 0]);
+    expect(component.canReturnAll()).toBeFalse(); // la fracción restante (0.5 y 0.5) no se puede devolver
+  });
+
+  it('no permite emitir una cantidad con decimales (borrador histórico)', () => {
+    component.status.set('BORRADOR');
+    component.rows.set([
+      { lineNo: 1, productId: 'a', productName: 'A', sold: 3, returned: 0, available: 3, cantidadDevuelta: 1.5, precioUnitarioCents: 100, ivaPct: 0 },
+    ]);
+    component.confirmEmit();
+    const messages = TestBed.inject(MessageService) as unknown as { add: jasmine.Spy };
+    expect(messages.add.calls.mostRecent().args[0].detail).toContain('cantidades enteras');
+    expect(returnApi.emit).not.toHaveBeenCalled();
   });
 
   it('una devolución emitida sin "vendido" del back muestra null (la plantilla pinta "—")', () => {
@@ -581,6 +689,27 @@ describe('Doble envío en el formulario de devolución', () => {
       lines: [{ productId: 'a', productName: 'A', cantidadDevuelta: 1, precioUnitarioCents: 100, ivaPct: 0 }],
     } as SaleReturn);
     expect(component.rows()[0].sold).toBeNull();
+  });
+
+  it('error de Inventario al emitir (422 ORIGINAL_NOT_FOUND): sigue en borrador, avisa y permite reintentar', async () => {
+    const { HttpErrorResponse } = await import('@angular/common/http');
+    const err = new HttpErrorResponse({ status: 422, error: { code: 'BILLING_STOCK_ORIGINAL_NOT_FOUND', message: 'x' } });
+    returnApi.emit.and.returnValue(throwError(() => err));
+    const emit = (component as unknown as { emit: () => Promise<void> }).emit.bind(component);
+    await emit();
+
+    expect(component.status()).toBe('BORRADOR');
+    expect(component.number()).toBeNull();
+    expect(component.busy()).toBeFalse();
+    const messages = TestBed.inject(MessageService) as unknown as { add: jasmine.Spy };
+    const call = messages.add.calls.mostRecent().args[0];
+    expect(call.summary).toBe('No se pudo emitir');
+    expect(call.detail).toContain('movimiento de la factura original');
+
+    returnApi.emit.and.returnValue(of({ ...saved, status: 'EMITIDA', number: 'NC-2' }));
+    await emit();
+    expect(returnApi.emit).toHaveBeenCalledTimes(2);
+    expect(component.status()).toBe('EMITIDA');
   });
 });
 
@@ -715,6 +844,34 @@ describe('Devolver factura completa (reemplaza a anular)', () => {
     await component.confirmFullReturn();
     expect(returnApi.listByInvoice).toHaveBeenCalledTimes(1);
     expect(returnApi.getAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  it('si Inventario rechaza la emisión: informa que no se emitió, descarta el borrador y deja reintentar', async () => {
+    const { HttpErrorResponse } = await import('@angular/common/http');
+    const err = new HttpErrorResponse({ status: 422, error: { code: 'BILLING_STOCK_INSUFFICIENT', message: 'x' } });
+    returnApi.emit.and.returnValue(throwError(() => err));
+    component.openFullReturn();
+    component.fullReturnReason = 'motivo';
+    await component.confirmFullReturn();
+
+    const call = messages.add.calls.mostRecent().args[0];
+    expect(call.severity).toBe('error');
+    expect(call.detail).toContain('No hay existencias suficientes en Inventario');
+    expect(call.detail).toContain('No se emitió ninguna devolución');
+    expect(returnApi.deleteDraft).toHaveBeenCalledOnceWith('r1'); // no queda un borrador oculto
+    expect(component.fullReturnVisible()).toBeTrue(); // el diálogo sigue abierto con el motivo
+    expect(component.fullReturning()).toBeFalse(); // botón habilitado para reintentar
+    expect(component.status()).toBe('EMITIDA'); // la factura no cambia
+    expect(returnApi.listByInvoice).toHaveBeenCalledTimes(2); // recarga la tabla y la disponibilidad reales
+  });
+
+  it('con una factura histórica que solo tiene fracciones disponibles no ofrece "Devolución"', () => {
+    returnApi.getAvailability.and.returnValue(of([{ ...availability[0], sold: 2.5, returned: 2, available: 0.5 }]));
+    (component as unknown as { loadReturns: (id: string, s: string) => void }).loadReturns('inv', 'EMITIDA');
+    expect(component.canReturn()).toBeFalse();
+    returnApi.getAvailability.and.returnValue(of([{ ...availability[0], sold: 3.5, returned: 1, available: 2.5 }]));
+    (component as unknown as { loadReturns: (id: string, s: string) => void }).loadReturns('inv', 'EMITIDA');
+    expect(component.canReturn()).toBeTrue();
   });
 
   it('si falla la consulta de disponibilidad avisa y marca el estado (no oculta botones sin explicación)', () => {

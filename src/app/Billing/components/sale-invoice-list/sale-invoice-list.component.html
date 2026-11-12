@@ -1,25 +1,27 @@
 <div class="flex w-full h-full font-titillium">
   <div class="m-10 w-full font-medium bg-white rounded-3xl p-10">
-    <div class="flex flex-wrap items-start justify-between gap-16 mb-20">
+    <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-16 mb-20">
       <div>
         <h1 class="font-family-titillium font-bold text-3xl/41 text-primary inline-block">
           <span class="border-b-4 border-secondary-light inline-block pb-1">Ver facturas</span>
         </h1>
         <p class="font-family-sans font-normal text-sm mt-12">
-          Consulta y filtra tus facturas de venta y compra. Para deshacer una factura emitida, devuélvela por completo.
+          Consulta y filtra tus facturas de {{ cfg.tag.toLowerCase() }}. Para deshacer una factura emitida, devuélvela por completo.
         </p>
       </div>
-      <!-- Volver al menú de Facturación -->
-      <p-button
-        label="Volver"
-        icon="pi pi-arrow-left"
-        styleClass="p-button-outlined"
-        ariaLabel="Volver al menú de Facturación"
-        (click)="goBack()"
-      ></p-button>
+      <!-- Volver al hub del tipo -->
+      <div class="flex flex-wrap items-center gap-8 sm:justify-end">
+        <p-button
+          label="Volver"
+          icon="pi pi-arrow-left"
+          styleClass="p-button-outlined"
+          [ariaLabel]="'Volver a ' + cfg.invoiceTitle"
+          (click)="goBack()"
+        ></p-button>
+      </div>
     </div>
 
-    <!-- Barra de filtros: buscador general + tipo + estado (cada columna también se filtra en su cabecera) -->
+    <!-- Barra de filtros: buscador general + estado (cada columna también se filtra en su cabecera) -->
     <div class="flex flex-wrap items-center gap-8 mb-16">
       <p-iconfield iconPosition="left" styleClass="w-full sm:w-[22rem]">
         <p-inputicon><i class="pi pi-search text-gray-500"></i></p-inputicon>
@@ -32,16 +34,6 @@
           class="w-full text-sm"
         />
       </p-iconfield>
-      <p-dropdown
-        [options]="kindOptions"
-        optionLabel="label"
-        optionValue="value"
-        [ngModel]="kindFilter()"
-        (ngModelChange)="kindFilter.set($event)"
-        styleClass="w-150"
-        size="small"
-        ariaLabel="Filtrar por tipo"
-      ></p-dropdown>
       <p-dropdown
         [options]="statusOptions"
         optionLabel="label"
@@ -75,30 +67,28 @@
         [value]="rows()"
         [loading]="loading()"
         [globalFilterFields]="globalFilterFields"
-        [tableStyle]="{ 'min-width': '64rem' }"
+        [tableStyle]="{ 'table-layout': 'fixed', width: '100%', 'min-width': '44rem' }"
         styleClass="p-datatable-striped"
       >
         <ng-template pTemplate="header">
           <tr>
-            <th scope="col" style="width: 7rem">Tipo</th>
-            <th scope="col" style="width: 11rem">Número</th>
-            <th scope="col">Cliente / Proveedor</th>
-            <th scope="col" style="width: 9rem">Fecha</th>
-            <th scope="col" style="width: 11rem">Estado</th>
-            <th scope="col" style="width: 12rem" class="text-right">Total</th>
-            <th scope="col" style="width: 8rem"><span class="sr-only">Acciones</span></th>
+            <th scope="col" style="width: 17%">Número</th>
+            <th scope="col" style="width: 21%">{{ cfg.counterparty }}</th>
+            <th scope="col" style="width: 17%">Fecha</th>
+            <th scope="col" style="width: 15%">Estado</th>
+            <th scope="col" style="width: 15%" class="text-right">Total</th>
+            <th scope="col" style="width: 15%"><span class="sr-only">Acciones</span></th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-row>
           <tr>
-            <td><app-billing-kind-tag [kind]="row.invoice.kind" /></td>
-            <td>
+            <td class="break-words">
               <p class="font-semibold">{{ row.invoice.number ?? '—' }}</p>
               @if (row.invoice.supplierInvoiceNumber) {
                 <p class="text-xs text-gray-500">Fact. proveedor {{ row.invoice.supplierInvoiceNumber }}</p>
               }
             </td>
-            <td>{{ row.counterparty }}</td>
+            <td class="break-words">{{ row.counterparty }}</td>
             <td>{{ row.invoice.date | date: 'dd/MM/yyyy' }}</td>
             <td>
               <app-billing-status-badge [status]="row.invoice.status" />
@@ -135,7 +125,7 @@
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="7" class="text-center p-20">
+            <td colspan="6" class="text-center p-20">
               <i class="pi pi-inbox text-primary text-2xl"></i>
               <p class="mt-8">No hay facturas para mostrar.</p>
               <p class="text-xs text-gray-500 mt-4">Prueba quitando algún filtro.</p>

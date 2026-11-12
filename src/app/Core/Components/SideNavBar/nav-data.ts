@@ -267,15 +267,26 @@ export const navbarData: INavbarData[] = [
           },
         ],
       },
+      // oculto: reemplazado por Facturación (descomentar para reactivar)
+      // {
+      //   routeLink: 'commercial/sale-invoice',
+      //   icon: 'order_approve',
+      //   label: 'Factura de Venta',
+      // },
+      // {
+      //   routeLink: 'commercial/purchase-invoice',
+      //   icon: 'receipt_long',
+      //   label: 'Factura de Compra',
+      // },
       {
-        routeLink: 'commercial/sale-invoice',
-        icon: 'order_approve',
-        label: 'Factura de Venta',
+        routeLink: '/billing/purchase',
+        icon: 'receipt_long',
+        label: 'Compras',
       },
       {
-        routeLink: 'commercial/purchase-invoice',
-        icon: 'receipt_long',
-        label: 'Factura de Compra',
+        routeLink: '/billing/sale',
+        icon: 'order_approve',
+        label: 'Ventas',
       },
       {
         routeLink: '/commercial/invoice-template',
@@ -298,11 +309,6 @@ export const navbarData: INavbarData[] = [
         label: 'Reportes',
       },
     ],
-  },
-  {
-    routeLink: '/billing',
-    icon: 'receipt_long',
-    label: 'Facturación',
   },
   {
     routeLink: '/audit',

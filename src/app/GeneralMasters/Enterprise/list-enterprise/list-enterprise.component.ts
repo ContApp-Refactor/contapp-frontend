@@ -526,7 +526,7 @@ export class ListEnterpriseComponent implements OnInit {
 
     // ====================================================================
     // [UNICAUCA] restricción al dominio institucional — se deshabilita para
-    // publicar con dominio propio (unicaucacontapp.app). Restaurar si el
+    // publicar con dominio propio (contapp.app). Restaurar si el
     // producto vuelve a la universidad.
     // ====================================================================
     // if (!email.endsWith('@unicauca.edu.co')) {

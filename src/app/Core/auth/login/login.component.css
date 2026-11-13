@@ -33,6 +33,11 @@ body.login-page {
 
 .logo {
     height: 60px;
+    /* Cualquier logo, sea el de la universidad o el por defecto, debe caber en
+       el header sin empujar el título. object-fit evita que uno ancho deforme
+       la fila y monte "ContApp" sobre "Inicio de sesión". */
+    max-width: 180px;
+    object-fit: contain;
 }
 
 .header-divider {

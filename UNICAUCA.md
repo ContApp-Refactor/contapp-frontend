@@ -60,11 +60,11 @@ el bloque `[UNICAUCA]`.
 
 ## La rama `ui/quitar-unicauca`
 
-Apunta al mismo HEAD que `modulo-pp7-comercial` (`f5294717`): el estado con la
-U quitada, el login arreglado y los placeholders neutros.
+Apunta al mismo HEAD que `modulo-pp7-comercial`: el estado con la U quitada,
+el login arreglado, los placeholders neutros y este documento.
 
 ```bash
-git log --oneline ui/quitar-unicauca -1   # f5294717
+git log --oneline ui/quitar-unicauca -1   #4723015b
 ```
 
 ---
@@ -130,8 +130,10 @@ curl -s "http://localhost/$B" | grep -oi unicauca | wc -l
 # assets de la U → debe dar404
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost/logo_unicauca.png
 
-# fuente → no debe quedar "unicaucacontapp" ni activos con "@unicauca.edu.co"
+# fuente → no debe quedar "unicaucacontapp" ni placeholders activos de la U
 grep -rniI 'unicaucacontapp' src public environments | grep -v node_modules
+# da4 y TODOS comentados (nota [UNICAUCA] placeholder original); si alguno
+# aparece sin <!-- al frente, está activo y hay que sacarlo
 grep -rn 'usuario@unicauca.edu.co' src --include='*.html'
 ```
 

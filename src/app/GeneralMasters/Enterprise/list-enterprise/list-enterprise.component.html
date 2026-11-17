@@ -336,8 +336,9 @@
 >
   <div class="p-6">
     <p class="text-gray-600 mb-4 text-sm">
-      Ingresa los correos institucionales (&#64;unicauca.edu.co) con los que deseas
-      compartir esta empresa y asigna un rol.
+      <!-- [UNICAUCA] Ingresa los correos institucionales (@unicauca.edu.co) con los que deseas
+      compartir esta empresa y asigna un rol. -->
+      Ingresa los correos con los que deseas compartir esta empresa y asigna un rol.
     </p>
 
     <!-- Selector de rol -->
@@ -355,9 +356,10 @@
 
     <!-- Campo de correos -->
     <div class="flex gap-3 mb-1">
+      <!-- [UNICAUCA] placeholder original: usuario@unicauca.edu.co -->
       <input
         type="email"
-        placeholder="usuario@unicauca.edu.co"
+        placeholder="usuario@contapp.app"
         [(ngModel)]="newEmail"
         (keyup.enter)="addEmail()"
         class="flex-1 py-2 px-3 border rounded-md text-sm focus:border-primary focus:ring-1 focus:ring-primary"
@@ -368,7 +370,8 @@
         class="bg-primary text-white rounded-full"
       ></p-button>
     </div>
-    <p class="text-xs text-gray-400 mb-3">Solo se aceptan correos &#64;unicauca.edu.co</p>
+    <!-- [UNICAUCA] <p class="text-xs text-gray-400 mb-3">Solo se aceptan correos &#64;unicauca.edu.co</p> -->
+    <p class="text-xs text-gray-400 mb-3">Se aceptan correos de cualquier dominio</p>
 
     <!-- Lista de correos agregados -->
     <div *ngIf="emailList.length > 0" class="mt-4 space-y-2">

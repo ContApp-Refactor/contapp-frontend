@@ -10,29 +10,28 @@ body.login-page {
     min-height: 100dvh;
 }
 
-/* Encabezado */
+/* Encabezado.
+   Antes era position:absolute (flotaba sobre el contenido): el título
+   "Inicio de sesión" arrancaba en y≈32 y el header ocupaba y=30..90, así que
+   se montaban en TODO ancho ≥768px (la media query anterior solo lo
+   resolvía por debajo de767px). Se pone en flujo normal: el body ya es
+   flex-column, así el header queda arriba y no puede pisar a nada, sin
+   importar el tamaño de la pantalla. */
 .login-header {
-    position: absolute;
-    top: 30px;
-    left: 30px;
     display: flex;
     gap: 14px;
     align-items: center;
+    padding: 24px 30px 0;
     z-index: 10;
-}
-
-/* Pantallas angostas: el formulario ocupa el 100% del ancho, así que el
-   encabezado absoluto cae encima del título. Sale al flujo normal (el body ya
-   es flex-column) y así no se pisa a ninguna altura de viewport. */
-@media (max-width: 767px) {
-    .login-header {
-        position: static;
-        padding: 16px 16px 0;
-    }
 }
 
 .logo {
     height: 60px;
+    /* Cualquier logo, sea el de la universidad o el por defecto, debe caber en
+       el header sin empujar el título. object-fit evita que uno ancho deforme
+       la fila y monte "ContApp" sobre "Inicio de sesión". */
+    max-width: 180px;
+    object-fit: contain;
 }
 
 .header-divider {

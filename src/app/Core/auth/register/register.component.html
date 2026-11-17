@@ -1,7 +1,8 @@
 <body class="register-page">
     <!-- Encabezado: Logo y título -->
     <div class="register-header">
-      <img src="logo_unicauca.png" alt="Logo Unicauca" class="logo" />
+      <!-- [UNICAUCA] <img src="logo_unicauca.png" alt="Logo Unicauca" class="logo" /> -->
+<img src="logo-default.svg" alt="ContApp" class="logo">
       <div class="header-divider"></div>
       <span class="app-title">ContApp</span>
     </div>
@@ -35,10 +36,11 @@
                 Correo institucional <span class="required">*</span>
               </label>
               <div class="input-container">
+                <!-- [UNICAUCA] placeholder original: usuario@unicauca.edu.co -->
                 <input
                   type="email"
                   id="email"
-                  placeholder="usuario@unicauca.edu.co"
+                  placeholder="usuario@contapp.app"
                   required
                   formControlName="email"
                 />
@@ -110,7 +112,8 @@
       </div>
       <!-- Imagen derecha: ocupa la mitad derecha -->
       <div class="register-image">
-        <img src="unicauca-economia.jpg" alt="Edificio Unicauca" />
+        <!-- [UNICAUCA] <img src="unicauca-economia.jpg" alt="Edificio Unicauca" /> -->
+<!-- [CONTAPP] foto institucional retirada por dominio propio -->
       </div>
     </div>
 
@@ -127,6 +130,9 @@
     <footer class="footer">
       <div>
         <div class="footer-grid">
+          <!-- ===== [UNICAUCA] BLOQUE ORIGINAL — referencias a la Universidad del Cauca.
+               Restaurar descomentando si el producto vuelve a la universidad. ===== -->
+          <!--
           <div class="footer-section">
             <strong>Universidad del Cauca</strong><br />
             NIT. 891500319-2
@@ -156,6 +162,29 @@
           Política de Protección de Datos | Seguridad de la Información |
           Soporte Técnico
         </p>
+          -->
+          <!-- =============== [/UNICAUCA] =============== -->
+      <!-- ===== [CONTAPP] versión sin referencias a la universidad ===== -->
+      <div class="footer-section">
+        <strong>ContApp</strong><br />
+        Software contable
+      </div>
+      <div class="footer-section-data">
+        <div class="footer-section">
+          <strong>ContApp</strong><br />
+          Gestión contable<br />
+        </div>
+        <div class="footer-divider"></div>
+        <div class="footer-section-TIC">
+          <strong>Versión 1.0.0</strong><br />
+          2025
+        </div>
+      </div>
+      <p class="footer-text">
+        Política de Protección de Datos | Seguridad de la Información | Soporte Técnico
+      </p>
+      <!-- ===== [/CONTAPP] ===== -->
+      </div>
       </div>
     </footer>
 </body>

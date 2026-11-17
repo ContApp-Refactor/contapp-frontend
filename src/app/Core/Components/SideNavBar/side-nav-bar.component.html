@@ -9,11 +9,12 @@
     [ngClass]="collapsed ? 'justify-center' : 'justify-between items-center'"
   >
     <button (click)="toggleCollapse()" class="logo-button">
-      <img
+      <!-- [UNICAUCA] <img
         [src]="collapsed ? 'logo_unicauca_completo.png' : 'logo_unicauca_sm.png'"
         alt="Universidad del Cauca"
         class="logo-img"
-      />
+      /> -->
+<img src="logo-default.svg" alt="ContApp" class="logo-img">
     </button>
 
     <button

@@ -61,10 +61,12 @@ el bloque `[UNICAUCA]`.
 ## La rama `ui/quitar-unicauca`
 
 Apunta al mismo HEAD que `modulo-pp7-comercial`: el estado con la U quitada,
-el login arreglado, los placeholders neutros y este documento.
+el login arreglado, los placeholders neutros y este documento. No lleva
+trabajo propio.
 
 ```bash
-git log --oneline ui/quitar-unicauca -1   #4723015b
+git branch -f ui/quitar-unicauca HEAD   # sincroniza si HEAD avanzó
+git log --oneline ui/quitar-unicauca -1
 ```
 
 ---
